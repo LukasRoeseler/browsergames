@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jedi Defender 3.0: Refined</title>
+    <style>
+        :root { --bg-color: #03030a; --ui-glow: #0ff; }
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+            background-color: var(--bg-color); font-family: 'Courier New', Courier, monospace;
+            color: white; user-select: none; touch-action: none;
+        }
+        canvas { display: block; width: 100%; height: 100%; touch-action: none; position: absolute; top: 0; left: 0; z-index: 1; }
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
+        }
+        .panel {
+            background: rgba(0, 0, 20, 0.85); border: 2px solid var(--ui-glow); box-shadow: 0 0 25px var(--ui-glow);
+            padding: 30px; border-radius: 12px; text-align: center; pointer-events: auto; backdrop-filter: blur(8px);
+            transition: opacity 0.3s; max-width: 90%; max-height: 90%; overflow-y: auto;
+        }
+        h1 { font-size: clamp(1.8rem, 5vw, 3rem); margin-top: 0; margin-bottom: 10px; text-shadow: 0 0 15px var(--ui-glow); letter-spacing: 4px; }
+        h2 { text-shadow: 0 0 10px var(--ui-glow); letter-spacing: 3px; }
+        p.subtitle { color: #ccc; margin-bottom: 20px; line-height: 1.4; font-size: clamp(0.8rem, 2vw, 1rem); }
+        h3 { margin-bottom: 10px; letter-spacing: 2px; font-size: 1rem; }
+        
+        .color-picker { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .color-btn { width: clamp(30px, 8vw, 40px); height: clamp(30px, 8vw, 40px); border-radius: 50%; border: 2px solid white; cursor: pointer; transition: 0.2s; }
+        .color-btn:hover, .color-btn.active { transform: scale(1.3); }
+
+        .hilt-picker { display: flex; justify-content: center; gap: 10px; margin-bottom: 30px; flex-wrap: wrap; }
+        .hilt-btn {
+            background: rgba(255,255,255,0.05); border: 2px solid #444; border-radius: 8px; cursor: pointer;
+            padding: 10px; transition: 0.2s; display: flex; align-items: center; justify-content: center; width: 90px; height: 35px;
+        }
+        .hilt-btn:hover, .hilt-btn.active { background: rgba(255,255,255,0.2); border-color: var(--ui-glow); box-shadow: 0 0 10px var(--ui-glow); }
+
+        /* Hilt Visuals */
+        .hilt-graphic { width: 70px; height: 10px; position: relative; border-radius: 2px; }
+        .hilt-anakin { background: linear-gradient(90deg, #222 25%, #ccc 25%, #ccc 80%, #666 80%); }
+        .hilt-anakin::after { content:''; position:absolute; right:10px; top:-2px; width:4px; height:3px; background:gold; }
+        .hilt-kylo { background: #111; border: 1px solid #333; }
+        .hilt-kylo::before { content:''; position:absolute; left:10px; top:-6px; width:3px; height:22px; background:#222; border:1px solid #444; z-index:-1;}
+        .hilt-kylo::after { content:''; position:absolute; right:15px; top:0; width:2px; height:10px; background:#a00; }
+        .hilt-mace { background: linear-gradient(90deg, #111 25%, #ddd 25%, #ddd 55%, #d4af37 55%); }
+        .hilt-mace::after { content:''; position:absolute; right:20px; top:-2px; width:5px; height:3px; background:#800080; }
+        .hilt-quigon { background: #ccc; overflow: hidden; }
+        .hilt-quigon .ridges { position:absolute; left:0; top:0; width:45%; height:100%; background: repeating-linear-gradient(90deg, #111, #111 2px, transparent 2px, transparent 4px); }
+        .hilt-quigon::after { content:''; position:absolute; right:12px; top:3px; width:3px; height:3px; background:red; border-radius:50%; }
+
+        .btn-group { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        button.action-btn {
+            background: transparent; color: var(--ui-glow); border: 2px solid var(--ui-glow); padding: 12px 25px;
+            font-size: clamp(1rem, 3vw, 1.2rem); cursor: pointer; font-family: inherit; text-transform: uppercase; letter-spacing: 2px; transition: 0.2s; box-shadow: 0 0 10px var(--ui-glow) inset;
+        }
+        button.action-btn:hover { background: var(--ui-glow); color: black; box-shadow: 0 0 30px var(--ui-glow); }
+
+        /* HUD */
+        #hud { position: absolute; top: 20px; left: 20px; pointer-events: none; display: none; z-index: 50; }
+        #score { font-size: clamp(1.5rem, 4vw, 2rem); text-shadow: 0 0 8px white; font-weight: bold; margin-bottom: 10px; }
+        #health-saber { display: flex; align-items: center; height: 16px; }
+        #health-hilt-img { width: 30px; height: 100%; background: linear-gradient(90deg, #333, #aaa, #333); border: 2px solid #555; border-right: none; border-radius: 3px 0 0 3px; position: relative;}
+        #health-hilt-img::after { content: ''; position: absolute; right: 0; top: -2px; width: 6px; height: 16px; background: #111; }
+        #health-blade-container { width: clamp(100px, 30vw, 200px); height: 100%; background: rgba(0,0,0,0.6); border: 2px solid #444; border-left: none; border-radius: 0 8px 8px 0; overflow: hidden; padding: 1px;}
+        #health-fill { 
+            height: 100%; width: 100%; background: #0f0; transition: width 0.2s, background-color 0.2s, box-shadow 0.2s;
+            background-image: repeating-linear-gradient(90deg, transparent, transparent 4px, rgba(255,255,255,0.8) 4px, rgba(255,255,255,0.8) 8px);
+            box-shadow: 0 0 8px #0f0 inset, 0 0 10px #0f0;
+        }
+
+        #music-controls { position: absolute; top: 20px; right: 20px; display: none; gap: 10px; z-index: 50; }
+        .music-btn { background: rgba(0,0,0,0.6); border: 1px solid #555; color: white; padding: 8px; cursor: pointer; border-radius: 5px; font-size: 1.2rem; transition: 0.2s; }
+        .music-btn:hover { border-color: white; background: rgba(255,255,255,0.2); }
+
+        .hidden { display: none !important; }
+        #about-panel p { text-align: left; max-width: 400px; margin: 0 auto 15px auto; }
+    </style>
+</head>
+<body>
+
+    <div id="hud">
+        <div id="score">SCORE: 0</div>
+        <div id="health-saber"><div id="health-hilt-img"></div><div id="health-blade-container"><div id="health-fill"></div></div></div>
+    </div>
+
+    <div id="music-controls">
+        <button id="btn-mute" class="music-btn" title="Mute Music">🔊</button>
+        <button id="btn-next" class="music-btn" title="Next Track">⏭️</button>
+    </div>
+
+    <div id="ui-layer">
+        <div id="menu" class="panel">
+            <h1>JEDI DEFENDER</h1>
+            <p class="subtitle">
+                <strong>PC:</strong> Sweep to whirl. Hold Click to lock angle.<br>
+                <strong>Mobile:</strong> Tap to move hilt. Tilt phone to aim!<br>
+                <em>Batted drones take damage on walls! Break the Red Atlas Block to heal.</em>
+            </p>
+            
+            <h3>CRYSTAL COLOR</h3>
+            <div class="color-picker">
+                <div class="color-btn active" data-color="#00ffff" style="background: #00ffff; box-shadow: 0 0 10px #00ffff;"></div>
+                <div class="color-btn" data-color="#0044ff" style="background: #0044ff; box-shadow: 0 0 10px #0044ff;"></div>
+                <div class="color-btn" data-color="#00ff00" style="background: #00ff00; box-shadow: 0 0 10px #00ff00;"></div>
+                <div class="color-btn" data-color="#ffff00" style="background: #ffff00; box-shadow: 0 0 10px #ffff00;"></div>
+                <div class="color-btn" data-color="#ffa500" style="background: #ffa500; box-shadow: 0 0 10px #ffa500;"></div>
+                <div class="color-btn" data-color="#ff0000" style="background: #ff0000; box-shadow: 0 0 10px #ff0000;"></div>
+                <div class="color-btn" data-color="#bb00ff" style="background: #bb00ff; box-shadow: 0 0 10px #bb00ff;"></div>
+            </div>
+
+            <h3>HILT DESIGN</h3>
+            <div class="hilt-picker">
+                <div class="hilt-btn active" data-hilt="anakin" title="The Knight"><div class="hilt-graphic hilt-anakin"></div></div>
+                <div class="hilt-btn" data-hilt="kylo" title="The Supreme Leader"><div class="hilt-graphic hilt-kylo"></div></div>
+                <div class="hilt-btn" data-hilt="mace" title="The Master"><div class="hilt-graphic hilt-mace"></div></div>
+                <div class="hilt-btn" data-hilt="quigon" title="The Maverick"><div class="hilt-graphic hilt-quigon"><div class="ridges"></div></div></div>
+            </div>
+
+            <div class="btn-group">
+                <button class="action-btn" onclick="startGame()">Ignite</button>
+                <button class="action-btn" onclick="showAbout()">About</button>
+            </div>
+        </div>
+
+        <div id="game-over" class="panel hidden">
+            <h1>ONE WITH THE FORCE</h1>
+            <p id="final-score" class="subtitle" style="font-size: 1.5rem; color: white;"></p>
+            <div class="btn-group">
+                <button class="action-btn" onclick="resetToMenu()">Return</button>
+                <button class="action-btn" onclick="showAbout()">About</button>
+            </div>
+        </div>
+
+        <div id="about-panel" class="panel hidden">
+            <h2>ABOUT</h2>
+            <p><strong>Jedi Defender 3.0</strong> is a modern, high-fidelity physics reimagining of the classic Flash game <em>Jedi Trainer</em> by LostVectors.</p>
+            <p>It features zero-lag rendering, dynamic ear-friendly audio sequencing, multi-bounce laser physics, and mobile gyroscope support.</p>
+            <p><em>Code, Art, and Music generated entirely using <strong>Gemini 3.1</strong>.</em></p>
+            <button class="action-btn" onclick="hideAbout()">Close</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    /** JEDI DEFENDER 3.0: Refined Core */
+
+    const canvas = document.getElementById('gameCanvas'); const ctx = canvas.getContext('2d');
+    
+    // UI Elements
+    const menu = document.getElementById('menu'); const gameOverScreen = document.getElementById('game-over');
+    const aboutPanel = document.getElementById('about-panel'); const hud = document.getElementById('hud');
+    const scoreEl = document.getElementById('score'); const healthFill = document.getElementById('health-fill');
+    const musicControls = document.getElementById('music-controls');
+    const btnMute = document.getElementById('btn-mute'); const btnNext = document.getElementById('btn-next');
+
+    // Game State
+    let width, height, animationId;
+    let isPlaying = false, isDying = false, isExploded = false;
+    let score = 0, health = 100;
+    let saberColor = '#00ffff', saberHilt = 'anakin';
+    let frameCount = 0;
+
+    // High Fidelity Controls 
+    let mouse = { x: 0, y: 0 }; let targetMouse = { x: 0, y: 0 };
+    let smoothVx = 0, smoothVy = 0; 
+    let isMouseDown = false;
+    let saber = { base: {x:0, y:0}, length: 0, targetLength: 0, angle: -Math.PI / 2 };
+    let useTilt = false; let tiltAngle = -Math.PI / 2;
+
+    // Entities
+    let lasers = [], remotes = [], particles = [], stars = [], atlases = [];
+
+    // --- AUDIO ENGINE ---
+    let audioCtx, masterGain, musicGain;
+    let nextNoteTime = 0, currentNoteIndex = 0, musicTimer;
+    let isMuted = false, currentSongIndex = 0;
+
+    const songs = [
+        { // 0: Heroic A minor
+            tempo: 0.16, loop: true,
+            lead: [ 
+                69,72,76,81, 76,72,69,72, 65,69,72,77, 72,69,65,69, 67,71,74,79, 74,71,67,71, 64,68,71,76, 71,68,64,68, 
+                65,69,72,77, 72,69,65,69, 60,64,67,72, 67,64,60,64, 67,71,74,79, 74,71,67,71, 69,72,76,81, 76,72,69,72  
+            ],
+            bass: [ 
+                45,0,0,0, 45,0,0,0, 41,0,0,0, 41,0,0,0, 43,0,0,0, 43,0,0,0, 40,0,0,0, 40,0,0,0,
+                41,0,0,0, 41,0,0,0, 36,0,0,0, 36,0,0,0, 43,0,0,0, 43,0,0,0, 45,0,0,0, 45,0,0,0
+            ]
+        },
+        { // 1: Sci-Fi Glitch
+            tempo: 0.12, loop: true,
+            lead: [ 
+                69,0,76,0, 69,0,75,0, 69,0,74,0, 69,0,71,72, 69,0,76,0, 69,0,75,0, 69,0,74,0, 69,0,71,72, 
+                81,0,88,0, 81,0,87,0, 81,0,86,0, 81,0,83,84, 81,0,88,0, 81,0,87,0, 81,0,86,0, 81,0,83,84  
+            ],
+            bass: [ 
+                33,0,33,0, 33,0,45,0, 33,0,33,0, 33,0,45,0, 33,0,33,0, 33,0,45,0, 33,0,33,0, 33,0,45,0,
+                33,0,33,0, 33,0,45,0, 33,0,33,0, 33,0,45,0, 33,0,33,0, 33,0,45,0, 33,0,33,0, 33,0,45,0
+            ]
+        },
+        { // 2: Duel of the Heroes
+            tempo: 0.14, loop: true,
+            lead: [ 
+                69,71,72,71, 69,64,69,0, 76,74,76,74, 72,71,72,0, 69,71,72,71, 69,64,69,0, 76,74,76,74, 72,71,72,0, 
+                72,74,76,74, 72,67,72,0, 79,77,79,77, 76,74,76,0, 72,74,76,74, 72,67,72,0, 79,77,79,77, 76,74,76,0  
+            ],
+            bass: [ 
+                45,0,0,0, 45,0,0,0, 45,0,45,0, 45,0,0,0, 41,0,0,0, 41,0,0,0, 41,0,41,0, 41,0,0,0,
+                48,0,0,0, 48,0,0,0, 48,0,48,0, 48,0,0,0, 43,0,0,0, 43,0,0,0, 43,0,43,0, 43,0,0,0
+            ]
+        },
+        { // 3: Game Over Fanfare
+            tempo: 0.25, loop: false,
+            lead: [ 69, 68, 67, 65, 60, 0, 0, 0 ], bass: [ 45, 44, 43, 41, 36, 0, 0, 0 ]
+        }
+    ];
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            masterGain = audioCtx.createGain(); musicGain = audioCtx.createGain();
+            masterGain.connect(audioCtx.destination); musicGain.connect(masterGain);
+            musicGain.gain.value = 0.5; masterGain.gain.value = isMuted ? 0 : 1;
+        }
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        currentNoteIndex = 0; nextNoteTime = audioCtx.currentTime + 0.1;
+        clearTimeout(musicTimer); scheduleMusic();
+    }
+
+    function toggleMute() {
+        isMuted = !isMuted; btnMute.innerText = isMuted ? '🔇' : '🔊';
+        if (masterGain) masterGain.gain.setValueAtTime(isMuted ? 0 : 1, audioCtx.currentTime);
+    }
+
+    function nextSong() { if (!isDying) { currentSongIndex = (currentSongIndex + 1) % 3; currentNoteIndex = 0; } }
+
+    btnMute.addEventListener('click', toggleMute); btnNext.addEventListener('click', nextSong);
+
+    function scheduleMusic() {
+        if (!isPlaying && !isDying) return;
+        const song = songs[currentSongIndex];
+        
+        while (nextNoteTime < audioCtx.currentTime + 0.2) {
+            if (currentNoteIndex >= song.lead.length && !song.loop) return;
+
+            let idx = currentNoteIndex % song.lead.length;
+            if (song.lead[idx] !== 0) playSynth(song.lead[idx], nextNoteTime, currentSongIndex === 2 ? 'choir' : 'lead');
+            if (song.bass[idx] !== 0) playSynth(song.bass[idx], nextNoteTime, 'bass');
+            
+            nextNoteTime += song.tempo; currentNoteIndex++;
+        }
+        musicTimer = setTimeout(scheduleMusic, 50);
+    }
+
+    function playSynth(midiNote, time, type) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator(); const filter = audioCtx.createBiquadFilter(); const gain = audioCtx.createGain();
+        osc.frequency.value = 440 * Math.pow(2, (midiNote - 69) / 12);
+
+        if (type === 'lead') {
+            osc.type = 'square'; filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(400, time); filter.frequency.exponentialRampToValueAtTime(3000, time + 0.05); filter.frequency.exponentialRampToValueAtTime(400, time + 0.2);
+            gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(0.05, time + 0.02); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.2);
+        } else if (type === 'choir') {
+            osc.type = 'sawtooth'; filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(1000, time); filter.Q.value = 2;
+            gain.gain.setValueAtTime(0, time); gain.gain.linearRampToValueAtTime(0.06, time + 0.02); gain.gain.exponentialRampToValueAtTime(0.001, time + 0.15);
+        } else {
+            // Very smooth, ear-friendly sine/triangle bass
+            osc.type = 'sine'; 
+            gain.gain.setValueAtTime(0, time); 
+            gain.gain.linearRampToValueAtTime(0.12, time + 0.05); // Gentle attack
+            gain.gain.exponentialRampToValueAtTime(0.001, time + 0.3); 
+            if(currentSongIndex === 3) gain.gain.exponentialRampToValueAtTime(0.001, time + 1.5); 
+        }
+        osc.connect(filter); filter.connect(gain); gain.connect(musicGain); 
+        osc.start(time); osc.stop(time + (currentSongIndex === 3 ? 2.0 : 0.35));
+    }
+
+    // Sound Effects
+    function playSfx(type, subtype = null) {
+        if (!audioCtx || isMuted) return;
+        const t = audioCtx.currentTime;
+
+        // Custom Ignite Routing
+        if (type === 'ignite') {
+            const osc = audioCtx.createOscillator(); const filter = audioCtx.createBiquadFilter(); const gain = audioCtx.createGain();
+            let dur = 0.6;
+            osc.type = (subtype === 'kylo') ? 'sawtooth' : 'sine';
+            
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(200, t);
+            filter.frequency.exponentialRampToValueAtTime((subtype === 'mace' ? 1200 : 800), t + 0.2);
+            
+            osc.frequency.setValueAtTime((subtype === 'quigon' ? 40 : 60), t);
+            osc.frequency.exponentialRampToValueAtTime(150, t + 0.2);
+            osc.frequency.exponentialRampToValueAtTime(100, t + dur);
+
+            gain.gain.setValueAtTime(0, t);
+            if (subtype === 'kylo') {
+                gain.gain.linearRampToValueAtTime(0.5, t + 0.05); gain.gain.linearRampToValueAtTime(0.1, t + 0.1);
+                gain.gain.linearRampToValueAtTime(0.4, t + 0.15); gain.gain.exponentialRampToValueAtTime(0.01, t + dur);
+            } else if (subtype === 'mace') {
+                gain.gain.linearRampToValueAtTime(0.5, t + 0.02); gain.gain.exponentialRampToValueAtTime(0.01, t + dur);
+            } else {
+                gain.gain.linearRampToValueAtTime(0.4, t + 0.1); gain.gain.exponentialRampToValueAtTime(0.01, t + dur);
+            }
+            osc.connect(filter); filter.connect(gain); gain.connect(masterGain);
+            osc.start(t); osc.stop(t + dur);
+            return;
+        }
+
+        // Standard SFX Routine
+        const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(masterGain);
+        gain.gain.setValueAtTime(0, t); // Start at 0 to prevent clicks
+
+        if (type === 'clash') {
+            osc.type = 'square'; osc.frequency.setValueAtTime(200 + Math.random()*300, t); osc.frequency.exponentialRampToValueAtTime(50, t + 0.15);
+            gain.gain.linearRampToValueAtTime(0.3, t + 0.02); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.15);
+            osc.start(t); osc.stop(t + 0.15);
+        } else if (type === 'shoot') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(800, t); osc.frequency.exponentialRampToValueAtTime(100, t + 0.2);
+            gain.gain.linearRampToValueAtTime(0.15, t + 0.02); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+            osc.start(t); osc.stop(t + 0.2);
+        } else if (type === 'explosion') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(150, t); osc.frequency.exponentialRampToValueAtTime(10, t + 0.8);
+            gain.gain.linearRampToValueAtTime(0.6, t + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.8);
+            osc.start(t); osc.stop(t + 0.8);
+        } else if (type === 'damage') {
+            osc.type = 'triangle'; osc.frequency.setValueAtTime(150, t); osc.frequency.exponentialRampToValueAtTime(30, t + 0.4);
+            gain.gain.linearRampToValueAtTime(0.5, t + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+            osc.start(t); osc.stop(t + 0.4);
+        } else if (type === 'powerdown') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(300, t); osc.frequency.exponentialRampToValueAtTime(20, t + 0.5);
+            gain.gain.linearRampToValueAtTime(0.4, t + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+            osc.start(t); osc.stop(t + 0.5);
+        } else if (type === 'heal') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(400, t); osc.frequency.exponentialRampToValueAtTime(1200, t + 0.5);
+            gain.gain.linearRampToValueAtTime(0.5, t + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+            osc.start(t); osc.stop(t + 0.5);
+        }
+    }
+
+    // Window & Input
+    window.addEventListener('resize', () => { width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight; });
+    window.dispatchEvent(new Event('resize'));
+
+    document.querySelectorAll('.color-btn').forEach(btn => btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active')); e.target.classList.add('active'); 
+        saberColor = e.target.getAttribute('data-color'); document.documentElement.style.setProperty('--ui-glow', saberColor);
+    }));
+    document.querySelectorAll('.hilt-btn').forEach(btn => btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.hilt-btn').forEach(b => b.classList.remove('active'));
+        const target = e.target.closest('.hilt-btn'); target.classList.add('active'); saberHilt = target.getAttribute('data-hilt');
+    }));
+
+    function showAbout() { aboutPanel.classList.remove('hidden'); } function hideAbout() { aboutPanel.classList.add('hidden'); }
+
+    // Instant Responsive Controls
+    canvas.addEventListener('mousemove', (e) => {
+        if(!useTilt) { let dx = e.clientX - targetMouse.x; let dy = e.clientY - targetMouse.y; smoothVx = smoothVx * 0.5 + dx * 0.5; smoothVy = smoothVy * 0.5 + dy * 0.5; }
+        targetMouse.x = e.clientX; targetMouse.y = e.clientY;
+    });
+    canvas.addEventListener('mousedown', () => isMouseDown = true); window.addEventListener('mouseup', () => isMouseDown = false);
+
+    canvas.addEventListener('touchstart', (e) => { 
+        e.preventDefault(); isMouseDown = true; targetMouse.x = e.touches[0].clientX; targetMouse.y = e.touches[0].clientY;
+        if(!useTilt) { smoothVx=0; smoothVy=0; }
+    }, {passive: false});
+    canvas.addEventListener('touchmove', (e) => { 
+        e.preventDefault(); 
+        if(!useTilt) { let dx = e.touches[0].clientX - targetMouse.x; let dy = e.touches[0].clientY - targetMouse.y; smoothVx = smoothVx * 0.5 + dx * 0.5; smoothVy = smoothVy * 0.5 + dy * 0.5; }
+        targetMouse.x = e.touches[0].clientX; targetMouse.y = e.touches[0].clientY; 
+    }, {passive: false});
+    window.addEventListener('touchend', () => isMouseDown = false);
+
+    function handleOrientation(event) {
+        if (!event.gamma || !event.beta) return; useTilt = true;
+        let tx = event.gamma; let ty = event.beta - 45; if (Math.hypot(tx, ty) > 5) tiltAngle = Math.atan2(ty, tx);
+    }
+
+    // Entities
+    for(let i=0; i<120; i++) stars.push({ x: Math.random() * window.innerWidth, y: Math.random() * window.innerHeight, size: Math.random() * 2 + 0.5, speed: Math.random() * 0.8 + 0.2 });
+
+    class AtlasBlock {
+        constructor() {
+            this.x = Math.random() > 0.5 ? -100 : width + 100; this.y = Math.random() * (height / 2);
+            this.targetX = width * 0.2 + Math.random() * (width * 0.6); this.targetY = 100 + Math.random() * 200;
+            this.radius = 35; this.framesInserted = 0; this.hitCount = 0; this.wasTouching = false; this.dead = false;
+        }
+        update() {
+            this.x += (this.targetX - this.x) * 0.01; this.y += (this.targetY - this.y) * 0.01 + Math.sin(frameCount * 0.02) * 1;
+            if (Math.random() < 0.01) { this.targetX = width * 0.2 + Math.random() * (width * 0.6); this.targetY = 100 + Math.random() * 200; }
+        }
+        draw() {
+            ctx.save(); ctx.translate(this.x, this.y);
+            let glow = this.framesInserted > 0 ? (this.framesInserted / 90) : 0; 
+            ctx.beginPath(); ctx.moveTo(0, -this.radius); ctx.lineTo(this.radius*0.8, 0); ctx.lineTo(0, this.radius); ctx.lineTo(-this.radius*0.8, 0); ctx.closePath();
+            ctx.fillStyle = `rgb(${50 + glow*200}, 0, 0)`; ctx.fill();
+            ctx.strokeStyle = `rgb(255, ${glow*200}, ${glow*200})`; ctx.lineWidth = 3; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(8, 0); ctx.lineTo(0, 10); ctx.lineTo(-8, 0); ctx.closePath();
+            ctx.fillStyle = '#fff'; ctx.fill(); ctx.restore();
+        }
+        destroy() {
+            this.dead = true; playSfx('heal'); health = 100; updateHealthUI();
+            createSparks(this.x, this.y, '#f00', 40, 3); createSparks(this.x, this.y, '#fff', 20, 4);
+        }
+    }
+
+    class Remote {
+        constructor(type) {
+            this.type = type; this.x = Math.random() > 0.5 ? -50 : width + 50; this.y = Math.random() * (height / 2);
+            this.vx = 0; this.vy = 0; this.radius = type === 0 ? 20 : 25;
+            this.targetX = width * 0.1 + Math.random() * (width * 0.8); this.targetY = 50 + Math.random() * 250;
+            this.cooldown = 100 + Math.random() * 100; this.hoverOffset = Math.random() * Math.PI * 2;
+            this.isBouncing = false; this.bounces = 0; this.invuln = 0;
+            this.burstsLeft = 0; this.burstTimer = 0;
+            this.color = type === 0 ? '#666' : type === 1 ? '#464' : '#446';
+            this.eyeColor = type === 0 ? '#f00' : type === 1 ? '#0f0' : '#00f';
+        }
+        update() {
+            if (this.invuln > 0) this.invuln--;
+            if (this.isBouncing) {
+                this.x += this.vx; this.y += this.vy;
+                let hitWall = false;
+                if (this.x < this.radius) { this.x = this.radius; this.vx *= -1; hitWall = true; }
+                if (this.x > width - this.radius) { this.x = width - this.radius; this.vx *= -1; hitWall = true; }
+                if (this.y < this.radius) { this.y = this.radius; this.vy *= -1; hitWall = true; }
+                
+                if (hitWall) this.bounceHit();
+                
+                if (this.y > height + 100) { this.destroy(); }
+                this.vx *= 0.99; this.vy *= 0.99; return;
+            }
+            this.x += (this.targetX - this.x) * 0.03; this.y += (this.targetY - this.y) * 0.03 + Math.sin(frameCount * 0.05 + this.hoverOffset) * 1.5;
+            if (this.burstsLeft > 0) {
+                this.burstTimer--; if (this.burstTimer <= 0) { this.fireProjectile(this.eyeColor, 0); this.burstsLeft--; this.burstTimer = 10; }
+            } else {
+                this.cooldown--;
+                if (this.cooldown <= 0 && !isDying) {
+                    if (this.type === 0) this.fireProjectile('#f00', 0);
+                    else if (this.type === 1) { this.burstsLeft = 3; this.burstTimer = 0; }
+                    else if (this.type === 2) { this.fireProjectile('#00f', -0.3); this.fireProjectile('#00f', 0); this.fireProjectile('#00f', 0.3); }
+                    this.cooldown = 120 + Math.random() * (150 - Math.min(score, 80));
+                    this.targetX = width * 0.1 + Math.random() * (width * 0.8); this.targetY = 50 + Math.random() * 250;
+                }
+            }
+        }
+        fireProjectile(color, angleOffset) {
+            playSfx('shoot'); let dx = saber.base.x - this.x; let dy = saber.base.y - this.y; let baseAngle = Math.atan2(dy, dx) + angleOffset;
+            const speed = 5 + Math.min(score * 0.08, 6); lasers.push(new Laser(this.x, this.y, Math.cos(baseAngle)*speed, Math.sin(baseAngle)*speed, color));
+        }
+        bounceHit() {
+            this.bounces++; playSfx('clash'); createSparks(this.x, this.y, this.eyeColor, 15, 1.5); updateScore(5);
+            if (this.bounces >= 3) { updateScore(10); this.destroy(); }
+        }
+        destroy() { createSparks(this.x, this.y, '#ffa500', 30, 2); createSparks(this.x, this.y, this.eyeColor, 20, 1.5); playSfx('explosion'); this.dead = true; }
+        draw() {
+            ctx.beginPath(); ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2); ctx.fillStyle = this.color; ctx.fill(); ctx.strokeStyle = '#aaa'; ctx.lineWidth = 2; ctx.stroke();
+            if (this.type !== 0) { ctx.beginPath(); ctx.arc(this.x, this.y, this.radius - 6, 0, Math.PI * 2); ctx.strokeStyle = '#222'; ctx.stroke(); }
+            ctx.beginPath(); ctx.arc(this.x, this.y, 6, 0, Math.PI*2); ctx.fillStyle = this.eyeColor; ctx.fill(); 
+        }
+    }
+
+    class Laser {
+        constructor(x, y, vx, vy, color) { this.x = x; this.y = y; this.vx = vx; this.vy = vy; this.color = color; this.cooldown = 0; }
+        update() { this.x += this.vx; this.y += this.vy; if (this.cooldown > 0) this.cooldown--; }
+        draw() {
+            ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x - this.vx*2, this.y - this.vy*2);
+            ctx.strokeStyle = this.color; ctx.lineWidth = 10; ctx.globalAlpha = 0.4; ctx.stroke();
+            ctx.lineWidth = 4; ctx.globalAlpha = 1.0; ctx.stroke();
+        }
+    }
+
+    class Particle {
+        constructor(x, y, color, scale = 1) {
+            this.x = x; this.y = y; const angle = Math.random() * Math.PI * 2; const speed = (Math.random() * 6 + 2) * scale;
+            this.vx = Math.cos(angle) * speed; this.vy = Math.sin(angle) * speed;
+            this.life = 1.0; this.decay = Math.random() * 0.04 + 0.01; this.color = color;
+        }
+        update() { this.x += this.vx; this.y += this.vy; this.life -= this.decay; }
+        draw() { ctx.globalAlpha = Math.max(0, this.life); ctx.fillStyle = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, 3, 0, Math.PI*2); ctx.fill(); ctx.globalAlpha = 1.0; }
+    }
+
+    function getDistanceToSegment(p, v, w) {
+        const l2 = (w.x - v.x)**2 + (w.y - v.y)**2; if (l2 == 0) return { dist: Math.sqrt((p.x - v.x)**2 + (p.y - v.y)**2), proj: v, normal: {x:0, y:0} };
+        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2; t = Math.max(0, Math.min(1, t));
+        const proj = { x: v.x + t * (w.x - v.x), y: v.y + t * (w.y - v.y) };
+        return { dist: Math.sqrt((p.x - proj.x)**2 + (p.y - proj.y)**2), proj: proj, normal: { x: -(w.y - v.y), y: (w.x - v.x) } };
+    }
+
+    function getSaberSegments() {
+        let segments = []; let tipX = saber.base.x + Math.cos(saber.angle) * saber.length; let tipY = saber.base.y + Math.sin(saber.angle) * saber.length;
+        segments.push({v: saber.base, w: {x: tipX, y: tipY}});
+        if (saberHilt === 'kylo' && saber.length > 10) {
+            let cgLen = 35 * (saber.length/250); 
+            segments.push({ v: saber.base, w: { x: saber.base.x + Math.cos(saber.angle - Math.PI/2) * cgLen, y: saber.base.y + Math.sin(saber.angle - Math.PI/2) * cgLen } });
+            segments.push({ v: saber.base, w: { x: saber.base.x + Math.cos(saber.angle + Math.PI/2) * cgLen, y: saber.base.y + Math.sin(saber.angle + Math.PI/2) * cgLen } });
+        }
+        return segments;
+    }
+
+    function createSparks(x, y, color, amount = 15, scale = 1) { for(let i=0; i<amount; i++) particles.push(new Particle(x, y, color, scale)); }
+
+    function updateHealthUI() {
+        healthFill.style.width = health + '%'; let c = '#0f0'; if (health <= 30) c = '#f00'; else if (health <= 60) c = '#ff0';
+        healthFill.style.boxShadow = `0 0 8px ${c} inset, 0 0 10px ${c}`;
+        healthFill.style.backgroundImage = `repeating-linear-gradient(90deg, transparent, transparent 4px, ${c} 4px, ${c} 8px)`;
+        healthFill.style.backgroundColor = (health <= 30) ? 'rgba(255,0,0,0.5)' : (health <= 60) ? 'rgba(255,255,0,0.5)' : 'rgba(0,255,0,0.5)';
+    }
+
+    function initiateDeath() {
+        isDying = true; playSfx('powerdown');
+        currentSongIndex = 3; currentNoteIndex = 0; nextNoteTime = audioCtx.currentTime + 0.1;
+    }
+
+    function takeDamage(isHiltHit = false) {
+        if (isDying) return; health -= 10; updateHealthUI();
+        ctx.save(); ctx.translate((Math.random()-0.5)*25, (Math.random()-0.5)*25); setTimeout(() => ctx.restore(), 50);
+        if (isHiltHit) { playSfx('damage'); createSparks(saber.base.x, saber.base.y, '#ffff00', 25, 2); }
+        if (health <= 0) initiateDeath();
+    }
+
+    function updateScore(pts) { if(!isDying) { score += pts; scoreEl.innerText = `SCORE: ${score}`; } }
+
+    function drawHiltAndBlades() {
+        if(isExploded) return;
+        ctx.save(); ctx.translate(saber.base.x, saber.base.y); ctx.rotate(saber.angle);
+        
+        // HILTS
+        if (saberHilt === 'anakin') {
+            let grad = ctx.createLinearGradient(0, -7, 0, 7); grad.addColorStop(0, '#555'); grad.addColorStop(0.5, '#eee'); grad.addColorStop(1, '#333');
+            ctx.fillStyle = grad; ctx.fillRect(-60, -7, 60, 14); ctx.fillStyle = '#111'; for(let i=-55; i<-30; i+=6) ctx.fillRect(i, -8, 4, 16);
+            ctx.fillStyle = '#d4af37'; ctx.fillRect(-18, -9, 8, 4); ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(-10, -9); ctx.lineTo(0, -4); ctx.lineTo(0, 4); ctx.lineTo(-10, 9); ctx.fill();
+        } else if (saberHilt === 'kylo') {
+            let grad = ctx.createLinearGradient(0, -8, 0, 8); grad.addColorStop(0, '#222'); grad.addColorStop(0.5, '#444'); grad.addColorStop(1, '#111');
+            ctx.fillStyle = grad; ctx.fillRect(-65, -8, 65, 16); ctx.fillStyle = '#111'; ctx.fillRect(-45, -9, 20, 18); 
+            ctx.strokeStyle = '#a00'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-25,-9); ctx.lineTo(-15,-9); ctx.stroke();
+            ctx.fillStyle = '#222'; ctx.fillRect(-8, -20, 12, 40); ctx.strokeStyle = '#000'; ctx.strokeRect(-8, -20, 12, 40);
+        } else if (saberHilt === 'mace') {
+            let gold = ctx.createLinearGradient(0, -7, 0, 7); gold.addColorStop(0, '#8a6300'); gold.addColorStop(0.5, '#ffdf00'); gold.addColorStop(1, '#5c4200');
+            let silv = ctx.createLinearGradient(0, -7, 0, 7); silv.addColorStop(0, '#777'); silv.addColorStop(0.5, '#fff'); silv.addColorStop(1, '#444');
+            ctx.fillStyle = gold; ctx.fillRect(-65, -7, 65, 14); ctx.fillStyle = silv; ctx.fillRect(-45, -8, 25, 16); 
+            ctx.fillStyle = '#111'; ctx.fillRect(-40, -9, 15, 18); ctx.fillStyle = '#800080'; ctx.fillRect(-15, -9, 6, 4); 
+            ctx.beginPath(); ctx.arc(-65, 0, 7, 0, Math.PI*2); ctx.fill();
+        } else if (saberHilt === 'quigon') {
+            let grad = ctx.createLinearGradient(0, -7, 0, 7); grad.addColorStop(0, '#888'); grad.addColorStop(0.5, '#eee'); grad.addColorStop(1, '#555');
+            ctx.fillStyle = grad; ctx.fillRect(-65, -7, 65, 14); ctx.fillStyle = '#0a0a0a'; for(let i=-60; i<-20; i+=6) { ctx.fillRect(i, -8, 3, 16); }
+            let redg = ctx.createRadialGradient(-12, -7, 1, -12, -7, 3); redg.addColorStop(0,'#f88'); redg.addColorStop(1,'#a00');
+            ctx.fillStyle = redg; ctx.beginPath(); ctx.arc(-12, -7, 3, 0, Math.PI*2); ctx.fill(); 
+        }
+
+        // BLADES 
+        if (saber.length > 0) {
+            ctx.lineCap = 'round';
+            let crackle = (saberHilt === 'kylo') ? (Math.random() * 4 - 2) : 0; 
+            
+            ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(saber.length + crackle, crackle);
+            if (saberHilt === 'kylo') { let cg = 35 * (saber.length/250); ctx.moveTo(0, 0); ctx.lineTo(crackle, -cg + crackle); ctx.moveTo(0, 0); ctx.lineTo(-crackle, cg - crackle); }
+            
+            ctx.strokeStyle = saberColor; ctx.lineWidth = (saberHilt === 'kylo') ? 30 : 25; ctx.globalAlpha = 0.2; ctx.stroke();
+            ctx.lineWidth = 12; ctx.globalAlpha = 0.6; ctx.stroke();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 6; ctx.globalAlpha = 1.0; ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    // Main Game Loop
+    function update() {
+        if (!isPlaying) return;
+        frameCount++;
+
+        ctx.fillStyle = 'rgba(3, 3, 10, 0.4)'; ctx.fillRect(0, 0, width, height);
+        ctx.fillStyle = '#fff';
+        stars.forEach(s => { s.y += s.speed; if (s.y > height) s.y = 0; ctx.fillRect(s.x, s.y, s.size, s.size); });
+
+        // ANIMATE SABER LENGTH
+        if (!isDying && saber.length < saber.targetLength) {
+            saber.length += 20; if (saber.length > saber.targetLength) saber.length = saber.targetLength;
+        } else if (isDying) {
+            if (saber.length > 0) { saber.length -= 12; if (saber.length < 0) saber.length = 0; } 
+            else if (!isExploded) {
+                isExploded = true; playSfx('explosion'); createSparks(saber.base.x, saber.base.y, '#ffa500', 80, 4); createSparks(saber.base.x, saber.base.y, '#fff', 40, 6);
+                setTimeout(() => {
+                    hud.style.display = 'none'; musicControls.style.display = 'none';
+                    gameOverScreen.classList.remove('hidden'); document.getElementById('final-score').innerText = `Force Attunement Score: ${score}`;
+                }, 1500);
+            }
+        }
+
+        // MOVEMENT
+        if (!isExploded) {
+            mouse.x += (targetMouse.x - mouse.x) * 0.6; 
+            mouse.y += (targetMouse.y - mouse.y) * 0.6;
+            saber.base.x = mouse.x; saber.base.y = mouse.y;
+
+            if (useTilt && !isMouseDown) {
+                let diff = tiltAngle - saber.angle; while (diff < -Math.PI) diff += Math.PI * 2; while (diff > Math.PI) diff -= Math.PI * 2; saber.angle += diff * 0.2;
+            } else if (!isMouseDown && Math.hypot(smoothVx, smoothVy) > 4) { 
+                let diff = Math.atan2(smoothVy, smoothVx) - saber.angle; while (diff < -Math.PI) diff += Math.PI * 2; while (diff > Math.PI) diff -= Math.PI * 2; saber.angle += diff * 0.4; 
+            }
+        }
+
+        let segments = getSaberSegments();
+        let hiltSegment = { v: saber.base, w: { x: saber.base.x + Math.cos(saber.angle + Math.PI)*60, y: saber.base.y + Math.sin(saber.angle + Math.PI)*60 } };
+
+        // ATLAS BLOCKS
+        if (!isDying && atlases.length < 1 && score > 30 && Math.random() < 0.002) atlases.push(new AtlasBlock());
+        
+        for (let i = atlases.length - 1; i >= 0; i--) {
+            let a = atlases[i]; a.update(); a.draw();
+            if (a.dead) { atlases.splice(i, 1); continue; }
+
+            let touching = false;
+            if (!isDying) { for (let seg of segments) { if (getDistanceToSegment(a, seg.v, seg.w).dist < a.radius) { touching = true; break; } } }
+
+            if (touching) {
+                a.framesInserted++;
+                if (!a.wasTouching) { a.hitCount++; a.wasTouching = true; playSfx('clash'); createSparks(a.x, a.y, '#f00', 10, 1); }
+            } else {
+                a.wasTouching = false; if(a.framesInserted > 0) a.framesInserted--; 
+            }
+
+            if (a.hitCount >= 5 || a.framesInserted >= 90) { a.destroy(); } 
+        }
+
+        // REMOTES
+        if (!isDying && remotes.length < 1 + Math.floor(score / 40)) {
+            let rType = 0; if (score > 20 && Math.random() < 0.3) rType = 1; if (score > 50 && Math.random() < 0.3) rType = 2;
+            remotes.push(new Remote(rType));
+        }
+
+        for (let i = remotes.length - 1; i >= 0; i--) {
+            let r = remotes[i]; r.update(); r.draw();
+            if (r.dead) { remotes.splice(i, 1); continue; }
+
+            if (!isDying && r.invuln <= 0) {
+                let hitNormal = null;
+                for (let seg of segments) { let col = getDistanceToSegment(r, seg.v, seg.w); if (col.dist < r.radius + 15) { hitNormal = col.normal; break; } }
+                if (hitNormal) {
+                    if (r.type === 0) { updateScore(5); r.destroy(); }
+                    else {
+                        playSfx('clash'); createSparks(r.x, r.y, saberColor, 15, 1.5);
+                        let nx = hitNormal.x, ny = hitNormal.y; let nLen = Math.hypot(nx, ny); nx/=nLen; ny/=nLen;
+                        let dot = r.vx*nx + r.vy*ny;
+                        r.vx = r.vx - 2*dot*nx + nx * 15 + (useTilt ? 0 : smoothVx * 0.3); r.vy = r.vy - 2*dot*ny + ny * 15 + (useTilt ? 0 : smoothVy * 0.3);
+                        r.isBouncing = true; r.invuln = 15; updateScore(2);
+                    }
+                }
+            }
+        }
+
+        // LASERS
+        for (let i = lasers.length - 1; i >= 0; i--) {
+            let l = lasers[i]; l.update(); l.draw();
+
+            if (l.cooldown <= 0 && !isDying) {
+                for (let seg of segments) {
+                    let col = getDistanceToSegment(l, seg.v, seg.w);
+                    if (col.dist < 18) {
+                        l.color = saberColor; l.cooldown = 10; 
+                        playSfx('clash'); createSparks(col.proj.x, col.proj.y, saberColor);
+                        let nx = col.normal.x, ny = col.normal.y; let nLen = Math.hypot(nx, ny); nx /= nLen; ny /= nLen;
+                        let dot = (l.vx * nx + l.vy * ny);
+                        l.vx = l.vx - 2 * dot * nx; l.vy = l.vy - 2 * dot * ny;
+                        l.vx = l.vx * 1.5 + (Math.random()-0.5)*2; l.vy = l.vy * 1.5 + (Math.random()-0.5)*2;
+                        updateScore(1); break; 
+                    }
+                }
+            }
+            if (l.cooldown <= 0 && !isDying && !isExploded) {
+                if (getDistanceToSegment(l, hiltSegment.v, hiltSegment.w).dist < 15) { takeDamage(true); lasers.splice(i, 1); continue; }
+                if (l.y > height && Math.abs(l.x - saber.base.x) < 250) { takeDamage(false); lasers.splice(i, 1); continue; }
+            }
+            if (l.x < -100 || l.x > width + 100 || l.y < -100 || l.y > height + 100) lasers.splice(i, 1);
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) { particles[i].update(); particles[i].draw(); if (particles[i].life <= 0) particles.splice(i, 1); }
+
+        drawHiltAndBlades();
+        animationId = requestAnimationFrame(update);
+    }
+
+    function startGame() {
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission().then(resp => { if (resp === 'granted') window.addEventListener('deviceorientation', handleOrientation); }).catch(console.error);
+        } else { window.addEventListener('deviceorientation', handleOrientation); }
+
+        isPlaying = true; isDying = false; isExploded = false;
+        score = 0; health = 100; currentSongIndex = 0;
+        lasers = []; remotes = []; particles = []; atlases = [];
+        
+        menu.classList.add('hidden'); gameOverScreen.classList.add('hidden'); hideAbout();
+        hud.style.display = 'block'; musicControls.style.display = 'flex';
+        updateScore(0); updateHealthUI();
+        
+        mouse.x = width/2; mouse.y = height/2 + 100; targetMouse.x = mouse.x; targetMouse.y = mouse.y;
+        saber.angle = -Math.PI / 2; saber.length = 0; saber.targetLength = 250; smoothVx = 0; smoothVy = 0;
+
+        initAudio(); 
+        playSfx('ignite', saberHilt);
+        update();    
+    }
+
+    function resetToMenu() {
+        isPlaying = false; cancelAnimationFrame(animationId);
+        gameOverScreen.classList.add('hidden'); hideAbout(); menu.classList.remove('hidden'); ctx.clearRect(0, 0, width, height); 
+    }
+</script>
+</body>
+</html>

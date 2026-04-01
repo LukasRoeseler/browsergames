@@ -2,539 +2,785 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>PUMP RIDER</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Pumped BMX: Procedural Worlds</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-html,body{width:100%;height:100%;overflow:hidden;background:#111;
-touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-canvas{display:block}
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { 
+        width: 100%; height: 100%; 
+        background-color: #000; 
+        overflow: hidden; 
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    #gameCanvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+    #ui-layer {
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+    }
+    .btn {
+        pointer-events: auto; position: absolute;
+        background: rgba(0,0,0,0.5); border: 2px solid #fff; color: #fff;
+        padding: 10px 15px; border-radius: 8px; font-weight: bold; cursor: pointer;
+        backdrop-filter: blur(4px);
+    }
+    #muteBtn { top: 20px; right: 20px; z-index: 100; }
+    
+    #portrait-lock {
+        display: none; position: fixed; inset: 0; background: #111; color: #00e5ff;
+        z-index: 9999; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 20px;
+    }
+    #portrait-lock svg { width: 80px; height: 80px; fill: currentColor; margin-bottom: 20px; animation: rotatePhone 2s infinite ease-in-out; }
+    @keyframes rotatePhone { 0% { transform: rotate(0deg); } 50% { transform: rotate(-90deg); } 100% { transform: rotate(-90deg); } }
+    @media screen and (orientation: portrait) { #gameCanvas, #ui-layer { display: none; } #portrait-lock { display: flex; } }
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+
+<div id="portrait-lock">
+    <svg viewBox="0 0 24 24"><path d="M16 1H8C6.9 1 6 1.9 6 3v18c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 18H8V5h8v14z"/></svg>
+    <h2>Rotate Device</h2><p>Landscape mode required.</p>
+</div>
+
+<canvas id="gameCanvas"></canvas>
+<div id="ui-layer">
+    <button id="muteBtn" class="btn">🔊 SOUND</button>
+</div>
+
 <script>
-const C=document.getElementById('c'),X=C.getContext('2d');
-let W,H;
-function resize(){W=C.width=innerWidth;H=C.height=innerHeight}
-addEventListener('resize',resize);resize();
+/** HIGH-RES CANVAS SETUP **/
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d', { alpha: false });
+let W, H, DPR;
 
-// ═══════════════════ CONFIG ═══════════════════
-const GRV=1400,PUMP_M=2.5,FRIC=0.9975,ADRAG=0.9997;
-const CRASH_A=1.2,TRICK_T=0.38,MIN_SPD=10;
+function resize() {
+    DPR = window.devicePixelRatio || 1;
+    W = window.innerWidth;
+    H = window.innerHeight;
+    canvas.width = W * DPR;
+    canvas.height = H * DPR;
+    ctx.scale(DPR, DPR);
+}
+window.addEventListener('resize', resize);
+resize();
 
-// ═══════════════════ DATA ═══════════════════
-const CHARS=[
- {name:'Rookie',col:'#4499ff',hd:'#ffcc88',sz:1,wt:1,desc:'Balanced'},
- {name:'Heavy',col:'#ee3333',hd:'#dd9966',sz:1.25,wt:1.5,desc:'Max speed'},
- {name:'Kid',col:'#33dd55',hd:'#ffddaa',sz:.78,wt:.6,desc:'More air'}
+/** PROCEDURAL AUDIO ENGINE **/
+const audio = {
+    ctx: null, master: null, muted: false,
+    rollOsc: null, rollFilter: null, windNoise: null, windFilter: null,
+    
+    init() {
+        if (this.ctx) return;
+        this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.5;
+        this.master.connect(this.ctx.destination);
+        
+        document.getElementById('muteBtn').addEventListener('click', () => {
+            this.muted = !this.muted;
+            this.master.gain.value = this.muted ? 0 : 0.5;
+            document.getElementById('muteBtn').innerText = this.muted ? '🔇 MUTED' : '🔊 SOUND';
+        });
+
+        // Continuous Rolling Sound
+        let bufferSize = this.ctx.sampleRate * 2;
+        let noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        let output = noiseBuffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) output[i] = Math.random() * 2 - 1;
+        
+        this.rollOsc = this.ctx.createBufferSource();
+        this.rollOsc.buffer = noiseBuffer;
+        this.rollOsc.loop = true;
+        this.rollFilter = this.ctx.createBiquadFilter();
+        this.rollFilter.type = 'lowpass';
+        let rollGain = this.ctx.createGain();
+        rollGain.gain.value = 0.8;
+        this.rollOsc.connect(this.rollFilter).connect(rollGain).connect(this.master);
+        this.rollOsc.start();
+
+        // Wind Sound
+        this.windNoise = this.ctx.createBufferSource();
+        this.windNoise.buffer = noiseBuffer;
+        this.windNoise.loop = true;
+        this.windFilter = this.ctx.createBiquadFilter();
+        this.windFilter.type = 'bandpass';
+        this.windFilter.Q.value = 0.5;
+        let windGain = this.ctx.createGain();
+        windGain.gain.value = 1.2;
+        this.windNoise.connect(this.windFilter).connect(windGain).connect(this.master);
+        this.windNoise.start();
+    },
+    updateContinuous(speed, grounded, airborneTime) {
+        if (!this.ctx) return;
+        let safeSpeed = Math.max(0.1, speed);
+        // Tire Rolling
+        if (grounded) {
+            this.rollFilter.frequency.setTargetAtTime(Math.min(2000, 100 + safeSpeed * 0.5), this.ctx.currentTime, 0.1);
+        } else {
+            this.rollFilter.frequency.setTargetAtTime(10, this.ctx.currentTime, 0.1);
+        }
+        // Wind
+        let windFreq = airborneTime > 0 ? Math.min(3000, 300 + safeSpeed * 1.5) : 100;
+        this.windFilter.frequency.setTargetAtTime(windFreq, this.ctx.currentTime, 0.2);
+    },
+    playImpact(velocity) {
+        if (!this.ctx || this.muted) return;
+        let osc = this.ctx.createOscillator();
+        let gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(Math.min(1, velocity * 0.001), this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+        osc.connect(gain).connect(this.master);
+        osc.start(); osc.stop(this.ctx.currentTime + 0.2);
+    },
+    playTrick() {
+        if (!this.ctx || this.muted) return;
+        let osc = this.ctx.createOscillator();
+        let gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(600, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(1200, this.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+        osc.connect(gain).connect(this.master);
+        osc.start(); osc.stop(this.ctx.currentTime + 0.3);
+    }
+};
+
+/** BIOMES & PROCEDURAL GENERATION **/
+const hex2rgb = (hex) => {
+    let v = parseInt(hex.slice(1), 16);
+    return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+};
+const lerpColor = (c1, c2, t) => {
+    let r1 = hex2rgb(c1), r2 = hex2rgb(c2);
+    let r = Math.round(r1.r + (r2.r - r1.r) * t);
+    let g = Math.round(r1.g + (r2.g - r1.g) * t);
+    let b = Math.round(r1.b + (r2.b - r1.b) * t);
+    return `rgb(${r},${g},${b})`;
+};
+
+const BIOMES = [
+    { name: "Forest", top: "#4CAF50", dirt: "#3E2723", skyT: "#1A237E", skyB: "#4DD0E1", weather: "leaves", bg: "trees" },
+    { name: "Desert", top: "#FFC107", dirt: "#8D6E63", skyT: "#E65100", skyB: "#FFB300", weather: "sand", bg: "cacti" },
+    { name: "Snowy Mountains", top: "#FFFFFF", dirt: "#607D8B", skyT: "#0D47A1", skyB: "#81D4FA", weather: "snow", bg: "pines" },
+    { name: "Beach", top: "#FFE082", dirt: "#D84315", skyT: "#01579B", skyB: "#00BCD4", weather: "none", bg: "palms" },
+    { name: "City Pumptrack", top: "#9E9E9E", dirt: "#424242", skyT: "#37474F", skyB: "#90A4AE", weather: "rain", bg: "city" }
 ];
-const BIKES=[
- {name:'20" BMX',wr:11,rot:7.5,wt:.8,col:'#ff2244',desc:'Fast spin'},
- {name:'24" Cruiser',wr:14,rot:4.5,wt:1,col:'#2266ff',desc:'All-round'},
- {name:'MTB 29er',wr:17,rot:2.8,wt:1.4,col:'#22aa44',desc:'Heavy & stable'}
+
+function getBiome(x) {
+    let cycle = 15000; // px per biome
+    let pos = x % (cycle * BIOMES.length);
+    let idx = Math.floor(pos / cycle);
+    let nextIdx = (idx + 1) % BIOMES.length;
+    let blend = (pos % cycle) / cycle;
+    
+    // Hard transition starts at 80% of the biome
+    let t = Math.max(0, (blend - 0.8) * 5); 
+    
+    let b1 = BIOMES[idx];
+    let b2 = BIOMES[nextIdx];
+    
+    return {
+        name: t < 0.5 ? b1.name : b2.name,
+        top: lerpColor(b1.top, b2.top, t),
+        dirt: lerpColor(b1.dirt, b2.dirt, t),
+        skyT: lerpColor(b1.skyT, b2.skyT, t),
+        skyB: lerpColor(b1.skyB, b2.skyB, t),
+        weather: t < 0.5 ? b1.weather : b2.weather,
+        bg: t < 0.5 ? b1.bg : b2.bg
+    };
+}
+
+// Deterministic random
+function hash(n) { return (Math.sin(n * 12.9898) * 43758.5453) % 1; }
+
+/** TERRAIN GENERATION **/
+function tY(x) {
+    let y = 400;
+    // Downhill easy start
+    if (x < 4000) {
+        let t = Math.max(0, x / 4000);
+        y += t * t * (3 - 2 * t) * 1000; 
+    } else {
+        y += 1000 + (x - 4000) * 0.05; // Endless slight downhill
+    }
+    
+    // Smooth hills
+    let amp = Math.min(1, x / 3000);
+    let bump = Math.sin(x * 0.0015) * (200 * amp) +
+               Math.sin(x * 0.004) * (90 * amp) +
+               Math.sin(x * 0.01) * (40 * amp);
+    
+    // City pumptrack has harsher, rhythmic bumps
+    let b = getBiome(x);
+    if (b.bg === "city") {
+        bump += Math.sin(x * 0.02) * 30;
+    }
+               
+    return y - bump;
+}
+function tA(x) {
+    let d = 2; return Math.atan2(tY(x + d) - tY(x - d), d * 2);
+}
+function normAngle(a) {
+    while (a > Math.PI) a -= Math.PI * 2;
+    while (a < -Math.PI) a += Math.PI * 2;
+    return a;
+}
+
+/** GAME DATA & STATE **/
+const GRAVITY = 1100;
+const MIN_SPEED = 300;
+
+const CHARS = [
+    { name: "Pro", color: "#FF3366", mass: 1.0, size: 1.0 },
+    { name: "Heavy", color: "#33CCFF", mass: 1.3, size: 1.15 },
+    { name: "Grom", color: "#FFCC00", mass: 0.75, size: 0.85 }
 ];
-const TRK={up:'Tuck No-Hander',down:'Tailwhip',left:'Tabletop',
- right:'Turndown',upleft:'Barspin',upright:'X-Up'};
+const BIKES = [
+    { name: "Dirt Jumper", color: "#FFF", agil: 4.5, spd: 1800, wr: 12 },
+    { name: "Slopestyle", color: "#00E5FF", agil: 3.5, spd: 1950, wr: 14 },
+    { name: "Downhill MTB", color: "#FF5500", agil: 2.2, spd: 2200, wr: 16 }
+];
 
-// ═══════════════════ STATE ═══════════════════
-let st='menu',sC=0,sB=0,hi=+localStorage.getItem('pr_hi')||0;
-let gyE=false,gyG=0;
-let P={},cam={x:0,y:0},pts=[],txts=[];
-let pump=false,spinB=false,lean=0;
-let mB={},goB={},lt=0,flash=0;
-let pTID=null,sTID=null,tTID=null,tTS=null;
+let state = 'menu'; 
+let selChar = 0, selBike = 0, bestScore = localStorage.getItem('bmx_real_best') || 0;
 
-// ═══════════════════ TERRAIN ═══════════════════
-function tY(x){
- let y=350;
- y+=Math.sin(x*.001)*130;
- y+=Math.sin(x*.0038+1.3)*72;
- let ra=(.5+.5*Math.sin(x*.0007+.5))*48;
- y+=Math.sin(x*.014+.7)*ra;
- let da=Math.max(0,Math.sin(x*.0009+2.1))*20;
- y+=Math.sin(x*.029+2.5)*da;
- let ba=Math.max(0,Math.sin(x*.00035)*Math.sin(x*.001)-.18)*150;
- y+=Math.sin(x*.0075+1)*ba;
- y+=x*.003;
- if(x<500){let f=x/500;f=f*f*(3-2*f);y=350+(y-350)*f}
- return y
-}
-function tA(x){return Math.atan2(tY(x+1)-tY(x-1),2)}
-function tC(x){let d=5;return(tY(x+d)-2*tY(x)+tY(x-d))/(d*d)}
-function nA(a){while(a>Math.PI)a-=2*Math.PI;while(a<-Math.PI)a+=2*Math.PI;return a}
+let p = {}, cam = { x: 0, y: 0 };
+let particles = [], floatTexts = [], weatherParticles = [];
 
-// ═══════════════════ INIT ═══════════════════
-function initP(){
- let c=CHARS[sC],b=BIKES[sB],sx=250;
- P={x:sx,y:tY(sx),vx:0,vy:0,angle:tA(sx),av:0,spd:210,
-  gnd:true,alive:true,wr:b.wr,wb:b.wr*3.5,rot:b.rot,
-  wt:c.wt*b.wt,cSz:c.sz,cCol:c.col,hCol:c.hd,bCol:b.col,
-  trk:null,tN:'',tP:0,
-  tRot:0,airA:0,lSpn:0,
-  sc:0,dist:0,pPts:0,pM:1,pT:[],ct:0};
- cam.x=P.x-W*.3;cam.y=P.y-H*.45;
- pts=[];txts=[];flash=0
+let keys = {}, touchPump = false, touchSpin = false, tiltLean = 0, tiltEnabled = false, swipeStart = null;
+
+function initPlayer() {
+    let c = CHARS[selChar], b = BIKES[selBike];
+    p = {
+        x: 0, y: tY(0), vx: MIN_SPEED, vy: 0, spd: MIN_SPEED, ang: tA(0), av: 0,
+        gnd: true, airTime: 0, mass: c.mass, size: c.size, colC: c.color,
+        agil: b.agil, maxS: b.spd, wr: b.wr, colB: b.color,
+        score: 0, dist: 0, combo: 1, jumpScore: 0, spins: 0, totalRot: 0,
+        trick: null, trickT: 0, trickProg: 0
+    };
+    cam.x = p.x; cam.y = p.y - 100;
+    particles = []; floatTexts = [];
+    
+    // Init Weather
+    for(let i=0; i<100; i++) {
+        weatherParticles.push({ x: Math.random()*W, y: Math.random()*H, s: Math.random()*3+1, o: Math.random() });
+    }
 }
 
-// ═══════════════════ TRICKS / FX ═══════════════════
-function doTrk(n){if(P.gnd||!P.alive||P.trk)return;P.trk=n;P.tN=n;P.tP=0}
-function addD(x,y){pts.push({x,y,vx:(Math.random()-.5)*55,vy:-Math.random()*45-10,l:.5+Math.random()*.4,s:2+Math.random()*3})}
-function addT(t,x,y){txts.push({t,x,y,l:2.8})}
-function upFX(dt){
- for(let i=pts.length-1;i>=0;i--){let p=pts[i];p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=140*dt;p.l-=dt;if(p.l<=0)pts.splice(i,1)}
- for(let i=txts.length-1;i>=0;i--){txts[i].y-=28*dt;txts[i].l-=dt;if(txts[i].l<=0)txts.splice(i,1)}
+/** PHYSICS & UPDATE **/
+function update(dt) {
+    if (state !== 'play') return;
+    
+    let pump = keys['Space'] || touchPump;
+    let spinBtn = keys['KeyZ'] || touchSpin;
+    let lean = (keys['ArrowRight'] ? 1 : 0) - (keys['ArrowLeft'] ? 1 : 0) + tiltLean;
+    
+    if (!p.trick && !p.gnd) {
+        if (keys['KeyW']) startTrick('Tuck No-Hander', 100);
+        else if (keys['KeyS']) startTrick('Tailwhip', 150);
+        else if (keys['KeyA']) startTrick('Tabletop', 120);
+        else if (keys['KeyD']) startTrick('Turndown', 130);
+        else if (keys['KeyQ']) startTrick('Barspin', 100);
+        else if (keys['KeyE']) startTrick('X-Up', 80);
+    }
+    
+    if (p.trick) {
+        p.trickT += dt * 1.5;
+        p.trickProg = p.trickT <= 0.5 ? p.trickT * 2 : 1 - ((p.trickT - 0.5) * 2);
+        if (p.trickT >= 1) {
+            addScore(p.trickPts, p.trick);
+            p.trick = null; p.trickProg = 0;
+            audio.playTrick();
+        }
+    }
+
+    if (p.gnd) {
+        p.airTime = 0;
+        let a = tA(p.x);
+        let slope = Math.sin(a);
+        let df = pump ? 2.5 : 0.8; 
+        
+        p.spd += GRAVITY * slope * df * dt;
+        p.spd *= 0.999;
+        if (p.spd < MIN_SPEED) p.spd += (MIN_SPEED - p.spd) * 5 * dt;
+        if (p.spd > p.maxS) p.spd = p.maxS;
+        
+        p.vx = Math.cos(a) * p.spd;
+        p.vy = Math.sin(a) * p.spd;
+        p.x += p.vx * dt;
+        p.y = tY(p.x);
+        p.ang = a; p.av = 0;
+        p.dist += p.vx * dt;
+        p.score += p.vx * dt * 0.01;
+        
+        if (pump && p.spd > 800 && Math.random() < 0.3) spawnDust(p.x, p.y, getBiome(p.x).dirt);
+
+        let nextY = tY(p.x + p.vx * 0.1);
+        let projY = p.y + p.vy * 0.1;
+        if (!pump && projY < nextY - 1) {
+            p.gnd = false; p.totalRot = 0; p.spins = 0; p.jumpScore = 0;
+        }
+    } else {
+        p.airTime += dt;
+        p.vy += GRAVITY * p.mass * (pump ? 1.8 : 1.0) * dt;
+        p.x += p.vx * dt; p.y += p.vy * dt;
+        p.dist += p.vx * dt;
+        
+        p.av += lean * p.agil * dt * 12;
+        if (spinBtn) p.av += (p.av >= 0 ? 1 : -1) * 18 * dt;
+        p.av *= 0.98;
+        
+        let oldAng = p.ang;
+        p.ang += p.av * dt;
+        p.totalRot += (p.ang - oldAng);
+        
+        let currentSpins = Math.floor(Math.abs(p.totalRot) / (Math.PI * 2));
+        if (currentSpins > p.spins) {
+            p.spins = currentSpins;
+            addScore(p.spins * 200, "360!");
+            p.combo++;
+            audio.playTrick();
+        }
+
+        let gy = tY(p.x);
+        if (p.y >= gy) {
+            let ga = tA(p.x);
+            let diff = Math.abs(normAngle(p.ang - ga));
+            
+            if (p.trick && p.trickProg > 0.3) return gameOver("TRICK CRASH!");
+            if (diff > 1.8 || Math.abs(normAngle(p.ang)) > 2.5) return gameOver("WIPEOUT!");
+            
+            p.gnd = true; p.y = gy; p.ang = ga;
+            
+            if (p.jumpScore > 0) {
+                let t = Math.floor(p.jumpScore * p.combo);
+                p.score += t;
+                spawnText(`+${t} (${p.combo}x)`, p.x, p.y - 120, '#0f0');
+            }
+            p.combo = 1; p.trick = null; p.trickProg = 0;
+            
+            let mag = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+            let penalty = Math.max(0.5, 1 - (diff / 1.8));
+            p.spd = mag * penalty;
+            if (pump) p.spd += 300; 
+            
+            audio.playImpact(p.vy);
+            let b = getBiome(p.x);
+            for(let i=0; i<15; i++) spawnDust(p.x, p.y, b.dirt);
+        }
+    }
+    
+    // Update Particles
+    particles.forEach(pt => { pt.x += pt.vx * dt; pt.y += pt.vy * dt; pt.life -= dt; });
+    particles = particles.filter(pt => pt.life > 0);
+    floatTexts.forEach(ft => { ft.y -= 50 * dt; ft.life -= dt; });
+    floatTexts = floatTexts.filter(ft => ft.life > 0);
+    
+    // Camera follow with lookahead
+    let targetX = p.x + W * 0.3;
+    let targetY = p.y - H * 0.2;
+    cam.x += (targetX - cam.x) * 5 * dt;
+    cam.y += (targetY - cam.y) * 8 * dt;
+
+    audio.updateContinuous(p.spd, p.gnd, p.airTime);
 }
 
-// ═══════════════════ PHYSICS ═══════════════════
-function upP(dt){
- if(!P.alive){
-  P.ct+=dt;P.vy+=GRV*dt;P.x+=P.vx*dt*.3;P.y+=P.vy*dt;P.angle+=P.av*dt;
-  let gy=tY(P.x);if(P.y>gy){P.y=gy;P.vy*=-.25;P.vx*=.4;P.av*=.5}
-  return
- }
- lean=0;
- if(keys.ArrowLeft||keys.KeyJ)lean-=1;
- if(keys.ArrowRight||keys.KeyL)lean+=1;
- if(gyE&&!P.gnd)lean+=Math.max(-2,Math.min(2,gyG/22));
- if(keys.KeyW)doTrk('Tuck No-Hander');
- if(keys.KeyS)doTrk('Tailwhip');
- if(keys.KeyA)doTrk('Tabletop');
- if(keys.KeyD)doTrk('Turndown');
- if(keys.KeyQ)doTrk('Barspin');
- if(keys.KeyE)doTrk('X-Up');
-
- let eG=GRV*P.wt*(pump?PUMP_M:1);
-
- if(P.gnd){
-  let a=tA(P.x),c=tC(P.x);
-  P.spd+=eG*Math.sin(a)*dt;
-  P.spd*=FRIC;
-  P.spd=Math.min(P.spd,950);
-  if(P.spd<MIN_SPD){P.spd-=70*dt;if(P.spd<=0){crash();return}}
-  P.x+=P.spd*Math.cos(a)*dt;
-  P.y=tY(P.x);P.angle=tA(P.x);P.av=0;
-  P.dist+=Math.abs(P.spd*Math.cos(a)*dt);
-  P.sc+=Math.abs(P.spd*dt)*.008;
-  if(Math.random()<.35&&P.spd>55)addD(P.x+(Math.random()-.5)*P.wb,P.y);
-  if(c>.00004){
-   let nf=eG*Math.cos(a)-P.spd*P.spd*c;
-   if(nf<0){P.gnd=false;P.vx=P.spd*Math.cos(P.angle);P.vy=P.spd*Math.sin(P.angle);
-    P.airA=P.angle;P.tRot=0;P.lSpn=0;P.pPts=0;P.pM=1;P.pT=[]}
-  }
-  P.trk=null;P.tP=0
- }else{
-  P.vy+=eG*dt;P.vx*=ADRAG;P.x+=P.vx*dt;P.y+=P.vy*dt;
-  P.av+=lean*P.rot*3.2*dt;
-  if(spinB)P.av+=P.rot*2.8*dt;
-  P.av*=.97;P.angle+=P.av*dt;
-  P.tRot=P.angle-P.airA;
-  let fs=Math.floor(Math.abs(P.tRot)/(Math.PI*2));
-  if(fs>P.lSpn){let ns=fs-P.lSpn;P.pPts+=ns*200;P.pM+=ns*.5;
-   addT((fs*360)+'°!',P.x,P.y-75);P.lSpn=fs}
-  if(P.trk){P.tP+=dt/TRICK_T;if(P.tP>=1){P.pPts+=100;P.pM+=.5;
-   P.pT.push(P.tN);addT(P.tN+'!',P.x,P.y-55);P.trk=null;P.tP=0}}
-  P.dist+=Math.max(0,P.vx*dt);P.sc+=Math.max(0,P.vx*dt*.008);
-  let gY=tY(P.x);
-  if(P.y>=gY){
-   let gA=tA(P.x),diff=Math.abs(nA(P.angle-gA));
-   if(P.trk&&P.tP<1){crash();return}
-   if(diff>CRASH_A){crash();return}
-   P.gnd=true;P.y=gY;P.angle=gA;P.av=0;
-   P.spd=Math.sqrt(P.vx*P.vx+P.vy*P.vy);
-   P.spd*=1-diff/CRASH_A*.3;
-   if(P.pPts>0){let tp=Math.floor(P.pPts*P.pM);P.sc+=tp;
-    let combo=P.pT.join(' + ');
-    if(P.lSpn>0)combo+=(combo?' + ':'')+(P.lSpn*360)+'°';
-    combo+=' = '+tp+'pts';addT(combo,P.x,P.y-95);
-    if(tp>150)flash=.25}
-   for(let i=0;i<8;i++)addD(P.x+(Math.random()-.5)*22,P.y)
-  }
- }
+function startTrick(n, pts) { p.trick = n; p.trickPts = pts; p.trickT = 0; p.combo += 0.5; }
+function addScore(pts, n) { p.jumpScore += pts; spawnText(n, p.x, p.y - 60 - Math.random()*40, '#FFF'); }
+function spawnDust(x, y, color) {
+    particles.push({
+        x: x + (Math.random()-0.5)*30, y: y + (Math.random()-0.5)*15,
+        vx: (Math.random()-0.5)*60 - p.vx*0.1, vy: (Math.random()-1)*60,
+        life: 0.3 + Math.random()*0.4, maxLife: 0.7, r: 2 + Math.random()*5, c: color
+    });
 }
-function crash(){
- P.alive=false;P.ct=0;P.av=(Math.random()-.5)*9;P.vx*=.3;
- if(P.sc>hi){hi=Math.floor(P.sc);localStorage.setItem('pr_hi',hi)}
- addT('CRASH!',P.x,P.y-65)
+function spawnText(txt, x, y, col) { floatTexts.push({ txt, x, y, col, life: 1.5, maxLife: 1.5 }); }
+
+function gameOver(reason) {
+    state = 'gameover'; p.score = Math.floor(p.score);
+    if (p.score > bestScore) { bestScore = p.score; localStorage.setItem('bmx_real_best', bestScore); }
+    spawnText(reason, p.x, p.y - 50, '#F00');
+    p.vx *= 0.4; p.vy = -600; p.av = 15;
+    audio.playImpact(1000);
 }
 
-// ═══════════════════ CAMERA ═══════════════════
-function upCam(){cam.x+=(P.x-W*.3-cam.x)*.08;cam.y+=(P.y-H*.45-cam.y)*.05}
+/** HIGH-FIDELITY RENDERING **/
+function draw() {
+    let b = state === 'menu' ? BIOMES[0] : getBiome(cam.x);
+    
+    // Realistic Sky Gradient
+    let skyG = ctx.createLinearGradient(0, 0, 0, H);
+    skyG.addColorStop(0, b.skyT); skyG.addColorStop(1, b.skyB);
+    ctx.fillStyle = skyG; ctx.fillRect(0, 0, W, H);
+    
+    // Sun / Moon
+    ctx.fillStyle = b.bg === 'city' ? "rgba(255,255,200,0.8)" : "rgba(255, 240, 200, 0.9)";
+    ctx.beginPath(); ctx.arc(W*0.7, H*0.3, 60, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 50; ctx.shadowColor = ctx.fillStyle; ctx.fill(); ctx.shadowBlur = 0;
 
-// ═══════════════════ RENDER ═══════════════════
-function render(){
- let sg=X.createLinearGradient(0,0,0,H);
- sg.addColorStop(0,'#0d1b3e');sg.addColorStop(.3,'#1e3a6e');
- sg.addColorStop(.6,'#5b9bd5');sg.addColorStop(1,'#87CEEB');
- X.fillStyle=sg;X.fillRect(0,0,W,H);
- X.globalAlpha=.7;X.fillStyle='#FFE484';
- X.beginPath();X.arc(W*.82,H*.11,30,0,Math.PI*2);X.fill();
- X.globalAlpha=.3;X.beginPath();X.arc(W*.82,H*.11,45,0,Math.PI*2);X.fill();
- X.globalAlpha=1;
- bgH('#1a3d2a',.06,.0012,H*.11,H*.46);
- bgH('#2a5a3a',.18,.0028,H*.08,H*.52);
- bgH('#3a7a4a',.32,.005,H*.06,H*.57);
- X.save();X.translate(-cam.x,-cam.y);
- drTerrain();
- for(let p of pts){X.globalAlpha=Math.min(1,p.l*2.5);X.fillStyle='#B8956A';
-  X.beginPath();X.arc(p.x,p.y,p.s,0,Math.PI*2);X.fill()}
- X.globalAlpha=1;
- drBike();
- for(let t of txts){X.globalAlpha=Math.min(1,t.l*.55);X.font='bold 19px Arial';
-  X.textAlign='center';X.strokeStyle='#000';X.lineWidth=3;X.fillStyle='#FFD700';
-  X.strokeText(t.t,t.x,t.y);X.fillText(t.t,t.x,t.y)}
- X.globalAlpha=1;X.restore();
- if(flash>0){X.fillStyle='rgba(255,215,0,'+flash+')';X.fillRect(0,0,W,H);flash-=.015}
- drHUD();
- if('ontouchstart'in window||navigator.maxTouchPoints>0)drTZ()
+    if (state === 'menu') return drawMenu();
+
+    ctx.save();
+    ctx.translate(W * 0.5 - cam.x, H * 0.6 - cam.y);
+
+    // Parallax Layers (Clouds, Mountains, Midground)
+    drawClouds(0.05);
+    drawMountains(0.15, b);
+    drawScenery(0.4, b);
+
+    // Main Terrain
+    let startX = cam.x - W; let endX = cam.x + W;
+    ctx.beginPath(); ctx.moveTo(startX, cam.y + H);
+    for (let x = startX; x <= endX; x += 20) ctx.lineTo(x, tY(x));
+    ctx.lineTo(endX, cam.y + H); ctx.closePath();
+    
+    // Dirt Gradient
+    let dirtG = ctx.createLinearGradient(0, cam.y - H/2, 0, cam.y + H);
+    dirtG.addColorStop(0, b.dirt); dirtG.addColorStop(1, '#111');
+    ctx.fillStyle = dirtG; ctx.fill();
+    
+    // Top Grass/Sand stroke
+    ctx.lineWidth = 18; ctx.strokeStyle = b.top;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.stroke();
+    // Inner shadow for depth
+    ctx.lineWidth = 6; ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.stroke();
+
+    // Particles
+    for (let pt of particles) {
+        ctx.fillStyle = pt.c || "rgba(255,255,255,0.8)";
+        ctx.globalAlpha = pt.life / pt.maxLife;
+        ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.r, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Player
+    drawBikeAndRider();
+
+    // Floating Texts
+    for (let ft of floatTexts) {
+        ctx.fillStyle = ft.col; ctx.globalAlpha = ft.life / ft.maxLife;
+        ctx.font = "bold 28px 'Segoe UI'"; ctx.textAlign = "center";
+        ctx.shadowColor = "#000"; ctx.shadowBlur = 4;
+        ctx.fillText(ft.txt, ft.x, ft.y);
+        ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+
+    drawWeather(b.weather);
+    if (state === 'play') drawHUD(b);
+    if (state === 'gameover') drawGameOver();
 }
 
-function bgH(c,par,fr,amp,by){
- X.fillStyle=c;X.beginPath();X.moveTo(0,H);
- for(let x=0;x<=W;x+=5){let wx=x+cam.x*par;
-  X.lineTo(x,by+Math.sin(wx*fr)*amp+Math.sin(wx*fr*2.3)*amp*.4)}
- X.lineTo(W,H);X.closePath();X.fill()
+/** PROCEDURAL SCENERY **/
+function drawClouds(speed) {
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    let start = Math.floor((cam.x - W) * speed / 400) * 400;
+    for (let x = start; x < start + W/speed + 800; x += 400) {
+        let h = hash(x);
+        if (h > 0.5) {
+            let cx = x / speed; let cy = tY(cam.x)*speed + h*200 - 300;
+            ctx.beginPath();
+            ctx.arc(cx, cy, 40+h*20, 0, Math.PI*2);
+            ctx.arc(cx+30, cy-10, 50+h*10, 0, Math.PI*2);
+            ctx.arc(cx+60, cy, 30+h*30, 0, Math.PI*2);
+            ctx.fill();
+        }
+    }
+}
+function drawMountains(speed, b) {
+    let color = b.bg === 'snow' ? '#CFD8DC' : b.bg === 'desert' ? '#D84315' : '#37474F';
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    let startX = cam.x - W; let endX = cam.x + W;
+    ctx.moveTo(startX, cam.y + H);
+    for (let x = startX; x <= endX; x += 100) {
+        let px = x * speed;
+        let py = tY(cam.x) * speed + Math.sin(px * 0.002) * 400 + Math.sin(px * 0.007) * 100 - 200;
+        ctx.lineTo(x, py);
+    }
+    ctx.lineTo(endX, cam.y + H); ctx.fill();
+}
+function drawScenery(speed, b) {
+    let start = Math.floor((cam.x - W) * speed / 200) * 200;
+    for (let x = start; x < start + W/speed + 400; x += 200) {
+        let h = hash(x);
+        if (h < 0.6) continue;
+        let px = x / speed;
+        let py = tY(px); // Stick to terrain height approximately
+        
+        ctx.save(); ctx.translate(px, py);
+        if (b.bg === 'trees' || b.bg === 'pines') {
+            ctx.fillStyle = '#3E2723'; ctx.fillRect(-5, -h*100-20, 10, h*100+20);
+            ctx.fillStyle = b.bg === 'pines' ? '#B0BEC5' : '#2E7D32';
+            ctx.beginPath(); ctx.moveTo(0, -h*150-50); ctx.lineTo(-40, -40); ctx.lineTo(40, -40); ctx.fill();
+        } else if (b.bg === 'cacti') {
+            ctx.fillStyle = '#2E7D32'; ctx.fillRect(-8, -h*80-20, 16, h*80+20);
+            ctx.fillRect(-25, -h*60, 20, 12); ctx.fillRect(9, -h*40, 20, 12);
+            ctx.fillRect(-25, -h*60-20, 12, 20); ctx.fillRect(17, -h*40-20, 12, 20);
+        } else if (b.bg === 'palms') {
+            ctx.fillStyle = '#795548'; ctx.beginPath(); ctx.moveTo(-5,0); ctx.quadraticCurveTo(-15, -h*100, 0, -h*150); ctx.lineTo(5, -h*150); ctx.quadraticCurveTo(-5, -h*100, 5, 0); ctx.fill();
+            ctx.fillStyle = '#4CAF50';
+            for(let i=0; i<5; i++) { ctx.beginPath(); ctx.ellipse(0, -h*150, 40, 10, i*Math.PI/2.5, 0, Math.PI*2); ctx.fill(); }
+        } else if (b.bg === 'city') {
+            ctx.fillStyle = h > 0.8 ? '#212121' : '#424242';
+            let bw = 60 + h*40, bh = 150 + h*200;
+            ctx.fillRect(-bw/2, -bh, bw, bh);
+            ctx.fillStyle = '#FFEB3B';
+            for(let wy=-bh+20; wy<-20; wy+=30) { if(hash(wy)>0.3) ctx.fillRect(-bw/2+10, wy, 15, 15); }
+        }
+        ctx.restore();
+    }
 }
 
-function drTerrain(){
- let sx=Math.floor(cam.x)-10,ex=Math.ceil(cam.x+W)+10;
- X.beginPath();X.moveTo(sx,tY(sx));
- for(let x=sx;x<=ex;x+=3)X.lineTo(x,tY(x));
- X.lineTo(ex,cam.y+H+300);X.lineTo(sx,cam.y+H+300);X.closePath();
- let srf=tY(P.x);
- let tg=X.createLinearGradient(0,srf-40,0,srf+450);
- tg.addColorStop(0,'#5a9c3f');tg.addColorStop(.035,'#4a7a2f');
- tg.addColorStop(.1,'#6B4226');tg.addColorStop(1,'#3B2413');
- X.fillStyle=tg;X.fill();
- X.beginPath();X.moveTo(sx,tY(sx));
- for(let x=sx;x<=ex;x+=3)X.lineTo(x,tY(x));
- X.strokeStyle='#6aad4f';X.lineWidth=3;X.stroke()
+/** REALISTIC BIKE & RIDER **/
+function drawBikeAndRider() {
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    
+    if (state === 'gameover') {
+        p.y += p.vy * 0.016; p.vy += GRAVITY * 0.016; p.x += p.vx * 0.016; p.ang += p.av * 0.016;
+    }
+    ctx.rotate(p.ang);
+
+    let wr = p.wr, wb = 34, s = p.size, tp = p.trickProg;
+    let fRot = p.trick === 'Tailwhip' ? tp * Math.PI * 2 : 0;
+    let bRot = p.trick === 'Barspin' ? tp * Math.PI * 2 : p.trick === 'Turndown' ? tp * Math.PI * 0.8 : p.trick === 'X-Up' ? tp * Math.PI : 0;
+    let scY = p.trick === 'Tabletop' ? 1 - (tp * 0.7) : p.trick === 'Turndown' ? 1 - (tp * 0.4) : 1;
+
+    ctx.scale(1, scY);
+    
+    // Wheels (Tires & Spokes)
+    ctx.strokeStyle = '#333'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(-wb, -wr, wr, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(wb, -wr, wr, 0, Math.PI*2); ctx.stroke();
+    ctx.strokeStyle = '#aaa'; ctx.lineWidth = 1;
+    for(let i=0; i<6; i++) {
+        let a = i*Math.PI/3 + p.x*0.05;
+        ctx.beginPath(); ctx.moveTo(-wb, -wr); ctx.lineTo(-wb + Math.cos(a)*wr, -wr + Math.sin(a)*wr); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(wb, -wr); ctx.lineTo(wb + Math.cos(a)*wr, -wr + Math.sin(a)*wr); ctx.stroke();
+    }
+
+    let bbX = -4, bbY = -wr, hX = 18, hY = -wr - 28, sX = -18, sY = -wr - 22;
+
+    // Frame
+    ctx.save(); ctx.translate(hX, hY); ctx.rotate(fRot); ctx.translate(-hX, -hY);
+    ctx.strokeStyle = p.colB; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(hX, hY); ctx.lineTo(bbX, bbY); ctx.lineTo(-wb, -wr); ctx.lineTo(sX, sY); ctx.lineTo(bbX, bbY);
+    ctx.moveTo(sX, sY); ctx.lineTo(hX, hY); ctx.stroke();
+    ctx.restore();
+
+    // Fork & Bars
+    ctx.save(); ctx.translate(hX, hY); ctx.rotate(bRot);
+    ctx.strokeStyle = '#222'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(wb - hX, -wr - hY); // fork
+    ctx.moveTo(0,0); ctx.lineTo(0, -18); // stem
+    ctx.strokeStyle = '#ddd'; ctx.moveTo(-12, -18); ctx.lineTo(12, -18); // bars
+    ctx.stroke();
+    let hlX = -12, hlY = -18, hrX = 12, hrY = -18;
+    if (p.trick === 'X-Up') { hlX = 12; hrX = -12; }
+    let htxL = hX + (hlX * Math.cos(bRot) - hlY * Math.sin(bRot));
+    let htyL = hY + (hlX * Math.sin(bRot) + hlY * Math.cos(bRot));
+    ctx.restore();
+
+    // Rider Geometry
+    let crouch = (keys['Space'] || touchPump) && state !== 'gameover' ? 12 : 0;
+    let hipX = sX, hipY = sY - 8 + crouch;
+    let shX = hipX + 14, shY = hipY - (24 * s) + crouch;
+    let hdX = shX + 6, hdY = shY - (14 * s);
+    let kneeX = bbX + 10, kneeY = bbY - 10; // Simple IK estimation
+
+    if (p.trick === 'Tuck No-Hander') { shY += 12 * tp; htxL = shX - 18 * tp; htyL = shY - 24 * tp; }
+
+    ctx.strokeStyle = p.colC; ctx.lineWidth = 8 * s; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // Torso
+    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(shX, shY); ctx.stroke();
+    // Leg (Thigh -> Knee -> Pedal)
+    ctx.strokeStyle = '#333';
+    ctx.beginPath(); ctx.moveTo(hipX, hipY); ctx.lineTo(kneeX, kneeY); ctx.lineTo(bbX, bbY); ctx.stroke();
+    // Arm
+    ctx.strokeStyle = p.colC; ctx.lineWidth = 6 * s;
+    ctx.beginPath(); ctx.moveTo(shX, shY); ctx.lineTo(htxL, htyL); ctx.stroke();
+    
+    // Helmet
+    ctx.fillStyle = '#111'; ctx.beginPath(); ctx.arc(hdX, hdY, 10 * s, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#FF9800'; ctx.beginPath(); ctx.arc(hdX+2, hdY, 6 * s, -0.5, 1.5); ctx.fill(); // Visor
+
+    ctx.restore();
 }
 
-function drBike(){
- X.save();X.translate(P.x,P.y);X.rotate(P.angle);
- let wr=P.wr,hwb=P.wb/2,s=P.cSz;
- let spA=P.dist*.07;
- // Wheels
- for(let w=-1;w<=1;w+=2){
-  let wx=w*hwb;
-  X.strokeStyle='#222';X.lineWidth=3;
-  X.beginPath();X.arc(wx,-wr,wr,0,Math.PI*2);X.stroke();
-  X.strokeStyle='#555';X.lineWidth=1;
-  for(let i=0;i<8;i++){let a=i*Math.PI/4+spA*w;
-   X.beginPath();X.moveTo(wx+Math.cos(a)*2,-wr+Math.sin(a)*2);
-   X.lineTo(wx+Math.cos(a)*(wr*.82),-wr+Math.sin(a)*(wr*.82));X.stroke()}
-  X.strokeStyle='#888';X.lineWidth=1;
-  X.beginPath();X.arc(wx,-wr,wr*.22,0,Math.PI*2);X.stroke()
- }
- // Frame geometry
- let bb={x:-hwb*.05,y:-wr*1.15};
- let seat={x:-hwb*.35,y:-wr*2.9};
- let ht={x:hwb*.28,y:-wr*2.5};
- // Trick vars
- let whipA=0,barA=0;
- if(P.trk&&!P.gnd){let tp=P.tP,ph=tp<.5?tp*2:(1-tp)*2;
-  if(P.trk==='Tailwhip')whipA=tp*Math.PI*2;
-  if(P.trk==='Barspin')barA=tp*Math.PI*2;
-  if(P.trk==='X-Up')barA=ph*Math.PI;
-  if(P.trk==='Turndown')barA=ph*Math.PI*.75;
-  if(P.trk==='Tabletop')barA=ph*Math.PI*.4}
- X.strokeStyle=P.bCol;X.lineWidth=3;
- if(whipA){
-  X.save();X.translate(bb.x,bb.y);X.rotate(whipA);
-  let rx=-hwb+hwb*.05-bb.x,ry=-wr-bb.y;
-  let sx2=seat.x-bb.x,sy2=seat.y-bb.y;
-  X.beginPath();X.moveTo(0,0);X.lineTo(rx,ry);X.stroke();
-  X.beginPath();X.moveTo(sx2,sy2);X.lineTo(rx,ry);X.stroke();
-  X.beginPath();X.moveTo(0,0);X.lineTo(sx2,sy2);X.stroke();
-  X.restore();
-  X.beginPath();X.moveTo(bb.x,bb.y);X.lineTo(ht.x,ht.y);X.stroke();
-  X.beginPath();X.moveTo(seat.x,seat.y);X.lineTo(ht.x,ht.y);X.stroke();
-  X.beginPath();X.moveTo(ht.x,ht.y);X.lineTo(hwb,-wr);X.stroke()
- }else{
-  X.beginPath();X.moveTo(bb.x,bb.y);X.lineTo(-hwb,-wr);X.stroke();
-  X.beginPath();X.moveTo(seat.x,seat.y);X.lineTo(-hwb,-wr);X.stroke();
-  X.beginPath();X.moveTo(bb.x,bb.y);X.lineTo(seat.x,seat.y);X.stroke();
-  X.beginPath();X.moveTo(seat.x,seat.y);X.lineTo(ht.x,ht.y);X.stroke();
-  X.beginPath();X.moveTo(bb.x,bb.y);X.lineTo(ht.x,ht.y);X.stroke();
-  X.beginPath();X.moveTo(ht.x,ht.y);X.lineTo(hwb,-wr);X.stroke()
- }
- // Handlebars
- let handX=ht.x,handY=ht.y-wr*.6;
- X.save();X.translate(ht.x,ht.y);X.rotate(barA);
- X.strokeStyle='#777';X.lineWidth=2.5;
- X.beginPath();X.moveTo(-wr*.5,-wr*.55);X.lineTo(0,-wr*.2);X.lineTo(wr*.4,-wr*.6);X.stroke();
- let hC=Math.cos(barA),hS=Math.sin(barA);
- let lhx=wr*.4,lhy=-wr*.6;
- handX=ht.x+hC*lhx-hS*lhy;handY=ht.y+hS*lhx+hC*lhy;
- X.restore();
- // Rider
- let cr=pump?.42:0;
- let feet={x:bb.x,y:bb.y};
- let hips={x:seat.x+cr*hwb*.25,y:seat.y+cr*wr*1.8};
- let shld={x:hips.x+hwb*.16,y:hips.y-wr*1.55*s+cr*wr*.55};
- let head={x:shld.x+hwb*.04,y:shld.y-wr*.85*s};
- X.strokeStyle=P.cCol;X.lineWidth=Math.max(2,3*s);
- let knee={x:(feet.x+hips.x)/2+4,y:(feet.y+hips.y)/2+6};
- X.beginPath();X.moveTo(feet.x,feet.y);X.quadraticCurveTo(knee.x,knee.y,hips.x,hips.y);X.stroke();
- X.beginPath();X.moveTo(hips.x,hips.y);X.lineTo(shld.x,shld.y);X.stroke();
- // Arms by trick
- if(P.trk==='Tuck No-Hander'&&!P.gnd){
-  let ph=P.tP<.5?P.tP*2:(1-P.tP)*2;
-  X.beginPath();X.moveTo(shld.x,shld.y);X.lineTo(shld.x+ph*wr*.4,shld.y-ph*wr*2.2);X.stroke();
-  X.beginPath();X.moveTo(shld.x,shld.y);X.lineTo(shld.x-ph*wr*.4,shld.y-ph*wr*2.2);X.stroke()
- }else{
-  X.beginPath();X.moveTo(shld.x,shld.y);X.lineTo(handX,handY);X.stroke()
- }
- // Head
- X.fillStyle=P.hCol;X.beginPath();X.arc(head.x,head.y,wr*.44*s,0,Math.PI*2);X.fill();
- X.strokeStyle='#333';X.lineWidth=1;X.stroke();
- X.fillStyle=P.cCol;X.beginPath();X.arc(head.x,head.y-wr*.08,wr*.48*s,Math.PI+.3,-.3);X.fill();
- X.restore()
+/** WEATHER EFFECTS **/
+function drawWeather(type) {
+    if (type === 'none') return;
+    ctx.fillStyle = type === 'snow' ? '#FFF' : type === 'sand' ? '#FFD54F' : type === 'rain' ? 'rgba(200,200,255,0.5)' : '#8BC34A';
+    weatherParticles.forEach(pt => {
+        pt.y += (type === 'rain' ? 20 : type === 'snow' ? 2 : 3) * pt.s;
+        pt.x += (type === 'rain' ? 5 : type === 'snow' ? Math.sin(pt.y*0.01)*2 : Math.sin(pt.y*0.02)*5) - p.vx*0.005;
+        if (pt.y > H) { pt.y = -10; pt.x = Math.random() * W; }
+        if (pt.x < 0) pt.x = W; if (pt.x > W) pt.x = 0;
+        
+        ctx.globalAlpha = pt.o;
+        if (type === 'rain') {
+            ctx.beginPath(); ctx.moveTo(pt.x, pt.y); ctx.lineTo(pt.x+2, pt.y+15); ctx.strokeStyle=ctx.fillStyle; ctx.lineWidth=2; ctx.stroke();
+        } else {
+            ctx.beginPath(); ctx.arc(pt.x, pt.y, pt.s * (type==='leaves'?2:1), 0, Math.PI*2); ctx.fill();
+        }
+    });
+    ctx.globalAlpha = 1;
 }
 
-function drHUD(){
- X.font='bold 21px Arial';X.textAlign='left';
- X.fillStyle='#fff';X.strokeStyle='#000';X.lineWidth=3;
- let t='Score: '+Math.floor(P.sc);X.strokeText(t,12,28);X.fillText(t,12,28);
- t=Math.floor(P.dist/10)+'m';X.strokeText(t,12,52);X.fillText(t,12,52);
- X.font='15px Arial';
- let spd=P.gnd?P.spd:Math.sqrt(P.vx*P.vx+P.vy*P.vy);
- t=Math.floor(spd*.36)+' km/h';X.strokeText(t,12,73);X.fillText(t,12,73);
- X.textAlign='right';X.font='bold 16px Arial';X.fillStyle='#FFD700';
- t='Best: '+hi;X.strokeText(t,W-12,26);X.fillText(t,W-12,26);
- if(!P.gnd&&P.alive){
-  X.textAlign='center';
-  let deg=Math.floor(Math.abs(P.tRot)/(Math.PI*2)*360);
-  if(deg>=160){X.font='bold 30px Arial';X.fillStyle='#FFD700';
-   X.strokeText(deg+'°',W/2,40);X.fillText(deg+'°',W/2,40)}
-  if(P.pM>1){X.font='bold 20px Arial';X.fillStyle='#ff6b6b';
-   X.strokeText('x'+P.pM.toFixed(1),W/2,70);X.fillText('x'+P.pM.toFixed(1),W/2,70)}
-  if(P.trk){X.font='bold 16px Arial';X.fillStyle='#0ff';
-   X.strokeText(P.tN+' '+Math.floor(P.tP*100)+'%',W/2,95);
-   X.fillText(P.tN+' '+Math.floor(P.tP*100)+'%',W/2,95)}
- }
- if(pump&&P.alive){X.font='bold 13px Arial';X.textAlign='center';X.fillStyle='#0f8';X.fillText('◆ PUMP',W/2,H-18)}
- if(spinB&&!P.gnd&&P.alive){X.font='bold 13px Arial';X.textAlign='center';X.fillStyle='#f0f';X.fillText('◆ SPIN',W/2,H-35)}
+/** UI & HUD **/
+function drawHUD(b) {
+    ctx.fillStyle = '#fff'; ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    ctx.font = 'bold 28px "Segoe UI"'; ctx.textAlign = 'left';
+    ctx.fillText(`SCORE: ${Math.floor(p.score)}`, 20, 40);
+    ctx.font = '20px "Segoe UI"';
+    ctx.fillText(`DIST: ${Math.floor(p.dist / 100)}m  |  BIOME: ${b.name.toUpperCase()}`, 20, 75);
+    ctx.fillText(`SPEED: ${Math.floor(p.spd / 10)} km/h`, 20, 105);
+
+    if (p.combo > 1 || p.jumpScore > 0) {
+        ctx.fillStyle = '#00E5FF'; ctx.textAlign = 'center';
+        ctx.font = 'bold 36px "Segoe UI"'; ctx.fillText(`AIR: ${p.jumpScore}`, W/2, 60);
+        ctx.font = 'bold 24px "Segoe UI"'; ctx.fillText(`COMBO: ${p.combo}x`, W/2, 95);
+    }
+    ctx.shadowBlur = 0;
+
+    if (('ontouchstart' in window) || navigator.maxTouchPoints > 0) {
+        ctx.fillStyle = 'rgba(255,255,255,0.05)'; ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 2;
+        ctx.fillRect(0, 0, W/3, H); ctx.strokeRect(0, 0, W/3, H);
+        ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = '16px "Segoe UI"'; ctx.textAlign = 'center';
+        ctx.fillText("SWIPE TRICKS", W/6, H/2);
+        ctx.fillText("↑ No-Hand  ↓ Whip", W/6, H/2 + 25);
+        ctx.fillText("← Table  → Turn", W/6, H/2 + 50);
+
+        ctx.fillStyle = 'rgba(0, 229, 255, 0.05)'; ctx.fillRect(W*2/3, 0, W/3, H/2); ctx.strokeRect(W*2/3, 0, W/3, H/2);
+        ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.font = 'bold 24px "Segoe UI"'; ctx.fillText("HOLD SPIN", W*5/6, H/4);
+
+        ctx.fillStyle = 'rgba(255, 51, 102, 0.05)'; ctx.fillRect(W*2/3, H/2, W/3, H/2); ctx.strokeRect(W*2/3, H/2, W/3, H/2);
+        ctx.fillStyle = 'rgba(255,255,255,0.4)'; ctx.fillText("HOLD PUMP", W*5/6, H*3/4);
+    }
 }
 
-function drTZ(){
- X.globalAlpha=.1;
- X.fillStyle='#ff0';X.fillRect(0,0,W*.33,H);
- X.fillStyle='#f0f';X.fillRect(W*.67,0,W*.33,H*.5);
- X.fillStyle='#0f0';X.fillRect(W*.67,H*.5,W*.33,H*.5);
- X.globalAlpha=.5;X.font='bold 14px Arial';X.textAlign='center';X.fillStyle='#fff';
- let cx=W*.165;
- X.fillText('TRICKS',cx,H*.42);
- X.font='10px Arial';
- X.fillText('↑ No-Hander  ↓ Tailwhip',cx,H*.42+17);
- X.fillText('← Table  → Turndown',cx,H*.42+32);
- X.fillText('↖ Barspin  ↗ X-Up',cx,H*.42+47);
- X.font='bold 15px Arial';
- X.fillText('SPIN',W*.835,H*.25);X.font='10px Arial';X.fillText('(hold)',W*.835,H*.25+17);
- X.font='bold 15px Arial';
- X.fillText('PUMP',W*.835,H*.75);X.font='10px Arial';X.fillText('(hold)',W*.835,H*.75+17);
- X.globalAlpha=1
+function drawMenu() {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#00E5FF'; ctx.font = 'bold 56px "Segoe UI"'; ctx.textAlign = 'center';
+    ctx.shadowColor = '#00E5FF'; ctx.shadowBlur = 20;
+    ctx.fillText("PROCEDURAL BMX", W/2, 90); ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff'; ctx.font = '22px "Segoe UI"'; ctx.fillText(`HIGH SCORE: ${bestScore}`, W/2, 135);
+
+    ctx.font = 'bold 20px "Segoe UI"'; ctx.fillText("SELECT RIDER", W/4, 200);
+    CHARS.forEach((c, i) => {
+        ctx.fillStyle = i === selChar ? c.color : '#333'; ctx.fillRect(W/4 - 120, 230 + i*55, 240, 45);
+        ctx.fillStyle = '#fff'; ctx.fillText(c.name, W/4, 260 + i*55);
+    });
+
+    ctx.fillText("SELECT BIKE", W*3/4, 200);
+    BIKES.forEach((b, i) => {
+        ctx.fillStyle = i === selBike ? b.color : '#333'; ctx.fillRect(W*3/4 - 120, 230 + i*55, 240, 45);
+        ctx.fillStyle = i === selBike ? '#000' : '#fff'; ctx.fillText(b.name, W*3/4, 260 + i*55);
+    });
+
+    ctx.fillStyle = tiltEnabled ? '#4CAF50' : '#FF9800'; ctx.fillRect(W/2 - 140, H - 170, 280, 50);
+    ctx.fillStyle = '#fff'; ctx.fillText(tiltEnabled ? "TILT ENABLED" : "ENABLE TILT (MOBILE)", W/2, H - 137);
+
+    ctx.fillStyle = '#FF3366'; ctx.fillRect(W/2 - 120, H - 100, 240, 60);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 28px "Segoe UI"'; ctx.fillText("START RIDE", W/2, H - 60);
 }
 
-// ═══════════════════ MENU ═══════════════════
-function drMenu(){
- let g=X.createLinearGradient(0,0,0,H);
- g.addColorStop(0,'#080822');g.addColorStop(1,'#151545');
- X.fillStyle=g;X.fillRect(0,0,W,H);
- // Decorative lines
- X.strokeStyle='rgba(255,215,0,0.05)';X.lineWidth=1;
- for(let i=0;i<8;i++){X.beginPath();X.moveTo(0,H*.1+i*H*.12);X.lineTo(W,H*.1+i*H*.12+40);X.stroke()}
- X.textAlign='center';
- let fs=Math.min(40,W*.07);
- X.font='bold '+fs+'px Arial';
- X.fillStyle='#FFD700';X.strokeStyle='#000';X.lineWidth=4;
- let ty=H*.055+fs;
- X.strokeText('PUMP RIDER',W/2,ty);X.fillText('PUMP RIDER',W/2,ty);
- X.font=Math.min(12,W*.024)+'px Arial';X.fillStyle='#aaa';
- X.fillText('BMX / MTB Flow Game',W/2,ty+18);
- X.font=Math.min(14,W*.028)+'px Arial';X.fillStyle='#FFD700';
- X.fillText('High Score: '+hi,W/2,ty+36);
+function drawGameOver() {
+    ctx.fillStyle = 'rgba(0,0,0,0.85)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#FF3366'; ctx.font = 'bold 64px "Segoe UI"'; ctx.textAlign = 'center';
+    ctx.fillText("WIPEOUT!", W/2, H/3);
+    ctx.fillStyle = '#fff'; ctx.font = '28px "Segoe UI"';
+    ctx.fillText(`FINAL SCORE: ${Math.floor(p.score)}`, W/2, H/3 + 60);
+    ctx.fillText(`DISTANCE: ${Math.floor(p.dist/100)}m`, W/2, H/3 + 100);
 
- let cw=Math.min(108,(W-45)/3),ch=Math.min(82,H*.11);
- let gap=Math.min(10,W*.02),tw=cw*3+gap*2,sx=(W-tw)/2;
-
- let sy=ty+50;
- X.font='bold '+Math.min(15,W*.028)+'px Arial';X.fillStyle='#ddd';
- X.fillText('SELECT RIDER',W/2,sy);
- let cy2=sy+7;mB.c=[];
- for(let i=0;i<3;i++){
-  let cx=sx+i*(cw+gap),c=CHARS[i];
-  X.fillStyle=i===sC?'#2a4470':'#181838';
-  X.strokeStyle=i===sC?'#FFD700':'#444';X.lineWidth=i===sC?3:1;
-  rR(cx,cy2,cw,ch,6);
-  X.font='bold '+Math.min(12,W*.022)+'px Arial';
-  X.fillStyle=c.col;X.textAlign='center';X.fillText(c.name,cx+cw/2,cy2+16);
-  X.font=Math.min(9,W*.017)+'px Arial';X.fillStyle='#999';X.fillText(c.desc,cx+cw/2,cy2+30);
-  let mx=cx+cw/2,my=cy2+ch-10,ms=c.sz*.5;
-  X.strokeStyle=c.col;X.lineWidth=2;
-  X.beginPath();X.moveTo(mx,my);X.lineTo(mx,my-13*ms);X.stroke();
-  X.fillStyle=c.hd;X.beginPath();X.arc(mx,my-13*ms-4*ms,4*ms,0,Math.PI*2);X.fill();
-  X.strokeStyle=c.col;X.beginPath();X.moveTo(mx-6*ms,my-8*ms);X.lineTo(mx+6*ms,my-8*ms);X.stroke();
-  X.beginPath();X.moveTo(mx,my);X.lineTo(mx-4*ms,my+8*ms);X.stroke();
-  X.beginPath();X.moveTo(mx,my);X.lineTo(mx+4*ms,my+8*ms);X.stroke();
-  mB.c.push({x:cx,y:cy2,w:cw,h:ch})
- }
-
- let bsy=cy2+ch+10;
- X.font='bold '+Math.min(15,W*.028)+'px Arial';X.fillStyle='#ddd';X.textAlign='center';
- X.fillText('SELECT BIKE',W/2,bsy);
- let by=bsy+7;mB.b=[];
- for(let i=0;i<3;i++){
-  let bx=sx+i*(cw+gap),b=BIKES[i];
-  X.fillStyle=i===sB?'#2a4470':'#181838';
-  X.strokeStyle=i===sB?'#FFD700':'#444';X.lineWidth=i===sB?3:1;
-  rR(bx,by,cw,ch,6);
-  X.font='bold '+Math.min(11,W*.02)+'px Arial';
-  X.fillStyle=b.col;X.textAlign='center';X.fillText(b.name,bx+cw/2,by+16);
-  X.font=Math.min(9,W*.017)+'px Arial';X.fillStyle='#999';X.fillText(b.desc,bx+cw/2,by+30);
-  let mx=bx+cw/2,my=by+ch-8,mw=b.wr*.33;
-  X.strokeStyle='#777';X.lineWidth=1.5;
-  X.beginPath();X.arc(mx-mw*1.8,my,mw,0,Math.PI*2);X.stroke();
-  X.beginPath();X.arc(mx+mw*1.8,my,mw,0,Math.PI*2);X.stroke();
-  X.strokeStyle=b.col;X.lineWidth=2;
-  X.beginPath();X.moveTo(mx-mw*1.8,my);X.lineTo(mx-mw*.2,my-mw*2);
-  X.lineTo(mx+mw*.5,my-mw*1.6);X.lineTo(mx+mw*1.8,my);X.stroke();
-  X.beginPath();X.moveTo(mx-mw*.2,my);X.lineTo(mx-mw*.2,my-mw*2);X.stroke();
-  mB.b.push({x:bx,y:by,w:cw,h:ch})
- }
-
- let btnW=Math.min(210,W*.52),btnH=Math.min(38,H*.048);
- let tiltY=by+ch+12;
- X.fillStyle=gyE?'#1a5a1a':'#2a2a55';
- X.strokeStyle=gyE?'#4c4':'#666';X.lineWidth=2;
- rR((W-btnW)/2,tiltY,btnW,btnH,8);
- mB.t={x:(W-btnW)/2,y:tiltY,w:btnW,h:btnH};
- X.font='bold '+Math.min(13,W*.025)+'px Arial';X.fillStyle='#fff';X.textAlign='center';
- X.fillText(gyE?'✓ Tilt Enabled':'📱 Enable Tilt Controls',W/2,tiltY+btnH/2+4);
-
- let stY=tiltY+btnH+10,stH=btnH*1.35;
- X.fillStyle='#1a6a1a';X.strokeStyle='#FFD700';X.lineWidth=3;
- rR((W-btnW)/2,stY,btnW,stH,10);
- mB.s={x:(W-btnW)/2,y:stY,w:btnW,h:stH};
- X.font='bold '+Math.min(19,W*.036)+'px Arial';X.fillStyle='#fff';
- X.fillText('▶  START GAME',W/2,stY+stH/2+6);
-
- X.font=Math.min(9,W*.017)+'px Arial';X.fillStyle='#555';
- X.fillText('Desktop: SPACE=Pump  Z=Spin  Arrows=Lean  WASDQE=Tricks',W/2,stY+stH+16);
- X.fillText('Mobile: Right=Pump/Spin  Left=Swipe Tricks  Tilt=Lean',W/2,stY+stH+29)
+    ctx.fillStyle = '#00E5FF'; ctx.fillRect(W/2 - 120, H/2 + 60, 240, 55);
+    ctx.fillStyle = '#000'; ctx.font = 'bold 24px "Segoe UI"'; ctx.fillText("RESTART", W/2, H/2 + 96);
+    ctx.fillStyle = '#333'; ctx.fillRect(W/2 - 120, H/2 + 135, 240, 55);
+    ctx.fillStyle = '#fff'; ctx.fillText("MAIN MENU", W/2, H/2 + 171);
 }
 
-function rR(x,y,w,h,r){
- X.beginPath();X.moveTo(x+r,y);X.lineTo(x+w-r,y);
- X.quadraticCurveTo(x+w,y,x+w,y+r);X.lineTo(x+w,y+h-r);
- X.quadraticCurveTo(x+w,y+h,x+w-r,y+h);X.lineTo(x+r,y+h);
- X.quadraticCurveTo(x,y+h,x,y+h-r);X.lineTo(x,y+r);
- X.quadraticCurveTo(x,y,x+r,y);X.closePath();X.fill();X.stroke()
+/** INPUT & CONTROLS **/
+window.addEventListener('keydown', e => keys[e.code] = true);
+window.addEventListener('keyup', e => keys[e.code] = false);
+
+canvas.addEventListener('mousedown', handleUI);
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if (state !== 'play') handleUI(e.touches[0]);
+    else {
+        audio.init(); // Ensure audio unlocks on mobile
+        Array.from(e.touches).forEach(t => {
+            if (t.clientX > W * 2/3) { if (t.clientY < H / 2) touchSpin = true; else touchPump = true; } 
+            else if (t.clientX < W / 3) swipeStart = { x: t.clientX, y: t.clientY, id: t.identifier };
+        });
+    }
+}, {passive: false});
+
+function handleUI(e) {
+    let x = e.clientX || e.pageX, y = e.clientY || e.pageY;
+    audio.init(); // Unlock audio context
+    if (state === 'menu') {
+        CHARS.forEach((c, i) => { if (x > W/4-120 && x < W/4+120 && y > 230+i*55 && y < 275+i*55) selChar = i; });
+        BIKES.forEach((b, i) => { if (x > W*3/4-120 && x < W*3/4+120 && y > 230+i*55 && y < 275+i*55) selBike = i; });
+        if (x > W/2-140 && x < W/2+140 && y > H-170 && y < H-120) {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission().then(r => { if (r == 'granted') enableTilt(); }).catch(console.error);
+            } else enableTilt();
+        }
+        if (x > W/2-120 && x < W/2+120 && y > H-100 && y < H-40) { initPlayer(); state = 'play'; }
+    } else if (state === 'gameover') {
+        if (x > W/2-120 && x < W/2+120 && y > H/2+60 && y < H/2+115) { initPlayer(); state = 'play'; }
+        if (x > W/2-120 && x < W/2+120 && y > H/2+135 && y < H/2+190) state = 'menu';
+    }
 }
 
-// ═══════════════════ GAME OVER ═══════════════════
-function drGO(){
- render();
- X.fillStyle='rgba(0,0,0,.62)';X.fillRect(0,0,W,H);
- X.textAlign='center';
- let fs=Math.min(38,W*.07);
- X.font='bold '+fs+'px Arial';X.fillStyle='#ff4444';
- X.strokeStyle='#000';X.lineWidth=4;
- X.strokeText('WIPEOUT!',W/2,H*.2);X.fillText('WIPEOUT!',W/2,H*.2);
- X.font='bold '+Math.min(25,W*.048)+'px Arial';X.fillStyle='#fff';
- X.fillText('Score: '+Math.floor(P.sc),W/2,H*.3);
- X.font=Math.min(16,W*.032)+'px Arial';X.fillStyle='#aaa';
- X.fillText(Math.floor(P.dist/10)+' meters',W/2,H*.36);
- if(Math.floor(P.sc)>=hi&&P.sc>0){
-  X.fillStyle='#FFD700';X.font='bold '+Math.min(18,W*.035)+'px Arial';
-  X.fillText('★ NEW BEST! ★',W/2,H*.42)}
- let bw=Math.min(190,W*.43),bh=Math.min(40,H*.05);
- let ry=H*.5;
- X.fillStyle='#1a6a1a';X.strokeStyle='#8c8';X.lineWidth=2;
- rR((W-bw)/2,ry,bw,bh,8);goB.r={x:(W-bw)/2,y:ry,w:bw,h:bh};
- X.font='bold '+Math.min(16,W*.03)+'px Arial';X.fillStyle='#fff';X.textAlign='center';
- X.fillText('RESTART',W/2,ry+bh/2+5);
- let my=ry+bh+10;
- X.fillStyle='#2a2a55';X.strokeStyle='#88a';X.lineWidth=2;
- rR((W-bw)/2,my,bw,bh,8);goB.m={x:(W-bw)/2,y:my,w:bw,h:bh};
- X.fillStyle='#fff';X.fillText('MAIN MENU',W/2,my+bh/2+5)
+function enableTilt() {
+    tiltEnabled = true;
+    window.addEventListener('deviceorientation', (e) => {
+        let t = e.beta; if (t > 30) t = 30; if (t < -30) t = -30; tiltLean = t / 30;
+    });
 }
 
-// ═══════════════════ INPUT ═══════════════════
-let keys={};
-addEventListener('keydown',e=>{keys[e.code]=true;e.preventDefault()});
-addEventListener('keyup',e=>{keys[e.code]=false});
-function hit(mx,my,b){return b&&mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h}
-function clk(mx,my){
- if(st==='menu'){
-  if(mB.c)mB.c.forEach((b,i)=>{if(hit(mx,my,b))sC=i});
-  if(mB.b)mB.b.forEach((b,i)=>{if(hit(mx,my,b))sB=i});
-  if(hit(mx,my,mB.t))rqGy();
-  if(hit(mx,my,mB.s))go()
- }else if(st==='gameover'){
-  if(hit(mx,my,goB.r))go();
-  if(hit(mx,my,goB.m))st='menu'
- }
-}
-C.addEventListener('click',e=>clk(e.clientX,e.clientY));
-C.addEventListener('touchstart',e=>{
- e.preventDefault();
- for(let t of e.changedTouches){
-  let tx=t.clientX,ty=t.clientY;
-  if(st!=='play'){clk(tx,ty);continue}
-  if(tx<W*.33){tTID=t.identifier;tTS={x:tx,y:ty}}
-  else if(tx>W*.67){if(ty<H*.5){sTID=t.identifier;spinB=true}else{pTID=t.identifier;pump=true}}
-  else{pTID=t.identifier;pump=true}
- }
-},{passive:false});
-C.addEventListener('touchmove',e=>e.preventDefault(),{passive:false});
-C.addEventListener('touchend',e=>{
- e.preventDefault();
- for(let t of e.changedTouches){
-  if(t.identifier===pTID){pump=false;pTID=null}
-  if(t.identifier===sTID){spinB=false;sTID=null}
-  if(t.identifier===tTID&&tTS){
-   let dx=t.clientX-tTS.x,dy=t.clientY-tTS.y;
-   if(Math.sqrt(dx*dx+dy*dy)>18){
-    let a=Math.atan2(-dy,dx),dir;
-    if(a>-Math.PI/6&&a<Math.PI/6)dir='right';
-    else if(a>=Math.PI/6&&a<Math.PI/3)dir='upright';
-    else if(a>=Math.PI/3&&a<2*Math.PI/3)dir='up';
-    else if(a>=2*Math.PI/3)dir='upleft';
-    else if(a<-Math.PI/6&&a>=-2*Math.PI/3)dir='down';
-    else dir='left';
-    if(dir&&TRK[dir])doTrk(TRK[dir])
-   }
-   tTID=null;tTS=null
-  }
- }
-},{passive:false});
-C.addEventListener('touchcancel',()=>{pump=spinB=false;pTID=sTID=tTID=null;tTS=null},{passive:false});
+canvas.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+    if (state !== 'play' || !swipeStart || p.gnd) return;
+    Array.from(e.touches).forEach(t => {
+        if (t.identifier === swipeStart.id) {
+            let dx = t.clientX - swipeStart.x, dy = t.clientY - swipeStart.y;
+            if (Math.abs(dx) > 30 || Math.abs(dy) > 30) {
+                if (Math.abs(dy) > Math.abs(dx)) { dy < 0 ? startTrick('Tuck No-Hander', 100) : startTrick('Tailwhip', 150); } 
+                else { dx < 0 && dy < -15 ? startTrick('Barspin', 100) : dx > 0 && dy < -15 ? startTrick('X-Up', 80) : dx < 0 ? startTrick('Tabletop', 120) : startTrick('Turndown', 130); }
+                swipeStart = null;
+            }
+        }
+    });
+}, {passive: false});
 
-// ═══════════════════ GYRO ═══════════════════
-function rqGy(){
- if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function')
-  DeviceOrientationEvent.requestPermission().then(p=>{if(p==='granted')enGy()}).catch(()=>{});
- else enGy()
-}
-function enGy(){gyE=true;addEventListener('deviceorientation',e=>{gyG=e.gamma||0})}
+canvas.addEventListener('touchend', (e) => {
+    e.preventDefault(); touchPump = false; touchSpin = false;
+    Array.from(e.touches).forEach(t => { if (t.clientX > W * 2/3) { t.clientY < H / 2 ? touchSpin = true : touchPump = true; } });
+}, {passive: false});
 
-// ═══════════════════ GO ═══════════════════
-function go(){st='play';initP();pump=spinB=false;lean=0}
-
-// ═══════════════════ LOOP ═══════════════════
-function loop(ts){
- if(!lt)lt=ts;
- let dt=Math.min((ts-lt)/1000,.032);lt=ts;
- if(st==='menu')drMenu();
- else if(st==='play'){
-  pump=!!keys.Space||pTID!==null;
-  spinB=!!keys.KeyZ||sTID!==null;
-  upP(dt);upFX(dt);upCam();render();
-  if(!P.alive&&P.ct>2.2)st='gameover'
- }else if(st==='gameover')drGO();
- requestAnimationFrame(loop)
+/** GAME LOOP **/
+let lastTime = performance.now();
+function loop(time) {
+    let dt = Math.min(0.1, (time - lastTime) / 1000);
+    lastTime = time;
+    update(dt); draw();
+    requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 </script>

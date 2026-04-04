@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Cube Pro - Functional</title>
+    <style>
+        :root { --bg: #222; --border: #000; }
+        body { background: var(--bg); color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; height: 100vh; }
+        
+        #scramble-info { margin: 20px; font-family: monospace; color: #f1c40f; font-size: 1.2rem; min-height: 1.5rem; }
+
+        /* Cube Visuals */
+        .scene { width: 200px; height: 200px; perspective: 600px; margin: 50px; }
+        .cube { 
+            width: 100%; height: 100%; position: relative; transform-style: preserve-3d;
+            transform: rotateX(-25deg) rotateY(-35deg);
+            transition: transform 0.2s;
+        }
+        .face { 
+            position: absolute; width: 200px; height: 200px; 
+            display: grid; grid-template-columns: repeat(3, 1fr); 
+            border: 2px solid var(--border); box-sizing: border-box;
+            background: var(--border); gap: 2px;
+        }
+        .sticker { width: 100%; height: 100%; border-radius: 3px; }
+
+        /* Positionierung im 3D Raum */
+        .f { transform: translateZ(100px); }
+        .b { transform: rotateY(180deg) translateZ(100px); }
+        .u { transform: rotateX(90deg) translateZ(100px); }
+        .d { transform: rotateX(-90deg) translateZ(100px); }
+        .l { transform: rotateY(-90deg) translateZ(100px); }
+        .r { transform: rotateY(90deg) translateZ(100px); }
+
+        /* Farbschema */
+        .white  { background: #ffffff; }
+        .yellow { background: #ffd700; }
+        .green  { background: #009b48; }
+        .blue   { background: #0046ad; }
+        .orange { background: #ff5800; }
+        .red    { background: #b71234; }
+
+        /* Controls */
+        .controls { 
+            display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; 
+            padding: 15px; background: #333; width: 100%; max-width: 400px;
+            border-radius: 15px 15px 0 0; position: fixed; bottom: 0;
+        }
+        button { 
+            padding: 15px 5px; border: none; border-radius: 5px; 
+            background: #444; color: white; font-weight: bold; cursor: pointer;
+        }
+        button.action { background: #27ae60; grid-column: span 3; margin-bottom: 10px; }
+        button:active { background: #666; }
+    </style>
+</head>
+<body>
+
+    <div id="scramble-info"></div>
+
+    <div class="scene">
+        <div class="cube" id="cube-visual">
+            <div class="face u" id="face-u"></div>
+            <div class="face d" id="face-d"></div>
+            <div class="face f" id="face-f"></div>
+            <div class="face b" id="face-b"></div>
+            <div class="face l" id="face-l"></div>
+            <div class="face r" id="face-r"></div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="action" onclick="scramble()">SCRAMBLE</button>
+        <button class="action" onclick="resetCube()">RESET</button>
+        
+        <button onclick="move('U')">U</button>
+        <button onclick="move('D')">D</button>
+        <button onclick="move('L')">L</button>
+        <button onclick="move('R')">R</button>
+        <button onclick="move('F')">F</button>
+        <button onclick="move('B')">B</button>
+        
+        <button onclick="move('U\'')">U'</button>
+        <button onclick="move('D\'')">D'</button>
+        <button onclick="move('L\'')">L'</button>
+        <button onclick="move('R\'')">R'</button>
+        <button onclick="move('F\'')">F'</button>
+        <button onclick="move('B\'')">B'</button>
+    </div>
+
+<script>
+    // Initialer Zustand (Farben pro Seite)
+    const COLORS = { U: 'white', D: 'yellow', F: 'green', B: 'blue', L: 'orange', R: 'red' };
+    let cubeState = {};
+
+    function resetCube() {
+        for (const face in COLORS) {
+            cubeState[face] = Array(9).fill(COLORS[face]);
+        }
+        render();
+    }
+
+    function render() {
+        for (const face in cubeState) {
+            const el = document.getElementById(`face-${face.toLowerCase()}`);
+            el.innerHTML = '';
+            cubeState[face].forEach(color => {
+                const s = document.createElement('div');
+                s.className = `sticker ${color}`;
+                el.appendChild(s);
+            });
+        }
+    }
+
+    // Die "Magie": Faces rotieren und Kanten verschieben
+    function rotateFace(face) {
+        const s = cubeState[face];
+        // Ecken: 0->2, 2->8, 8->6, 6->0 | Kanten: 1->5, 5->7, 7->3, 3->1
+        const newState = [s[6], s[3], s[0], s[7], s[4], s[1], s[8], s[5], s[2]];
+        cubeState[face] = newState;
+    }
+
+    function move(type) {
+        if (type.includes("'")) {
+            // Ein Prime Move ist einfach 3x der normale Move
+            const base = type.replace("'", "");
+            move(base); move(base); move(base);
+            return;
+        }
+
+        rotateFace(type);
+
+        // Kanten-Logik für 3x3
+        const s = cubeState;
+        let temp = [];
+        if (type === 'U') {
+            temp = [s.F[0], s.F[1], s.F[2]];
+            [s.F[0], s.F[1], s.F[2]] = [s.R[0], s.R[1], s.R[2]];
+            [s.R[0], s.R[1], s.R[2]] = [s.B[0], s.B[1], s.B[2]];
+            [s.B[0], s.B[1], s.B[2]] = [s.L[0], s.L[1], s.L[2]];
+            [s.L[0], s.L[1], s.L[2]] = temp;
+        } else if (type === 'R') {
+            temp = [s.F[2], s.F[5], s.F[8]];
+            [s.F[2], s.F[5], s.F[8]] = [s.D[2], s.D[5], s.D[8]];
+            [s.D[2], s.D[5], s.D[8]] = [s.B[6], s.B[3], s.B[0]];
+            [s.B[6], s.B[3], s.B[0]] = [s.U[2], s.U[5], s.U[8]];
+            [s.U[2], s.U[5], s.U[8]] = temp;
+        } else if (type === 'L') {
+            temp = [s.F[0], s.F[3], s.F[6]];
+            [s.F[0], s.F[3], s.F[6]] = [s.U[0], s.U[3], s.U[6]];
+            [s.U[0], s.U[3], s.U[6]] = [s.B[8], s.B[5], s.B[2]];
+            [s.B[8], s.B[5], s.B[2]] = [s.D[0], s.D[3], s.D[6]];
+            [s.D[0], s.D[3], s.D[6]] = temp;
+        } else if (type === 'F') {
+            temp = [s.U[6], s.U[7], s.U[8]];
+            [s.U[6], s.U[7], s.U[8]] = [s.L[8], s.L[5], s.L[2]];
+            [s.L[8], s.L[5], s.L[2]] = [s.D[2], s.D[1], s.D[0]];
+            [s.D[2], s.D[1], s.D[0]] = [s.R[0], s.R[3], s.R[6]];
+            [s.R[0], s.R[3], s.R[6]] = temp;
+        } else if (type === 'D') {
+            temp = [s.F[6], s.F[7], s.F[8]];
+            [s.F[6], s.F[7], s.F[8]] = [s.L[6], s.L[7], s.L[8]];
+            [s.L[6], s.L[7], s.L[8]] = [s.B[6], s.B[7], s.B[8]];
+            [s.B[6], s.B[7], s.B[8]] = [s.R[6], s.R[7], s.R[8]];
+            [s.R[6], s.R[7], s.R[8]] = temp;
+        } else if (type === 'B') {
+            temp = [s.U[0], s.U[1], s.U[2]];
+            [s.U[0], s.U[1], s.U[2]] = [s.R[2], s.R[5], s.R[8]];
+            [s.R[2], s.R[5], s.R[8]] = [s.D[8], s.D[7], s.D[6]];
+            [s.D[8], s.D[7], s.D[6]] = [s.L[6], s.L[3], s.L[0]];
+            [s.L[6], s.L[3], s.L[0]] = temp;
+        }
+        render();
+    }
+
+    function scramble() {
+        const moves = ['U', 'D', 'L', 'R', 'F', 'B', "U'", "D'", "L'", "R'", "F'", "B'"];
+        let sequence = [];
+        for(let i=0; i<9; i++) {
+            const m = moves[Math.floor(Math.random()*moves.length)];
+            sequence.push(m);
+            move(m);
+        }
+        document.getElementById('scramble-info').innerText = sequence.join(' ');
+    }
+
+    resetCube();
+</script>
+</body>
+</html>

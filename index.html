@@ -1,38 +1,147 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Games</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 40px;
-    }
-    a {
-      display: block;
-      background: #1a6a1a;
-      color: white;
-      padding: 20px 40px;
-      margin: 10px;
-      border-radius: 10px;
-      text-decoration: none;
-      font-size: 20px;
-    }
-    a:hover { background: #2a8a2a; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Games Collection</title>
+    <style>
+        :root {
+            --bg-color: #0f0f0f;
+            --card-bg: #1a1a1a;
+            --accent-color: #3b82f6;
+            --text-color: #efefef;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            font-weight: 300;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* The Grid Container */
+        .game-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* 2 per row on mobile */
+            gap: 15px;
+            width: 100%;
+            max-width: 800px;
+        }
+
+        /* Responsive: 3 or 4 per row on larger screens */
+        @media (min-width: 600px) {
+            .game-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 20px;
+            }
+        }
+
+        /* The Tile Style */
+        .game-card {
+            background: var(--card-bg);
+            aspect-ratio: 1 / 1; /* Keep it square */
+            border-radius: 16px;
+            text-decoration: none;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, background 0.2s, box-shadow 0.2s;
+            border: 1px solid #333;
+            padding: 10px;
+            text-align: center;
+        }
+
+        .game-card:hover {
+            transform: translateY(-5px);
+            background: #252525;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            border-color: var(--accent-color);
+        }
+
+        .game-card svg {
+            width: 50%;
+            height: 50%;
+            margin-bottom: 12px;
+            fill: none;
+            stroke: var(--accent-color);
+            stroke-width: 1.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .game-card span {
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .sub-label {
+            font-size: 10px;
+            opacity: 0.5;
+            margin-top: 4px;
+        }
+    </style>
 </head>
 <body>
-  <h1>Games</h1>
-  <a href="ride.html">Ride</a>
-  <a href="saber.html">Saber</a>
-  <a href="surf_claude.html">Surf (Claude 4.6)</a>
-  <a href="surf_gpt.html">Surf (GPT 5.4)</a>
-  <a href="track.html">Track Designer</a>
-  <a href="tracker.html">Camera Timer</a>
-  <a href="cube.html">Virtual Cube</a>
+
+    <h1>Games</h1>
+
+    <div class="game-grid">
+        <a href="ride.html" class="game-card">
+            <svg viewBox="0 0 24 24"><path d="M5.5 17.5c2.485 0 4.5-2.015 4.5-4.5s-2.015-4.5-4.5-4.5-4.5 2.015-4.5 4.5 2.015 4.5 4.5 4.5zM18.5 17.5c2.485 0 4.5-2.015 4.5-4.5s-2.015-4.5-4.5-4.5-4.5 2.015-4.5 4.5 2.015 4.5 4.5 4.5zM15 6.5l3.5 3.5M8 13h10L15 6.5H9L8 13z"/></svg>
+            <span>Ride</span>
+        </a>
+
+        <a href="saber.html" class="game-card">
+            <svg viewBox="0 0 24 24"><path d="M19 5L5 19M18 4l2 2-2-2zM7 17l-3 3 1.5 1.5 3-3L7 17zM15 7l2 2-9 9-2-2 9-9z"/></svg>
+            <span>Saber</span>
+        </a>
+
+        <a href="surf_claude.html" class="game-card">
+            <svg viewBox="0 0 24 24"><path d="M2 17c5 0 5-4 10-4s5 4 10 4M2 12c5 0 5-4 10-4s5 4 10 4M2 7c5 0 5-4 10-4s5 4 10 4"/></svg>
+            <span>Surf</span>
+            <div class="sub-label">Claude Ed.</div>
+        </a>
+
+        <a href="surf_gpt.html" class="game-card">
+            <svg viewBox="0 0 24 24" style="stroke: #10a37f;"><path d="M2 17c5 0 5-4 10-4s5 4 10 4M2 12c5 0 5-4 10-4s5 4 10 4M2 7c5 0 5-4 10-4s5 4 10 4"/></svg>
+            <span>Surf</span>
+            <div class="sub-label">GPT Ed.</div>
+        </a>
+
+        <a href="tracker.html" class="game-card">
+            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3M12 3V1M11 1h2"/></svg>
+            <span>Tracker</span>
+        </a>
+
+        <a href="cube.html" class="game-card">
+            <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            <span>Cube</span>
+        </a>
+
+        <a href="cubescanner.html" class="game-card">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><path d="M9 9h4v4H9z"/></svg>
+            <span>Scanner</span>
+        </a>
+
+        <a href="track.html" class="game-card">
+            <svg viewBox="0 0 24 24"><path d="M20 12h-8M4 12h2M10 12H8M16 12h-2M4 12c0-3 2-5 5-5s5 2 5 5-2 5-5 5-5-2-5-5z"/></svg>
+            <span>Designer</span>
+        </a>
+
+    </div>
+
 </body>
 </html>

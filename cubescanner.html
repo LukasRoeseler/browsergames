@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>CuberScan Pro | 2026 Edition</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cubejs/lib/cube.min.js"></script>
+    <style>
+        :root { 
+            --accent: #00ff88; --bg: #0a0a0c; --panel: #16161e; --text: #e1e1e6;
+            --white: #ffffff; --yellow: #ffdd00; --red: #ff3b30; --orange: #ff9500; --green: #4cd964; --blue: #007aff;
+        }
+        body { 
+            font-family: 'Segoe UI', Roboto, sans-serif; margin: 0; background: var(--bg); color: var(--text);
+            display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+        }
+        
+        /* UI Header */
+        header { padding: 15px; background: var(--panel); border-bottom: 1px solid #222; display: flex; justify-content: space-between; align-items: center; }
+        .status-badge { background: #222; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; border: 1px solid var(--accent); color: var(--accent); }
+
+        /* Scanner Area */
+        #scanner-container { position: relative; flex: 1; display: flex; justify-content: center; align-items: center; background: #000; }
+        video { height: 100%; width: auto; aspect-ratio: 1/1; object-fit: cover; filter: contrast(1.1); }
+        
+        #roi-guide {
+            position: absolute; width: 280px; height: 280px;
+            display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
+            border: 3px solid var(--accent); border-radius: 12px; box-shadow: 0 0 0 1000px rgba(0,0,0,0.4);
+        }
+        .roi-cell { border: 1px solid rgba(255,255,255,0.15); display: flex; justify-content: center; align-items: center; }
+        .roi-cell::after { content: ''; width: 4px; height: 4px; background: rgba(255,255,255,0.5); border-radius: 50%; }
+
+        /* Instruction Overlay */
+        #instruction-card {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); padding: 10px 20px;
+            border-radius: 12px; text-align: center; width: 80%; border: 1px solid #333;
+        }
+        #instruction-card h2 { margin: 0; font-size: 1rem; color: var(--accent); }
+        #instruction-card p { margin: 4px 0 0; font-size: 0.85rem; opacity: 0.8; }
+
+        /* 3D & Results */
+        #bottom-panel { height: 40%; background: var(--panel); position: relative; border-top: 1px solid #333; }
+        #canvas3d { width: 100%; height: 100%; }
+
+        .controls {
+            position: absolute; bottom: 20px; left: 0; width: 100%;
+            display: flex; justify-content: center; gap: 10px; pointer-events: none;
+        }
+        button {
+            pointer-events: auto; padding: 14px 28px; border-radius: 12px; border: none;
+            background: var(--accent); color: #000; font-weight: 800; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3); transition: 0.2s;
+        }
+        button:disabled { background: #333; color: #666; box-shadow: none; }
+        button.secondary { background: #222; color: #fff; border: 1px solid #444; }
+
+        /* Live Color Feed */
+        #live-feed {
+            position: absolute; bottom: 10px; right: 10px; width: 60px; height: 60px;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
+        }
+        .feed-dot { background: #222; border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div style="font-weight: 900; letter-spacing: 1px;">CUBER<span style="color:var(--accent)">SCAN</span></div>
+    <div class="status-badge" id="scan-count">SCAN 1 / 6</div>
+</header>
+
+<div id="scanner-container">
+    <video id="video" autoplay playsinline></video>
+    <div id="instruction-card">
+        <h2 id="step-title">Weiße Seite</h2>
+        <p id="step-desc">Halte WEISS oben, GRÜN vorne</p>
+    </div>
+    <div id="roi-guide">
+        <div class="roi-cell"></div><div class="roi-cell"></div><div class="roi-cell"></div>
+        <div class="roi-cell"></div><div class="roi-cell"></div><div class="roi-cell"></div>
+        <div class="roi-cell"></div><div class="roi-cell"></div><div class="roi-cell"></div>
+    </div>
+    <div id="live-feed">
+        <div class="feed-dot"></div><div class="feed-dot"></div><div class="feed-dot"></div>
+        <div class="feed-dot"></div><div class="feed-dot"></div><div class="feed-dot"></div>
+        <div class="feed-dot"></div><div class="feed-dot"></div><div class="feed-dot"></div>
+    </div>
+</div>
+
+<div id="bottom-panel">
+    <div id="canvas3d"></div>
+    <div class="controls">
+        <button id="btn-scan" onclick="captureFace()">SCAN FACE</button>
+        <button class="secondary" onclick="resetAll()">RESET</button>
+    </div>
+</div>
+
+<canvas id="proc-canvas" width="300" height="300" style="display:none"></canvas>
+
+<script>
+/**
+ * SPEEDCUBER CORE LOGIC
+ * Standard Color Scheme: U:W, R:R, F:G, D:Y, L:O, B:B
+ */
+const WCA_STEPS = [
+    { id: 'U', name: 'OBEN (Weiß)', help: 'Weiß oben, Grün vorne', centerColor: 'white' },
+    { id: 'R', name: 'RECHTS (Rot)', help: 'Weiß oben, Rot vorne', centerColor: 'red' },
+    { id: 'F', name: 'VORNE (Grün)', help: 'Weiß oben, Grün vorne', centerColor: 'green' },
+    { id: 'D', name: 'UNTEN (Gelb)', help: 'Grün oben, Gelb vorne', centerColor: 'yellow' },
+    { id: 'L', name: 'LINKS (Orange)', help: 'Weiß oben, Orange vorne', centerColor: 'orange' },
+    { id: 'B', name: 'HINTEN (Blau)', help: 'Weiß oben, Blau vorne', centerColor: 'blue' }
+];
+
+const FACE_MAP = { 'U':0, 'R':1, 'F':2, 'D':3, 'L':4, 'B':5 };
+const COLORS = {
+    'U': 0xffffff, 'R': 0xff3b30, 'F': 0x4cd964,
+    'D': 0xffdd00, 'L': 0xff9500, 'B': 0x007aff
+};
+
+let currentStep = 0;
+let rawData = []; // Speichert alle 54 RGB-Vektoren
+let centerRefs = {}; // Speichert die RGB-Vektoren der 6 Center
+let scene, camera, renderer, cubeGroup, controls;
+
+// --- INITIALISIERUNG ---
+async function init() {
+    init3D();
+    const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: "environment", width: 800, height: 800 } 
+    });
+    document.getElementById('video').srcObject = stream;
+    updateUI();
+    requestAnimationFrame(processLive);
+}
+
+function init3D() {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / (window.innerHeight * 0.4), 0.1, 100);
+    camera.position.set(4, 4, 6);
+    
+    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(window.innerWidth, window.innerHeight * 0.4);
+    document.getElementById('canvas3d').appendChild(renderer.domElement);
+
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    // Erstelle Cube-Visualisierung (nur Rahmen anfangs)
+    cubeGroup = new THREE.Group();
+    const geom = new THREE.BoxGeometry(0.92, 0.92, 0.92);
+    for(let x=-1; x<=1; x++) {
+        for(let y=-1; y<=1; y++) {
+            for(let z=-1; z<=1; z++) {
+                const materials = Array(6).fill(new THREE.MeshBasicMaterial({ color: 0x1a1a1a }));
+                const mesh = new THREE.Mesh(geom, materials);
+                mesh.position.set(x, y, z);
+                mesh.userData = { pos: [x,y,z] };
+                cubeGroup.add(mesh);
+            }
+        }
+    }
+    scene.add(cubeGroup);
+    animate();
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+// --- SCAN-LOGIK ---
+function updateUI() {
+    const step = WCA_STEPS[currentStep];
+    document.getElementById('step-title').innerText = step.name;
+    document.getElementById('step-desc').innerText = step.help;
+    document.getElementById('scan-count').innerText = `SCAN ${currentStep + 1} / 6`;
+}
+
+function processLive() {
+    const canvas = document.getElementById('proc-canvas');
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(document.getElementById('video'), 0, 0, 300, 300);
+    
+    const dots = document.querySelectorAll('.feed-dot');
+    const samples = getGridSamples(ctx);
+    
+    samples.forEach((rgb, i) => {
+        dots[i].style.background = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+    });
+    requestAnimationFrame(processLive);
+}
+
+function getGridSamples(ctx) {
+    const samples = [];
+    const size = 300;
+    const step = size / 3;
+    const offset = step / 2;
+
+    for(let y=0; y<3; y++) {
+        for(let x=0; x<3; x++) {
+            const data = ctx.getImageData(x*step + offset - 10, y*step + offset - 10, 20, 20).data;
+            let r=0, g=0, b=0;
+            for(let i=0; i<data.length; i+=4) { r+=data[i]; g+=data[i+1]; b+=data[i+2]; }
+            const count = data.length/4;
+            samples.push({ r: r/count, g: g/count, b: b/count });
+        }
+    }
+    return samples;
+}
+
+function captureFace() {
+    if(currentStep >= 6) return;
+
+    const ctx = document.getElementById('proc-canvas').getContext('2d');
+    const faceSamples = getGridSamples(ctx);
+    
+    // Speichere Center-Referenz (Index 4 ist die Mitte)
+    centerRefs[WCA_STEPS[currentStep].id] = faceSamples[4];
+    rawData.push(faceSamples);
+
+    // Live-Update des 3D Cubes (Vorläufige Farbe für Feedback)
+    applyFaceTo3D(WCA_STEPS[currentStep].id, faceSamples, true);
+
+    currentStep++;
+    if(currentStep === 6) {
+        finalizeCube();
+    } else {
+        updateUI();
+    }
+}
+
+/**
+ * GLOBAL COLOR CLASSIFIER
+ * Vergleicht alle 54 Sticker mit den 6 geankerten Center-Farben.
+ */
+function finalizeCube() {
+    let cubeString = "";
+    const finalColors = [];
+
+    // Verarbeite alle 6 Flächen
+    for(let f=0; f<6; f++) {
+        const faceResult = [];
+        for(let s=0; s<9; s++) {
+            const rgb = rawData[f][s];
+            const colorId = classifyByAnchor(rgb);
+            faceResult.push(colorId);
+            cubeString += colorId;
+        }
+        finalColors.push(faceResult);
+        applyFaceTo3D(WCA_STEPS[f].id, faceResult, false);
+    }
+
+    try {
+        const solver = Cube.fromString(cubeString);
+        const solution = solver.solve();
+        document.getElementById('step-title').innerText = "GELÖST!";
+        document.getElementById('step-desc').innerHTML = `<span style="color:white; font-family:monospace; font-size:1.1rem">${solution}</span>`;
+        document.getElementById('btn-scan').disabled = true;
+    } catch(e) {
+        alert("Logik-Fehler! Der Würfel ist so nicht möglich. Bitte Reset und neu scannen.");
+    }
+}
+
+function classifyByAnchor(rgb) {
+    let minDist = Infinity;
+    let bestMatch = 'U';
+    
+    for(const [id, ref] of Object.entries(centerRefs)) {
+        // Gewichtetes Euklidisches Distanz-Modell (Auge ist empfindlicher für Grün)
+        const d = Math.sqrt(
+            2 * Math.pow(rgb.r - ref.r, 2) + 
+            4 * Math.pow(rgb.g - ref.g, 2) + 
+            3 * Math.pow(rgb.b - ref.b, 2)
+        );
+        if(d < minDist) {
+            minDist = d;
+            bestMatch = id;
+        }
+    }
+    return bestMatch;
+}
+
+function applyFaceTo3D(faceId, data, isRaw) {
+    cubeGroup.children.forEach(piece => {
+        const [px, py, pz] = piece.userData.pos;
+        const setCol = (sideIdx, stickerIdx) => {
+            const colVal = isRaw ? `rgb(${data[stickerIdx].r},${data[stickerIdx].g},${data[stickerIdx].b})` : COLORS[data[stickerIdx]];
+            piece.material[sideIdx].color.set(colVal);
+        };
+
+        // Mapping logik (U R F D L B)
+        const g = (x, y) => x + y * 3;
+        if(faceId === 'U' && py === 1)  setCol(2, g(px+1, pz+1));
+        if(faceId === 'D' && py === -1) setCol(3, g(px+1, 2-(pz+1)));
+        if(faceId === 'F' && pz === 1)  setCol(4, g(px+1, 2-(py+1)));
+        if(faceId === 'B' && pz === -1) setCol(5, g(2-(px+1), 2-(py+1)));
+        if(faceId === 'L' && px === -1) setCol(1, g(pz+1, 2-(py+1)));
+        if(faceId === 'R' && px === 1)  setCol(0, g(2-(pz+1), 2-(py+1)));
+    });
+}
+
+function resetAll() {
+    location.reload();
+}
+
+window.onload = init;
+</script>
+</body>
+</html>

@@ -3,55 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Gemini Cube Pro Fix</title>
+    <title>Gemini Speedcube 3x3</title>
     <style>
-        :root { --bg: #2c3e50; --panel: #34495e; }
+        :root { --bg: #222; --panel: #333; --accent: #3498db; }
         * { touch-action: manipulation; user-select: none; box-sizing: border-box; }
         body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
 
-        /* Layout */
-        #top-bar { padding: 10px; display: flex; justify-content: space-between; background: rgba(0,0,0,0.3); z-index: 10; }
+        /* Top Bar */
+        #top-bar { padding: 15px; text-align: center; background: #111; font-weight: bold; font-size: 1.1rem; color: #f1c40f; letter-spacing: 2px; }
+
+        /* Main View */
         #main-container { flex: 1; display: flex; position: relative; justify-content: center; align-items: center; overflow: hidden; }
         
-        /* Cube 3D */
+        /* 3D Cube */
         .scene { width: 180px; height: 180px; perspective: 1000px; z-index: 5; }
-        .cube { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transform: rotateX(-20deg) rotateY(-30deg); }
-        .face { position: absolute; width: 180px; height: 180px; display: grid; gap: 2px; padding: 2px; background: #000; border: 1px solid #000; }
+        .cube { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transform: rotateX(-20deg) rotateY(-30deg); transition: transform 0.1s linear; }
+        .face { position: absolute; width: 180px; height: 180px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; background: #000; border: 2px solid #000; }
         
-        /* Faces Positions */
+        /* 3D Positions */
         .f { transform: translateZ(90px); } .b { transform: rotateY(180deg) translateZ(90px); }
         .u { transform: rotateX(90deg) translateZ(90px); } .d { transform: rotateX(-90deg) translateZ(90px); }
         .l { transform: rotateY(-90deg) translateZ(90px); } .r { transform: rotateY(90deg) translateZ(90px); }
         
         .sticker { border-radius: 3px; width: 100%; height: 100%; }
-        .white { background: #fff; } .yellow { background: #ff0; } .green { background: #0f0; }
-        .blue { background: #00f; } .orange { background: #f90; } .red { background: #f00; }
+        
+        /* Colors */
+        .w { background: #fff; } .y { background: #fd0; } .g { background: #009b48; }
+        .b-color { background: #0046ad; } .o { background: #ff5800; } .r-color { background: #b71234; }
 
-        /* Shadow/Ghost View */
-        #shadow-wall { position: absolute; display: flex; gap: 15px; opacity: 0.4; bottom: 20px; pointer-events: none; }
-        .mini-face { display: grid; gap: 1px; background: #000; padding: 1px; width: 60px; height: 60px; }
+        /* Shadow Wall */
+        #shadow-wall { position: absolute; display: flex; gap: 15px; opacity: 0.5; bottom: 20px; pointer-events: none; }
+        .mini-face { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #000; padding: 1px; width: 60px; height: 60px; }
 
         /* Controls */
-        #controls { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 15px; background: var(--panel); }
-        button { padding: 12px 2px; border: none; border-radius: 6px; background: #546e7a; color: white; font-weight: bold; cursor: pointer; }
-        button:active { background: #3498db; transform: scale(0.95); }
+        #controls { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 15px; background: var(--panel); border-top: 2px solid #444; }
+        button { padding: 15px 0; border: none; border-radius: 6px; background: #555; color: white; font-weight: bold; font-size: 1rem; cursor: pointer; transition: background 0.1s; }
+        button:active { background: var(--accent); transform: scale(0.95); }
         .wide { grid-column: span 3; background: #27ae60; }
-        
-        #menu { position: absolute; top: 50px; right: 10px; background: #2c3e50; border: 1px solid #7f8c8d; padding: 15px; display: none; z-index: 20; border-radius: 8px; }
+        .wide:nth-child(2) { background: #c0392b; }
 
         @media (orientation: landscape) {
             body { flex-direction: row; }
-            #controls { width: 220px; height: 100%; grid-template-columns: repeat(2, 1fr); }
+            #controls { width: 250px; height: 100%; grid-template-columns: repeat(2, 1fr); border-top: none; border-left: 2px solid #444; }
             #shadow-wall { right: 20px; flex-direction: column; bottom: auto; top: 50%; transform: translateY(-50%); }
+            #top-bar { position: absolute; top: 0; left: 0; right: 250px; background: transparent; }
         }
     </style>
 </head>
 <body>
 
-    <div id="top-bar">
-        <div id="scramble-info">Petrus Sub-20 Mode</div>
-        <button onclick="toggleMenu()">Options ⚙️</button>
-    </div>
+    <div id="top-bar">3x3 PURE MODE</div>
 
     <div id="main-container">
         <div id="shadow-wall">
@@ -72,15 +73,9 @@
         </div>
     </div>
 
-    <div id="menu">
-        <button onclick="changeType(2)">2x2</button>
-        <button onclick="changeType(3)">3x3</button>
-        <p><small>Swipe zum Drehen der Ansicht</small></p>
-    </div>
-
     <div id="controls">
         <button class="wide" onclick="scramble()">SCRAMBLE</button>
-        <button class="wide" onclick="resetCube()">SOLVE/RESET</button>
+        <button class="wide" onclick="resetCube()">RESET</button>
         <button onclick="handleMove('U')">U</button><button onclick="handleMove('D')">D</button>
         <button onclick="handleMove('L')">L</button><button onclick="handleMove('R')">R</button>
         <button onclick="handleMove('F')">F</button><button onclick="handleMove('B')">B</button>
@@ -90,134 +85,141 @@
     </div>
 
 <script>
-    let size = 3;
+    // Feste Farbzuordnung (w, y, g, b-color, o, r-color)
     let cubeState = {};
-    let rotX = -20, rotY = -30;
-
-    function toggleMenu() {
-        const m = document.getElementById('menu');
-        m.style.display = m.style.display === 'block' ? 'none' : 'block';
-    }
-
-    function changeType(s) {
-        size = s;
-        resetCube();
-        toggleMenu();
-    }
 
     function resetCube() {
-        const faces = ['U','D','F','B','L','R'];
-        const colors = ['white','yellow','green','blue','orange','red'];
-        faces.forEach((f, i) => cubeState[f] = Array(size*size).fill(colors[i]));
+        cubeState = {
+            U: Array(9).fill('w'),
+            D: Array(9).fill('y'),
+            F: Array(9).fill('g'),
+            B: Array(9).fill('b-color'),
+            L: Array(9).fill('o'),
+            R: Array(9).fill('r-color')
+        };
+        document.getElementById('top-bar').innerText = "SOLVED";
         render();
     }
 
     function render() {
-        ['u','d','f','b','l','r'].forEach(f => {
-            const el = document.getElementById(`face-${f}`);
-            el.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
-            el.innerHTML = cubeState[f.toUpperCase()].map(c => `<div class="sticker ${c}"></div>`).join('');
+        ['U','D','F','B','L','R'].forEach(f => {
+            const html = cubeState[f].map(c => `<div class="sticker ${c}"></div>`).join('');
+            document.getElementById(`face-${f.toLowerCase()}`).innerHTML = html;
             
-            // Shadow update
-            const shadow = document.getElementById(`shadow-${f}`);
-            if(shadow) {
-                shadow.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
-                shadow.innerHTML = el.innerHTML;
-            }
+            const shadow = document.getElementById(`shadow-${f.toLowerCase()}`);
+            if(shadow) shadow.innerHTML = html;
         });
     }
 
-    // --- Drehlogik ---
-    function rotateArray(arr) {
-        const newArr = new Array(size * size);
-        for(let r=0; r<size; r++) {
-            for(let c=0; c<size; c++) {
-                newArr[c * size + (size - 1 - r)] = arr[r * size + c];
-            }
-        }
-        return newArr;
+    // Präzise CW Rotation der 3x3 Fläche
+    function rotateFaceCW(f) {
+        const s = cubeState[f];
+        cubeState[f] = [s[6], s[3], s[0], s[7], s[4], s[1], s[8], s[5], s[2]];
+    }
+
+    // Exakte Edge-Mappings (hartcodiert für null Fehler)
+    function moveU() {
+        rotateFaceCW('U');
+        const t = [...cubeState.F];
+        cubeState.F[0] = cubeState.R[0]; cubeState.F[1] = cubeState.R[1]; cubeState.F[2] = cubeState.R[2];
+        cubeState.R[0] = cubeState.B[0]; cubeState.R[1] = cubeState.B[1]; cubeState.R[2] = cubeState.B[2];
+        cubeState.B[0] = cubeState.L[0]; cubeState.B[1] = cubeState.L[1]; cubeState.B[2] = cubeState.L[2];
+        cubeState.L[0] = t[0]; cubeState.L[1] = t[1]; cubeState.L[2] = t[2];
+    }
+
+    function moveD() {
+        rotateFaceCW('D');
+        const t = [...cubeState.F];
+        cubeState.F[6] = cubeState.L[6]; cubeState.F[7] = cubeState.L[7]; cubeState.F[8] = cubeState.L[8];
+        cubeState.L[6] = cubeState.B[6]; cubeState.L[7] = cubeState.B[7]; cubeState.L[8] = cubeState.B[8];
+        cubeState.B[6] = cubeState.R[6]; cubeState.B[7] = cubeState.R[7]; cubeState.B[8] = cubeState.R[8];
+        cubeState.R[6] = t[6]; cubeState.R[7] = t[7]; cubeState.R[8] = t[8];
+    }
+
+    function moveF() {
+        rotateFaceCW('F');
+        const t = [...cubeState.U];
+        cubeState.U[6] = cubeState.L[8]; cubeState.U[7] = cubeState.L[5]; cubeState.U[8] = cubeState.L[2];
+        cubeState.L[8] = cubeState.D[2]; cubeState.L[5] = cubeState.D[1]; cubeState.L[2] = cubeState.D[0];
+        cubeState.D[2] = cubeState.R[0]; cubeState.D[1] = cubeState.R[3]; cubeState.D[0] = cubeState.R[6];
+        cubeState.R[0] = t[6]; cubeState.R[3] = t[7]; cubeState.R[6] = t[8];
+    }
+
+    function moveB() {
+        rotateFaceCW('B');
+        const t = [...cubeState.U];
+        cubeState.U[0] = cubeState.R[2]; cubeState.U[1] = cubeState.R[5]; cubeState.U[2] = cubeState.R[8];
+        cubeState.R[2] = cubeState.D[8]; cubeState.R[5] = cubeState.D[7]; cubeState.R[8] = cubeState.D[6];
+        cubeState.D[8] = cubeState.L[6]; cubeState.D[7] = cubeState.L[3]; cubeState.D[6] = cubeState.L[0];
+        cubeState.L[6] = t[2]; cubeState.L[3] = t[1]; cubeState.L[0] = t[0];
+    }
+
+    function moveL() {
+        rotateFaceCW('L');
+        const t = [...cubeState.U];
+        cubeState.U[0] = cubeState.B[8]; cubeState.U[3] = cubeState.B[5]; cubeState.U[6] = cubeState.B[2];
+        cubeState.B[8] = cubeState.D[0]; cubeState.B[5] = cubeState.D[3]; cubeState.B[2] = cubeState.D[6];
+        cubeState.D[0] = cubeState.F[0]; cubeState.D[3] = cubeState.F[3]; cubeState.D[6] = cubeState.F[6];
+        cubeState.F[0] = t[0]; cubeState.F[3] = t[3]; cubeState.F[6] = t[6];
+    }
+
+    function moveR() {
+        rotateFaceCW('R');
+        const t = [...cubeState.U];
+        cubeState.U[2] = cubeState.F[2]; cubeState.U[5] = cubeState.F[5]; cubeState.U[8] = cubeState.F[8];
+        cubeState.F[2] = cubeState.D[2]; cubeState.F[5] = cubeState.D[5]; cubeState.F[8] = cubeState.D[8];
+        cubeState.D[2] = cubeState.B[6]; cubeState.D[5] = cubeState.B[3]; cubeState.D[8] = cubeState.B[0];
+        cubeState.B[0] = t[8]; cubeState.B[3] = t[5]; cubeState.B[6] = t[2];
     }
 
     function handleMove(m) {
-        if(m.includes("'")) {
-            for(let i=0; i<3; i++) executeMove(m[0]);
-        } else {
-            executeMove(m);
+        let isPrime = m.includes("'");
+        let base = m.replace("'", "");
+        let times = isPrime ? 3 : 1;
+
+        for(let i=0; i<times; i++) {
+            if(base === 'U') moveU();
+            if(base === 'D') moveD();
+            if(base === 'F') moveF();
+            if(base === 'B') moveB();
+            if(base === 'L') moveL();
+            if(base === 'R') moveR();
         }
         render();
     }
 
-    function executeMove(m) {
-        cubeState[m] = rotateArray(cubeState[m]);
-        let s = cubeState;
-        let t = [];
-        const last = size - 1;
-
-        if(m === 'U') {
-            for(let i=0; i<size; i++) {
-                t[i] = s.F[i];
-                s.F[i] = s.R[i]; s.R[i] = s.B[i]; s.B[i] = s.L[i]; s.L[i] = t[i];
-            }
-        } else if(m === 'D') {
-            for(let i=0; i<size; i++) {
-                let idx = last * size + i;
-                t[i] = s.F[idx];
-                s.F[idx] = s.L[idx]; s.L[idx] = s.B[idx]; s.B[idx] = s.R[idx]; s.R[idx] = t[i];
-            }
-        } else if(m === 'R') {
-            for(let i=0; i<size; i++) {
-                let fIdx = i * size + last, bIdx = (last - i) * size;
-                t[i] = s.F[fIdx];
-                s.F[fIdx] = s.D[fIdx]; s.D[fIdx] = s.B[bIdx]; s.B[bIdx] = s.U[fIdx]; s.U[fIdx] = t[i];
-            }
-        } else if(m === 'L') {
-            for(let i=0; i<size; i++) {
-                let fIdx = i * size, bIdx = (last - i) * size + last;
-                t[i] = s.F[fIdx];
-                s.F[fIdx] = s.U[fIdx]; s.U[fIdx] = s.B[bIdx]; s.B[bIdx] = s.D[fIdx]; s.D[fIdx] = t[i];
-            }
-        } else if(m === 'F') {
-            for(let i=0; i<size; i++) {
-                t[i] = s.U[last*size + i];
-                s.U[last*size + i] = s.L[(last-i)*size + last];
-                s.L[(last-i)*size + last] = s.D[i];
-                s.D[i] = s.R[i*size];
-                s.R[i*size] = t[i];
-            }
-        } else if(m === 'B') {
-            for(let i=0; i<size; i++) {
-                t[i] = s.U[i];
-                s.U[i] = s.R[i*size + last];
-                s.R[i*size + last] = s.D[last*size + (last-i)];
-                s.D[last*size + (last-i)] = s.L[(last-i)*size];
-                s.L[(last-i)*size] = t[i];
-            }
-        }
-    }
-
-    // --- View Rotation ---
-    let isDragging = false;
+    // 3D View Control (nur auf Main Container)
+    let rotX = -20, rotY = -30, isDragging = false;
     const container = document.getElementById('main-container');
+    
     container.addEventListener('pointerdown', () => isDragging = true);
     window.addEventListener('pointerup', () => isDragging = false);
     window.addEventListener('pointermove', (e) => {
-        if(!isDragging) return;
-        rotY += e.movementX * 0.6;
-        rotX -= e.movementY * 0.6;
+        if(!isDragging || e.target.tagName === 'BUTTON') return;
+        rotY += e.movementX * 0.5;
+        rotX -= e.movementY * 0.5;
         document.getElementById('cube-visual').style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
     });
 
     function scramble() {
-        const ms = ['U','D','L','R','F','B'];
+        const ms = ['U','D','L','R','F','B',"U'","D'","L'","R'","F'","B'"];
         let seq = [];
+        let lastMove = '';
+        
         for(let i=0; i<15; i++) {
-            let move = ms[Math.floor(Math.random()*6)];
-            seq.push(move);
-            handleMove(move);
+            let nextMove;
+            do {
+                nextMove = ms[Math.floor(Math.random()*12)];
+            } while (nextMove[0] === lastMove[0]); // Verhindert z.B. U gefolgt von U'
+            
+            seq.push(nextMove);
+            handleMove(nextMove);
+            lastMove = nextMove;
         }
-        document.getElementById('scramble-info').innerText = seq.join(' ');
+        document.getElementById('top-bar').innerText = seq.join(' ');
     }
 
+    // Init
     resetCube();
 </script>
 </body>

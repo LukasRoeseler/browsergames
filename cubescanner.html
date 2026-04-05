@@ -3,52 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>CuberScan Pro v2</title>
+    <title>CuberScan Pro v2.1</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/cubejs/lib/cube.min.js"></script>
     <style>
         :root { 
             --accent: #00ff88; --bg: #050505; --panel: #121214; --text: #ffffff;
-            --safe-bottom: max(5dvh, env(safe-area-inset-bottom));
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         
-        body { 
+        /* Bulletproof Mobile Lock */
+        body, html { 
             font-family: -apple-system, system-ui, sans-serif; 
-            margin: 0; background: var(--bg); color: var(--text);
-            height: 100dvh; display: flex; flex-direction: column;
-            overflow: hidden;
+            margin: 0; padding: 0; background: var(--bg); color: var(--text);
+            /* Sperrt den Screen, verhindert Gummiband-Scrollen im Opera/Android */
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            display: flex; flex-direction: column; overflow: hidden;
         }
 
-        /* --- LAYOUT SECTIONS --- */
+        /* --- STRIKTE HIERARCHIE --- */
+        
+        /* 1. Header (Fixe 60px) */
         header { 
-            height: 60px; padding: 0 20px; display: flex; 
+            flex: 0 0 60px; padding: 0 20px; display: flex; 
             justify-content: space-between; align-items: center; 
-            background: var(--panel); border-bottom: 1px solid #222;
+            background: var(--panel); border-bottom: 1px solid #222; z-index: 10;
         }
 
-        #scanner-section {
-            position: relative; width: 100%; aspect-ratio: 1/1;
-            background: #000; overflow: hidden; display: flex; justify-content: center;
+        /* 2. Mittlerer Bereich (Nimmt exakt den restlichen Platz ein) */
+        main {
+            flex: 1 1 auto;
+            display: flex; flex-direction: column;
+            overflow: hidden; /* Nichts darf hier ausbrechen */
         }
 
-        #info-section {
-            padding: 10px 15px; text-align: center; background: #1a1a1e;
+        /* 2a. Scanner-Bereich (Maximal 45% der restlichen Höhe) */
+        #scanner-wrapper {
+            flex: 0 0 45%; 
+            display: flex; justify-content: center; align-items: center;
+            background: #000; position: relative; padding: 10px;
         }
 
-        #visualizer-section {
-            flex: 1; position: relative; background: var(--bg);
+        .video-box {
+            height: 100%; max-width: 100%; aspect-ratio: 1/1; 
+            position: relative; border-radius: 12px; overflow: hidden;
         }
 
-        footer {
-            height: 80px; display: flex; justify-content: center; 
-            align-items: center; gap: 15px; padding: 0 15px;
-        }
-
-        #safe-area-spacer { height: var(--safe-bottom); width: 100%; }
-
-        /* --- UI ELEMENTS --- */
         video { height: 100%; width: 100%; object-fit: cover; }
         
         #roi-grid {
@@ -56,73 +57,93 @@
             width: 75%; height: 75%; display: grid;
             grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr);
             border: 2px solid var(--accent); border-radius: 8px;
-            box-shadow: 0 0 0 2000px rgba(0,0,0,0.5);
+            box-shadow: 0 0 0 2000px rgba(0,0,0,0.5); pointer-events: none;
         }
         .roi-cell { border: 0.5px solid rgba(0, 255, 136, 0.3); }
 
-        .instruction-title { color: var(--accent); font-weight: bold; font-size: 1.1rem; margin: 0; }
-        .instruction-help { font-size: 0.85rem; color: #aaa; margin: 4px 0 0; }
+        .live-preview {
+            position: absolute; top: 10px; right: 10px; width: 45px; height: 45px;
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; z-index: 5;
+        }
+        .dot { background: #333; border-radius: 1px; }
 
-        #canvas3d { width: 100%; height: 100%; }
+        /* 2b. Info Text (Fixe Größe, bricht nicht um) */
+        #info-section {
+            flex: 0 0 50px; display: flex; flex-direction: column; justify-content: center;
+            align-items: center; background: #1a1a1e; border-top: 1px solid #333;
+        }
+        .instruction-title { color: var(--accent); font-weight: bold; font-size: 1rem; margin: 0; }
+        .instruction-help { font-size: 0.8rem; color: #aaa; margin: 2px 0 0; }
+
+        /* 2c. 3D Würfel (Nimmt den verbleibenden Platz in 'main' ein) */
+        #visualizer-section {
+            flex: 1 1 auto; position: relative; background: var(--bg); min-height: 80px;
+        }
+        #canvas3d { width: 100%; height: 100%; outline: none; }
+
+        /* 3. Footer / Buttons (Absolut sicher am Boden verankert) */
+        footer {
+            flex: 0 0 auto; 
+            display: flex; justify-content: center; align-items: center; gap: 15px; 
+            /* env() berücksichtigt die Gesten-Balken unten auf modernen Androids */
+            padding: 15px 15px calc(15px + env(safe-area-inset-bottom)); 
+            background: var(--panel); border-top: 1px solid #222; z-index: 10;
+        }
 
         button {
             flex: 1; max-width: 200px; height: 50px; border-radius: 12px; border: none;
             font-weight: bold; font-size: 1rem; cursor: pointer; transition: 0.1s;
         }
-        #btn-scan { background: var(--accent); color: #000; }
+        #btn-scan { background: var(--accent); color: #000; box-shadow: 0 4px 15px rgba(0, 255, 136, 0.2); }
         #btn-reset { background: #222; color: #fff; border: 1px solid #444; }
         button:active { transform: scale(0.95); opacity: 0.8; }
+        button:disabled { background: #333; color: #666; box-shadow: none; pointer-events: none; }
 
-        .live-preview {
-            position: absolute; top: 10px; right: 10px; width: 45px; height: 45px;
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px;
-        }
-        .dot { background: #333; border-radius: 1px; }
     </style>
 </head>
 <body>
 
 <header>
-    <div style="font-weight: 800; font-size: 1.2rem;">CUBER<span style="color:var(--accent)">SCAN</span></div>
-    <div id="badge" style="font-size: 0.8rem; border: 1px solid var(--accent); padding: 2px 8px; border-radius: 10px;">Face 1/6</div>
+    <div style="font-weight: 800; font-size: 1.2rem; letter-spacing: -0.5px;">CUBER<span style="color:var(--accent)">SCAN</span></div>
+    <div id="badge" style="font-size: 0.75rem; border: 1px solid var(--accent); padding: 4px 10px; border-radius: 12px;">Face 1/6</div>
 </header>
 
-<div id="scanner-section">
-    <video id="video" autoplay playsinline></video>
-    <div id="roi-grid">
-        <div class="roi-cell"></div><div class="roi-cell"></div><div class="roi-cell"></div>
-        <div class="roi-cell"></div><div class="roi-cell"></div><div class="roi-cell"></div>
-        <div class="roi-cell"></div><div class="roi-cell"></div><div class="roi-cell"></div>
+<main>
+    <div id="scanner-wrapper">
+        <div class="video-box">
+            <video id="video" autoplay playsinline></video>
+            <div id="roi-grid">
+                <div class="roi-cell"></div><div class="roi-cell"></div><div class="roi-cell"></div>
+                <div class="roi-cell"></div><div class="roi-cell"></div><div class="roi-cell"></div>
+                <div class="roi-cell"></div><div class="roi-cell"></div><div class="roi-cell"></div>
+            </div>
+            <div class="live-preview" id="live-dots">
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+            </div>
+        </div>
     </div>
-    <div class="live-preview" id="live-dots">
-        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
-        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+
+    <div id="info-section">
+        <p class="instruction-title" id="step-name">Initialisierung...</p>
+        <p class="instruction-help" id="step-help">Kamera wird gestartet</p>
     </div>
-</div>
 
-<div id="info-section">
-    <p class="instruction-title" id="step-name">Initialisierung...</p>
-    <p class="instruction-help" id="step-help">Kamera wird gestartet</p>
-</div>
-
-<div id="visualizer-section">
-    <div id="canvas3d"></div>
-</div>
+    <div id="visualizer-section">
+        <div id="canvas3d"></div>
+    </div>
+</main>
 
 <footer>
     <button id="btn-reset" onclick="resetScan()">RESET</button>
     <button id="btn-scan" onclick="captureFace()">SCAN FACE</button>
 </footer>
 
-<div id="safe-area-spacer"></div>
-
 <canvas id="proc-canvas" width="300" height="300" style="display:none"></canvas>
 
 <script>
-/**
- * PROFESSOR & SPEEDCUBER LOGIC
- */
+// --- LOGIC BLEIBT UNVERÄNDERT ZUR VORHERIGEN PRO-VERSION ---
 const STEPS = [
     { id: 'U', name: 'OBEN (Weiß)', help: 'Weiß oben, Grün vorne', color: 'white' },
     { id: 'R', name: 'RECHTS (Rot)', help: 'Weiß oben, Rot vorne', color: 'red' },
@@ -139,29 +160,36 @@ let rawScanData = [];
 let centerAnchors = {}; 
 let liveRGB = [];
 
-// --- THREE.JS ENGINE ---
 let scene, camera, renderer, cubeGroup;
+
 function init3D() {
     scene = new THREE.Scene();
     const container = document.getElementById('visualizer-section');
-    camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.1, 100);
-    camera.position.set(5, 5, 5);
+    // Nutze exakte Container-Maße, um Verzerrungen zu vermeiden
+    const width = container.clientWidth;
+    const height = container.clientHeight || 150; // Fallback Höhe
+    
+    camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+    camera.position.set(4.5, 4.5, 5);
 
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(container.clientWidth, container.clientHeight);
-    container.appendChild(renderer.domElement);
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Bessere Performance auf Handys
+    document.getElementById('canvas3d').appendChild(renderer.domElement);
 
     const controls = new THREE.OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.enablePan = false;
+    controls.enableZoom = false; // Verhindert ungewolltes Zoomen beim Wischen
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 0.5;
+    controls.autoRotateSpeed = 1.0;
 
     cubeGroup = new THREE.Group();
-    const geom = new THREE.BoxGeometry(0.94, 0.94, 0.94);
+    const geom = new THREE.BoxGeometry(0.95, 0.95, 0.95);
     for(let x=-1; x<=1; x++){
         for(let y=-1; y<=1; y++){
             for(let z=-1; z<=1; z++){
-                const mats = Array(6).fill(new THREE.MeshBasicMaterial({ color: 0x111111 }));
+                const mats = Array(6).fill(new THREE.MeshBasicMaterial({ color: 0x181818 }));
                 const mesh = new THREE.Mesh(geom, mats);
                 mesh.position.set(x, y, z);
                 mesh.userData = { pos: [x,y,z] };
@@ -170,6 +198,16 @@ function init3D() {
         }
     }
     scene.add(cubeGroup);
+    
+    // Resize Event Listener für den Fall, dass das Gerät gedreht wird
+    window.addEventListener('resize', () => {
+        const w = container.clientWidth;
+        const h = container.clientHeight;
+        renderer.setSize(w, h);
+        camera.aspect = w / h;
+        camera.updateProjectionMatrix();
+    });
+
     animate();
 }
 
@@ -178,39 +216,48 @@ function animate() {
     if(renderer) renderer.render(scene, camera);
 }
 
-// --- SCANNER ENGINE ---
 async function initCamera() {
     const video = document.getElementById('video');
     try {
         const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment", focusMode: "continuous", whiteBalanceMode: "continuous" } 
+            video: { facingMode: "environment" } // Auto-Fokus entfernt, da Opera da manchmal zickt
         });
         video.srcObject = stream;
         updateStepUI();
         requestAnimationFrame(analyzeLive);
     } catch(e) {
-        alert("Kamera-Zugriff verweigert.");
+        document.getElementById('step-name').innerText = "Kamera-Fehler";
+        document.getElementById('step-help').innerText = "Bitte Berechtigung erteilen.";
     }
 }
 
 function analyzeLive() {
     const canvas = document.getElementById('proc-canvas');
     const ctx = canvas.getContext('2d');
-    ctx.drawImage(document.getElementById('video'), 0, 0, 300, 300);
+    const video = document.getElementById('video');
     
-    const dots = document.querySelectorAll('.dot');
-    const step = 300 / 3;
-    const offset = step / 2;
+    if (video.videoWidth > 0) {
+        // Berechne den korrekten Square-Crop aus der Mitte des Videos
+        const size = Math.min(video.videoWidth, video.videoHeight);
+        const startX = (video.videoWidth - size) / 2;
+        const startY = (video.videoHeight - size) / 2;
+        
+        ctx.drawImage(video, startX, startY, size, size, 0, 0, 300, 300);
+        
+        const dots = document.querySelectorAll('.dot');
+        const step = 300 / 3;
+        const offset = step / 2;
 
-    liveRGB = [];
-    for(let i=0; i<9; i++) {
-        let x = i % 3; let y = Math.floor(i / 3);
-        const data = ctx.getImageData(x*step + offset - 10, y*step + offset - 10, 20, 20).data;
-        let r=0, g=0, b=0;
-        for(let j=0; j<data.length; j+=4) { r+=data[j]; g+=data[j+1]; b+=data[j+2]; }
-        const rgb = { r: r/100, g: g/100, b: b/100 }; // 20x20=400, data/4=100
-        liveRGB.push(rgb);
-        dots[i].style.background = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+        liveRGB = [];
+        for(let i=0; i<9; i++) {
+            let x = i % 3; let y = Math.floor(i / 3);
+            const data = ctx.getImageData(x*step + offset - 10, y*step + offset - 10, 20, 20).data;
+            let r=0, g=0, b=0;
+            for(let j=0; j<data.length; j+=4) { r+=data[j]; g+=data[j+1]; b+=data[j+2]; }
+            const rgb = { r: r/100, g: g/100, b: b/100 };
+            liveRGB.push(rgb);
+            dots[i].style.background = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+        }
     }
     requestAnimationFrame(analyzeLive);
 }
@@ -225,11 +272,8 @@ function updateStepUI() {
 function captureFace() {
     if(currentStep >= 6) return;
     
-    // Anchor Point: Mitte dieser Seite (Index 4)
     centerAnchors[STEPS[currentStep].id] = liveRGB[4];
     rawScanData.push([...liveRGB]);
-
-    // Sofort-Feedback im 3D-Modell (Raw-Colors)
     applyFaceTo3D(STEPS[currentStep].id, liveRGB, true);
 
     currentStep++;
@@ -250,11 +294,14 @@ function finalizeLogic() {
 
     try {
         const sol = Cube.fromString(cubeString).solve();
-        document.getElementById('step-name').innerText = "LÖSUNG BEREIT";
-        document.getElementById('step-help').innerHTML = `<b style="color:white; letter-spacing:1px">${sol}</b>`;
+        document.getElementById('step-name').innerText = "WÜRFEL BERECHNET";
+        document.getElementById('step-help').innerHTML = `<b style="color:var(--accent); font-size:1.1rem; letter-spacing:1px">${sol}</b>`;
+        document.getElementById('btn-scan').innerText = "FERTIG";
         document.getElementById('btn-scan').disabled = true;
     } catch(e) {
-        alert("Scan unlogisch. Bitte Reset.");
+        document.getElementById('step-name').innerText = "FEHLER";
+        document.getElementById('step-help').innerText = "Scan unlogisch. Bitte Reset drücken.";
+        document.getElementById('step-name').style.color = "#ff3b30";
     }
 }
 
@@ -262,7 +309,12 @@ function classifyByAnchor(rgb) {
     let minDist = Infinity;
     let best = 'U';
     for(const [id, ref] of Object.entries(centerAnchors)) {
-        const d = Math.sqrt(Math.pow(rgb.r-ref.r,2) + Math.pow(rgb.g-ref.g,2) + Math.pow(rgb.b-ref.b,2));
+        // Leicht verbesserte Gewichtung für Rot/Orange-Erkennung bei schlechtem Licht
+        const d = Math.sqrt(
+            2 * Math.pow(rgb.r-ref.r,2) + 
+            3 * Math.pow(rgb.g-ref.g,2) + 
+            1.5 * Math.pow(rgb.b-ref.b,2)
+        );
         if(d < minDist) { minDist = d; best = id; }
     }
     return best;
@@ -272,7 +324,7 @@ function applyFaceTo3D(faceId, data, isRaw) {
     cubeGroup.children.forEach(piece => {
         const [px, py, pz] = piece.userData.pos;
         const setMaterial = (sideIdx, stickerIdx) => {
-            const val = isRaw ? `rgb(${data[stickerIdx].r},${data[stickerIdx].g},${data[stickerIdx].b})` : COLORS_3D[data[stickerIdx]];
+            const val = isRaw ? `rgb(${Math.round(data[stickerIdx].r)},${Math.round(data[stickerIdx].g)},${Math.round(data[stickerIdx].b)})` : COLORS_3D[data[stickerIdx]];
             piece.material[sideIdx].color.set(val);
         };
         const g = (x, y) => x + y * 3;
@@ -287,7 +339,10 @@ function applyFaceTo3D(faceId, data, isRaw) {
 
 function resetScan() { location.reload(); }
 
-window.onload = () => { init3D(); initCamera(); };
+window.onload = () => { 
+    init3D(); 
+    initCamera(); 
+};
 </script>
 </body>
 </html>

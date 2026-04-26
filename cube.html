@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Gemini Speedcube 3x3 - Fixed Layout</title>
+    <title>Gemini Speedcube - Opera Fix</title>
     <style>
         :root { --bg: #222; --panel: #333; --accent: #3498db; }
         * { touch-action: none; user-select: none; box-sizing: border-box; }
@@ -15,15 +15,14 @@
             margin: 0; 
             display: flex; 
             flex-direction: column; 
-            /* Nutzt dynamische Höhe für Mobile Browser */
             height: 100vh;
             height: 100dvh; 
             overflow: hidden; 
         }
 
-        #top-bar { padding: 10px; text-align: center; background: #111; font-weight: bold; color: #f1c40f; letter-spacing: 2px; }
+        #top-bar { padding: 8px; text-align: center; background: #111; font-weight: bold; color: #f1c40f; font-size: 0.9rem; }
 
-        /* Der Würfel-Bereich nimmt den restlichen Platz ein */
+        /* Würfelbereich schrumpft jetzt mit, falls unten Platz gebraucht wird */
         #main-container { 
             flex: 1; 
             display: flex; 
@@ -31,50 +30,67 @@
             justify-content: center; 
             align-items: center; 
             overflow: hidden;
-            min-height: 0; /* Wichtig für Flex-Shrink */
+            min-height: 100px; 
         }
         
-        .scene { width: 160px; height: 160px; perspective: 1000px; z-index: 5; }
+        .scene { width: 150px; height: 150px; perspective: 800px; z-index: 5; }
         .cube { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transform: rotateX(-20deg) rotateY(-30deg); transition: transform 0.05s linear; }
-        .face { position: absolute; width: 160px; height: 160px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; background: #000; border: 2px solid #000; }
+        .face { position: absolute; width: 150px; height: 150px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; background: #000; border: 2px solid #000; }
         
-        .f { transform: translateZ(80px); } .b { transform: rotateY(180deg) translateZ(80px); }
-        .u { transform: rotateX(90deg) translateZ(80px); } .d { transform: rotateX(-90deg) translateZ(80px); }
-        .l { transform: rotateY(-90deg) translateZ(80px); } .r { transform: rotateY(90deg) translateZ(80px); }
+        .f { transform: translateZ(75px); } .b { transform: rotateY(180deg) translateZ(75px); }
+        .u { transform: rotateX(90deg) translateZ(75px); } .d { transform: rotateX(-90deg) translateZ(75px); }
+        .l { transform: rotateY(-90deg) translateZ(75px); } .r { transform: rotateY(90deg) translateZ(75px); }
         
-        .sticker { border-radius: 3px; width: 100%; height: 100%; }
+        .sticker { border-radius: 2px; width: 100%; height: 100%; }
         .w { background: #fff; } .y { background: #fd0; } .g { background: #009b48; }
         .b-color { background: #0046ad; } .o { background: #ff5800; } .r-color { background: #b71234; }
 
-        #shadow-wall { position: absolute; display: flex; gap: 10px; opacity: 0.4; bottom: 10px; pointer-events: none; }
-        .mini-face { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #000; padding: 1px; width: 50px; height: 50px; }
+        #shadow-wall { position: absolute; display: flex; gap: 8px; opacity: 0.4; bottom: 5px; pointer-events: none; }
+        .mini-face { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #000; padding: 1px; width: 40px; height: 40px; }
 
-        /* Controls mit Buffer für das untere Display-Viertel */
+        /* RADIKALER FIX FÜR OPERA UNTEN */
         #controls { 
             display: grid; 
             grid-template-columns: repeat(6, 1fr); 
-            gap: 6px; 
-            padding: 15px; 
-            padding-bottom: calc(12vh + env(safe-area-inset-bottom)); /* Hält die unteren 12-20% frei */
+            gap: 5px; 
+            padding: 10px; 
+            /* 22% der Displayhöhe bleiben unten leer für die Opera-Leiste */
+            padding-bottom: 22vh; 
             background: var(--panel); 
-            border-top: 2px solid #444; 
+            border-top: 1px solid #444; 
         }
 
-        button { padding: 12px 0; border: none; border-radius: 6px; background: #555; color: white; font-weight: bold; font-size: 1rem; }
-        button:active { background: var(--accent); transform: scale(0.95); }
-        .wide { grid-column: span 3; background: #27ae60; }
+        button { 
+            padding: 10px 0; 
+            border: none; 
+            border-radius: 4px; 
+            background: #444; 
+            color: white; 
+            font-weight: bold; 
+            font-size: 0.9rem; 
+        }
+        button:active { background: var(--accent); }
+        .wide { grid-column: span 3; background: #27ae60; padding: 12px 0; margin-bottom: 2px; }
         .wide:nth-child(2) { background: #c0392b; }
 
         @media (orientation: landscape) {
             body { flex-direction: row; }
-            #controls { width: 220px; height: 100%; grid-template-columns: repeat(2, 1fr); border-top: none; border-left: 2px solid #444; padding-bottom: 15px; }
+            #controls { 
+                width: 200px; 
+                height: 100%; 
+                grid-template-columns: repeat(2, 1fr); 
+                border-top: none; 
+                border-left: 2px solid #444; 
+                padding-bottom: 10px; 
+            }
             #shadow-wall { right: 10px; flex-direction: column; bottom: auto; top: 50%; transform: translateY(-50%); }
+            #top-bar { position: absolute; width: calc(100% - 200px); }
         }
     </style>
 </head>
 <body>
 
-    <div id="top-bar">3x3 SPEEDCUBE</div>
+    <div id="top-bar">3x3 OPERA SAFE MODE</div>
 
     <div id="main-container">
         <div id="shadow-wall">
@@ -98,12 +114,18 @@
     <div id="controls">
         <button class="wide" onclick="scramble()">SCRAMBLE</button>
         <button class="wide" onclick="resetCube()">RESET</button>
-        <button onclick="handleMove('U')">U</button><button onclick="handleMove('D')">D</button>
-        <button onclick="handleMove('L')">L</button><button onclick="handleMove('R')">R</button>
-        <button onclick="handleMove('F')">F</button><button onclick="handleMove('B')">B</button>
-        <button onclick="handleMove('U\'')">U'</button><button onclick="handleMove('D\'')">D'</button>
-        <button onclick="handleMove('L\'')">L'</button><button onclick="handleMove('R\'')">R'</button>
-        <button onclick="handleMove('F\'')">F'</button><button onclick="handleMove('B\'')">B'</button>
+        <button onclick="handleMove('U')">U</button>
+        <button onclick="handleMove('D')">D</button>
+        <button onclick="handleMove('L')">L</button>
+        <button onclick="handleMove('R')">R</button>
+        <button onclick="handleMove('F')">F</button>
+        <button onclick="handleMove('B')">B</button>
+        <button onclick="handleMove('U\'')">U'</button>
+        <button onclick="handleMove('D\'')">D'</button>
+        <button onclick="handleMove('L\'')">L'</button>
+        <button onclick="handleMove('R\'')">R'</button>
+        <button onclick="handleMove('F\'')">F'</button>
+        <button onclick="handleMove('B\'')">B'</button>
     </div>
 
 <script>
@@ -136,6 +158,7 @@
         cubeState[f] = [s[6], s[3], s[0], s[7], s[4], s[1], s[8], s[5], s[2]];
     }
 
+    // Moves
     function moveU() {
         rotateFaceCW('U');
         const t = [...cubeState.F];
@@ -144,7 +167,6 @@
         cubeState.B[0] = cubeState.L[0]; cubeState.B[1] = cubeState.L[1]; cubeState.B[2] = cubeState.L[2];
         cubeState.L[0] = t[0]; cubeState.L[1] = t[1]; cubeState.L[2] = t[2];
     }
-
     function moveD() {
         rotateFaceCW('D');
         const t = [...cubeState.F];
@@ -153,7 +175,6 @@
         cubeState.B[6] = cubeState.R[6]; cubeState.B[7] = cubeState.R[7]; cubeState.B[8] = cubeState.R[8];
         cubeState.R[6] = t[6]; cubeState.R[7] = t[7]; cubeState.R[8] = t[8];
     }
-
     function moveF() {
         rotateFaceCW('F');
         const t = [...cubeState.U];
@@ -162,7 +183,6 @@
         cubeState.D[2] = cubeState.R[0]; cubeState.D[1] = cubeState.R[3]; cubeState.D[0] = cubeState.R[6];
         cubeState.R[0] = t[6]; cubeState.R[3] = t[7]; cubeState.R[6] = t[8];
     }
-
     function moveB() {
         rotateFaceCW('B');
         const t = [...cubeState.U];
@@ -171,7 +191,6 @@
         cubeState.D[8] = cubeState.L[6]; cubeState.D[7] = cubeState.L[3]; cubeState.D[6] = cubeState.L[0];
         cubeState.L[6] = t[2]; cubeState.L[3] = t[1]; cubeState.L[0] = t[0];
     }
-
     function moveL() {
         rotateFaceCW('L');
         const t = [...cubeState.U];
@@ -180,7 +199,6 @@
         cubeState.D[0] = cubeState.F[0]; cubeState.D[3] = cubeState.F[3]; cubeState.D[6] = cubeState.F[6];
         cubeState.F[0] = t[0]; cubeState.F[3] = t[3]; cubeState.F[6] = t[6];
     }
-
     function moveR() {
         rotateFaceCW('R');
         const t = [...cubeState.U];

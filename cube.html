@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Gemini Speedcube - Opera Fix</title>
+    <title>Gemini Speedcube - Smart Perspective</title>
     <style>
         :root { --bg: #222; --panel: #333; --accent: #3498db; }
         * { touch-action: none; user-select: none; box-sizing: border-box; }
@@ -20,9 +20,8 @@
             overflow: hidden; 
         }
 
-        #top-bar { padding: 8px; text-align: center; background: #111; font-weight: bold; color: #f1c40f; font-size: 0.9rem; }
+        #top-bar { padding: 8px; text-align: center; background: #111; font-weight: bold; color: #f1c40f; font-size: 0.9rem; min-height: 40px; }
 
-        /* Würfelbereich schrumpft jetzt mit, falls unten Platz gebraucht wird */
         #main-container { 
             flex: 1; 
             display: flex; 
@@ -30,67 +29,59 @@
             justify-content: center; 
             align-items: center; 
             overflow: hidden;
-            min-height: 100px; 
+            min-height: 0; 
         }
         
-        .scene { width: 150px; height: 150px; perspective: 800px; z-index: 5; }
+        .scene { width: 140px; height: 140px; perspective: 800px; z-index: 5; }
         .cube { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transform: rotateX(-20deg) rotateY(-30deg); transition: transform 0.05s linear; }
-        .face { position: absolute; width: 150px; height: 150px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; background: #000; border: 2px solid #000; }
+        .face { position: absolute; width: 140px; height: 140px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; background: #000; border: 2px solid #000; }
         
-        .f { transform: translateZ(75px); } .b { transform: rotateY(180deg) translateZ(75px); }
-        .u { transform: rotateX(90deg) translateZ(75px); } .d { transform: rotateX(-90deg) translateZ(75px); }
-        .l { transform: rotateY(-90deg) translateZ(75px); } .r { transform: rotateY(90deg) translateZ(75px); }
+        .f { transform: translateZ(70px); } .b { transform: rotateY(180deg) translateZ(70px); }
+        .u { transform: rotateX(90deg) translateZ(70px); } .d { transform: rotateX(-90deg) translateZ(70px); }
+        .l { transform: rotateY(-90deg) translateZ(70px); } .r { transform: rotateY(90deg) translateZ(70px); }
         
         .sticker { border-radius: 2px; width: 100%; height: 100%; }
         .w { background: #fff; } .y { background: #fd0; } .g { background: #009b48; }
         .b-color { background: #0046ad; } .o { background: #ff5800; } .r-color { background: #b71234; }
 
         #shadow-wall { position: absolute; display: flex; gap: 8px; opacity: 0.4; bottom: 5px; pointer-events: none; }
-        .mini-face { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #000; padding: 1px; width: 40px; height: 40px; }
+        .mini-face { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #000; padding: 1px; width: 35px; height: 35px; }
 
-        /* RADIKALER FIX FÜR OPERA UNTEN */
         #controls { 
             display: grid; 
             grid-template-columns: repeat(6, 1fr); 
-            gap: 5px; 
+            gap: 4px; 
             padding: 10px; 
-            /* 22% der Displayhöhe bleiben unten leer für die Opera-Leiste */
-            padding-bottom: 22vh; 
             background: var(--panel); 
             border-top: 1px solid #444; 
         }
 
         button { 
-            padding: 10px 0; 
+            padding: 12px 0; 
             border: none; 
             border-radius: 4px; 
             background: #444; 
             color: white; 
             font-weight: bold; 
-            font-size: 0.9rem; 
+            font-size: 0.85rem; 
         }
         button:active { background: var(--accent); }
-        .wide { grid-column: span 3; background: #27ae60; padding: 12px 0; margin-bottom: 2px; }
+        .wide { grid-column: span 3; background: #27ae60; padding: 14px 0; margin-bottom: 2px; }
         .wide:nth-child(2) { background: #c0392b; }
+
+        #bottom-spacer { height: 10dvh; background: #111; width: 100%; }
 
         @media (orientation: landscape) {
             body { flex-direction: row; }
-            #controls { 
-                width: 200px; 
-                height: 100%; 
-                grid-template-columns: repeat(2, 1fr); 
-                border-top: none; 
-                border-left: 2px solid #444; 
-                padding-bottom: 10px; 
-            }
+            #controls { width: 180px; height: 100%; grid-template-columns: repeat(2, 1fr); border-top: none; border-left: 2px solid #444; padding-bottom: 10px; }
+            #bottom-spacer { display: none; }
             #shadow-wall { right: 10px; flex-direction: column; bottom: auto; top: 50%; transform: translateY(-50%); }
-            #top-bar { position: absolute; width: calc(100% - 200px); }
         }
     </style>
 </head>
 <body>
 
-    <div id="top-bar">3x3 OPERA SAFE MODE</div>
+    <div id="top-bar">3x3 SMART PERSPECTIVE</div>
 
     <div id="main-container">
         <div id="shadow-wall">
@@ -114,25 +105,27 @@
     <div id="controls">
         <button class="wide" onclick="scramble()">SCRAMBLE</button>
         <button class="wide" onclick="resetCube()">RESET</button>
-        <button onclick="handleMove('U')">U</button>
-        <button onclick="handleMove('D')">D</button>
-        <button onclick="handleMove('L')">L</button>
-        <button onclick="handleMove('R')">R</button>
-        <button onclick="handleMove('F')">F</button>
-        <button onclick="handleMove('B')">B</button>
-        <button onclick="handleMove('U\'')">U'</button>
-        <button onclick="handleMove('D\'')">D'</button>
-        <button onclick="handleMove('L\'')">L'</button>
-        <button onclick="handleMove('R\'')">R'</button>
-        <button onclick="handleMove('F\'')">F'</button>
-        <button onclick="handleMove('B\'')">B'</button>
+        <button onclick="handleRelativeMove('U')">U</button>
+        <button onclick="handleRelativeMove('D')">D</button>
+        <button onclick="handleRelativeMove('L')">L</button>
+        <button onclick="handleRelativeMove('R')">R</button>
+        <button onclick="handleRelativeMove('F')">F</button>
+        <button onclick="handleRelativeMove('B')">B</button>
+        <button onclick="handleRelativeMove('U\'')">U'</button>
+        <button onclick="handleRelativeMove('D\'')">D'</button>
+        <button onclick="handleRelativeMove('L\'')">L'</button>
+        <button onclick="handleRelativeMove('R\'')">R'</button>
+        <button onclick="handleRelativeMove('F\'')">F'</button>
+        <button onclick="handleRelativeMove('B\'')">B'</button>
     </div>
+
+    <div id="bottom-spacer"></div>
 
 <script>
     let cubeState = {};
     let rotX = -20, rotY = -30, isDragging = false;
     let lastX, lastY;
-    const sensitivity = 0.7; 
+    const sensitivity = 0.75; 
 
     function resetCube() {
         cubeState = {
@@ -158,54 +151,58 @@
         cubeState[f] = [s[6], s[3], s[0], s[7], s[4], s[1], s[8], s[5], s[2]];
     }
 
-    // Moves
-    function moveU() {
-        rotateFaceCW('U');
-        const t = [...cubeState.F];
-        cubeState.F[0] = cubeState.R[0]; cubeState.F[1] = cubeState.R[1]; cubeState.F[2] = cubeState.R[2];
-        cubeState.R[0] = cubeState.B[0]; cubeState.R[1] = cubeState.B[1]; cubeState.R[2] = cubeState.B[2];
-        cubeState.B[0] = cubeState.L[0]; cubeState.B[1] = cubeState.L[1]; cubeState.B[2] = cubeState.L[2];
-        cubeState.L[0] = t[0]; cubeState.L[1] = t[1]; cubeState.L[2] = t[2];
+    // Interne Move-Funktionen (Absolute Logik)
+    function moveU() { rotateFaceCW('U'); const t = [...cubeState.F]; cubeState.F[0]=cubeState.R[0]; cubeState.F[1]=cubeState.R[1]; cubeState.F[2]=cubeState.R[2]; cubeState.R[0]=cubeState.B[0]; cubeState.R[1]=cubeState.B[1]; cubeState.R[2]=cubeState.B[2]; cubeState.B[0]=cubeState.L[0]; cubeState.B[1]=cubeState.L[1]; cubeState.B[2]=cubeState.L[2]; cubeState.L[0]=t[0]; cubeState.L[1]=t[1]; cubeState.L[2]=t[2]; }
+    function moveD() { rotateFaceCW('D'); const t = [...cubeState.F]; cubeState.F[6]=cubeState.L[6]; cubeState.F[7]=cubeState.L[7]; cubeState.F[8]=cubeState.L[8]; cubeState.L[6]=cubeState.B[6]; cubeState.L[7]=cubeState.B[7]; cubeState.L[8]=cubeState.B[8]; cubeState.B[6]=cubeState.R[6]; cubeState.B[6]=cubeState.R[6]; cubeState.B[7]=cubeState.R[7]; cubeState.B[8]=cubeState.R[8]; cubeState.R[6]=t[6]; cubeState.R[7]=t[7]; cubeState.R[8]=t[8]; }
+    function moveF() { rotateFaceCW('F'); const t = [...cubeState.U]; cubeState.U[6]=cubeState.L[8]; cubeState.U[7]=cubeState.L[5]; cubeState.U[8]=cubeState.L[2]; cubeState.L[8]=cubeState.D[2]; cubeState.L[5]=cubeState.D[1]; cubeState.L[2]=cubeState.D[0]; cubeState.D[2]=cubeState.R[0]; cubeState.D[1]=cubeState.R[3]; cubeState.D[0]=cubeState.R[6]; cubeState.R[0]=t[6]; cubeState.R[3]=t[7]; cubeState.R[6]=t[8]; }
+    function moveB() { rotateFaceCW('B'); const t = [...cubeState.U]; cubeState.U[0]=cubeState.R[2]; cubeState.U[1]=cubeState.R[5]; cubeState.U[2]=cubeState.R[8]; cubeState.R[2]=cubeState.D[8]; cubeState.R[5]=cubeState.D[7]; cubeState.R[8]=cubeState.D[6]; cubeState.D[8]=cubeState.L[6]; cubeState.D[7]=cubeState.L[3]; cubeState.D[6]=cubeState.L[0]; cubeState.L[6]=t[2]; cubeState.L[3]=t[1]; cubeState.L[0]=t[0]; }
+    function moveL() { rotateFaceCW('L'); const t = [...cubeState.U]; cubeState.U[0]=cubeState.B[8]; cubeState.U[3]=cubeState.B[5]; cubeState.U[6]=cubeState.B[2]; cubeState.B[8]=cubeState.D[0]; cubeState.B[5]=cubeState.D[3]; cubeState.B[2]=cubeState.D[6]; cubeState.D[0]=cubeState.F[0]; cubeState.D[3]=cubeState.F[3]; cubeState.D[6]=cubeState.F[6]; cubeState.F[0]=t[0]; cubeState.F[3]=t[3]; cubeState.F[6]=t[6]; }
+    function moveR() { rotateFaceCW('R'); const t = [...cubeState.U]; cubeState.U[2]=cubeState.F[2]; cubeState.U[5]=cubeState.F[5]; cubeState.U[8]=cubeState.F[8]; cubeState.F[2]=cubeState.D[2]; cubeState.F[5]=cubeState.D[5]; cubeState.F[8]=cubeState.D[8]; cubeState.D[2]=cubeState.B[6]; cubeState.D[5]=cubeState.B[3]; cubeState.D[8]=cubeState.B[0]; cubeState.B[0]=t[8]; cubeState.B[3]=t[5]; cubeState.B[6]=t[2]; }
+
+    // --- NEU: PERSPEKTIV-MAPPING ---
+    function getFaceMapping() {
+        const radX = rotX * Math.PI / 180;
+        const radY = rotY * Math.PI / 180;
+
+        // Vektoren der 6 physikalischen Seiten
+        const faces = [
+            { id: 'U', v: [0, 1, 0] }, { id: 'D', v: [0, -1, 0] },
+            { id: 'F', v: [0, 0, 1] }, { id: 'B', v: [0, 0, -1] },
+            { id: 'L', v: [-1, 0, 0] }, { id: 'R', v: [1, 0, 0] }
+        ];
+
+        let mapping = {};
+        faces.forEach(f => {
+            let [x, y, z] = f.v;
+            // Rotation um Y-Achse
+            let x1 = x * Math.cos(radY) + z * Math.sin(radY);
+            let z1 = -x * Math.sin(radY) + z * Math.cos(radY);
+            // Rotation um X-Achse
+            let y2 = y * Math.cos(radX) - z1 * Math.sin(radX);
+            let z2 = y * Math.sin(radX) + z1 * Math.cos(radX);
+            f.transformed = [x1, y2, z2];
+        });
+
+        // Finde welche Seite am stärksten in welche Blickrichtung zeigt
+        const getBest = (axisIndex, sign) => faces.reduce((a, b) => (a.transformed[axisIndex] * sign > b.transformed[axisIndex] * sign) ? a : b).id;
+
+        return {
+            'F': getBest(2, 1),  'B': getBest(2, -1),
+            'U': getBest(1, 1),  'D': getBest(1, -1),
+            'R': getBest(0, 1),  'L': getBest(0, -1)
+        };
     }
-    function moveD() {
-        rotateFaceCW('D');
-        const t = [...cubeState.F];
-        cubeState.F[6] = cubeState.L[6]; cubeState.F[7] = cubeState.L[7]; cubeState.F[8] = cubeState.L[8];
-        cubeState.L[6] = cubeState.B[6]; cubeState.L[7] = cubeState.B[7]; cubeState.L[8] = cubeState.B[8];
-        cubeState.B[6] = cubeState.R[6]; cubeState.B[7] = cubeState.R[7]; cubeState.B[8] = cubeState.R[8];
-        cubeState.R[6] = t[6]; cubeState.R[7] = t[7]; cubeState.R[8] = t[8];
-    }
-    function moveF() {
-        rotateFaceCW('F');
-        const t = [...cubeState.U];
-        cubeState.U[6] = cubeState.L[8]; cubeState.U[7] = cubeState.L[5]; cubeState.U[8] = cubeState.L[2];
-        cubeState.L[8] = cubeState.D[2]; cubeState.L[5] = cubeState.D[1]; cubeState.L[2] = cubeState.D[0];
-        cubeState.D[2] = cubeState.R[0]; cubeState.D[1] = cubeState.R[3]; cubeState.D[0] = cubeState.R[6];
-        cubeState.R[0] = t[6]; cubeState.R[3] = t[7]; cubeState.R[6] = t[8];
-    }
-    function moveB() {
-        rotateFaceCW('B');
-        const t = [...cubeState.U];
-        cubeState.U[0] = cubeState.R[2]; cubeState.U[1] = cubeState.R[5]; cubeState.U[2] = cubeState.R[8];
-        cubeState.R[2] = cubeState.D[8]; cubeState.R[5] = cubeState.D[7]; cubeState.R[8] = cubeState.D[6];
-        cubeState.D[8] = cubeState.L[6]; cubeState.D[7] = cubeState.L[3]; cubeState.D[6] = cubeState.L[0];
-        cubeState.L[6] = t[2]; cubeState.L[3] = t[1]; cubeState.L[0] = t[0];
-    }
-    function moveL() {
-        rotateFaceCW('L');
-        const t = [...cubeState.U];
-        cubeState.U[0] = cubeState.B[8]; cubeState.U[3] = cubeState.B[5]; cubeState.U[6] = cubeState.B[2];
-        cubeState.B[8] = cubeState.D[0]; cubeState.B[5] = cubeState.D[3]; cubeState.B[2] = cubeState.D[6];
-        cubeState.D[0] = cubeState.F[0]; cubeState.D[3] = cubeState.F[3]; cubeState.D[6] = cubeState.F[6];
-        cubeState.F[0] = t[0]; cubeState.F[3] = t[3]; cubeState.F[6] = t[6];
-    }
-    function moveR() {
-        rotateFaceCW('R');
-        const t = [...cubeState.U];
-        cubeState.U[2] = cubeState.F[2]; cubeState.U[5] = cubeState.F[5]; cubeState.U[8] = cubeState.F[8];
-        cubeState.F[2] = cubeState.D[2]; cubeState.F[5] = cubeState.D[5]; cubeState.F[8] = cubeState.D[8];
-        cubeState.D[2] = cubeState.B[6]; cubeState.D[5] = cubeState.B[3]; cubeState.D[8] = cubeState.B[0];
-        cubeState.B[0] = t[8]; cubeState.B[3] = t[5]; cubeState.B[6] = t[2];
+
+    function handleRelativeMove(m) {
+        const map = getFaceMapping();
+        let isPrime = m.includes("'");
+        let relativeBase = m.replace("'", "");
+        
+        // Mappe den Button (z.B. 'F') auf die tatsächliche Seite (z.B. 'U')
+        let actualBase = map[relativeBase];
+        let finalMove = isPrime ? actualBase + "'" : actualBase;
+        
+        handleMove(finalMove);
     }
 
     function handleMove(m) {
@@ -220,14 +217,12 @@
         render();
     }
 
+    // Touch & Drag
     const container = document.getElementById('main-container');
     container.addEventListener('pointerdown', (e) => {
         if(e.target.tagName === 'BUTTON') return;
-        isDragging = true;
-        lastX = e.clientX;
-        lastY = e.clientY;
+        isDragging = true; lastX = e.clientX; lastY = e.clientY;
     });
-
     window.addEventListener('pointerup', () => isDragging = false);
     window.addEventListener('pointermove', (e) => {
         if(!isDragging) return;
@@ -235,25 +230,18 @@
         const deltaY = e.clientY - lastY;
         rotY += deltaX * sensitivity;
         rotX -= deltaY * sensitivity;
-        if(rotX > 85) rotX = 85;
-        if(rotX < -85) rotX = -85;
+        if(rotX > 85) rotX = 85; if(rotX < -85) rotX = -85;
         document.getElementById('cube-visual').style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
-        lastX = e.clientX;
-        lastY = e.clientY;
+        lastX = e.clientX; lastY = e.clientY;
     });
 
     function scramble() {
-        const ms = ['U','D','L','R','F','B',"U'","D'","L'","R'","F'","B'"];
-        let seq = [];
-        let lastMove = '';
+        const ms = ['U','D','L','R','F','B'];
         for(let i=0; i<15; i++) {
-            let nextMove;
-            do { nextMove = ms[Math.floor(Math.random()*12)]; } while (nextMove[0] === lastMove[0]);
-            seq.push(nextMove);
-            handleMove(nextMove);
-            lastMove = nextMove;
+            let m = ms[Math.floor(Math.random()*6)] + (Math.random() > 0.5 ? "'" : "");
+            handleMove(m);
         }
-        document.getElementById('top-bar').innerText = seq.join(' ');
+        document.getElementById('top-bar').innerText = "SCRAMBLED";
     }
 
     resetCube();

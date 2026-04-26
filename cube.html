@@ -1,91 +1,4 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Gemini Speedcube 3x3</title>
-    <style>
-        :root { --bg: #222; --panel: #333; --accent: #3498db; }
-        * { touch-action: manipulation; user-select: none; box-sizing: border-box; }
-        body { background: var(--bg); color: white; font-family: sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
-
-        /* Top Bar */
-        #top-bar { padding: 15px; text-align: center; background: #111; font-weight: bold; font-size: 1.1rem; color: #f1c40f; letter-spacing: 2px; }
-
-        /* Main View */
-        #main-container { flex: 1; display: flex; position: relative; justify-content: center; align-items: center; overflow: hidden; }
-        
-        /* 3D Cube */
-        .scene { width: 180px; height: 180px; perspective: 1000px; z-index: 5; }
-        .cube { width: 100%; height: 100%; position: relative; transform-style: preserve-3d; transform: rotateX(-20deg) rotateY(-30deg); transition: transform 0.1s linear; }
-        .face { position: absolute; width: 180px; height: 180px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; background: #000; border: 2px solid #000; }
-        
-        /* 3D Positions */
-        .f { transform: translateZ(90px); } .b { transform: rotateY(180deg) translateZ(90px); }
-        .u { transform: rotateX(90deg) translateZ(90px); } .d { transform: rotateX(-90deg) translateZ(90px); }
-        .l { transform: rotateY(-90deg) translateZ(90px); } .r { transform: rotateY(90deg) translateZ(90px); }
-        
-        .sticker { border-radius: 3px; width: 100%; height: 100%; }
-        
-        /* Colors */
-        .w { background: #fff; } .y { background: #fd0; } .g { background: #009b48; }
-        .b-color { background: #0046ad; } .o { background: #ff5800; } .r-color { background: #b71234; }
-
-        /* Shadow Wall */
-        #shadow-wall { position: absolute; display: flex; gap: 15px; opacity: 0.5; bottom: 20px; pointer-events: none; }
-        .mini-face { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: #000; padding: 1px; width: 60px; height: 60px; }
-
-        /* Controls */
-        #controls { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 15px; background: var(--panel); border-top: 2px solid #444; }
-        button { padding: 15px 0; border: none; border-radius: 6px; background: #555; color: white; font-weight: bold; font-size: 1rem; cursor: pointer; transition: background 0.1s; }
-        button:active { background: var(--accent); transform: scale(0.95); }
-        .wide { grid-column: span 3; background: #27ae60; }
-        .wide:nth-child(2) { background: #c0392b; }
-
-        @media (orientation: landscape) {
-            body { flex-direction: row; }
-            #controls { width: 250px; height: 100%; grid-template-columns: repeat(2, 1fr); border-top: none; border-left: 2px solid #444; }
-            #shadow-wall { right: 20px; flex-direction: column; bottom: auto; top: 50%; transform: translateY(-50%); }
-            #top-bar { position: absolute; top: 0; left: 0; right: 250px; background: transparent; }
-        }
-    </style>
-</head>
-<body>
-
-    <div id="top-bar">3x3 PURE MODE</div>
-
-    <div id="main-container">
-        <div id="shadow-wall">
-            <div id="shadow-b" class="mini-face"></div>
-            <div id="shadow-l" class="mini-face"></div>
-            <div id="shadow-d" class="mini-face"></div>
-        </div>
-
-        <div class="scene">
-            <div class="cube" id="cube-visual">
-                <div class="face u" id="face-u"></div>
-                <div class="face d" id="face-d"></div>
-                <div class="face f" id="face-f"></div>
-                <div class="face b" id="face-b"></div>
-                <div class="face l" id="face-l"></div>
-                <div class="face r" id="face-r"></div>
-            </div>
-        </div>
-    </div>
-
-    <div id="controls">
-        <button class="wide" onclick="scramble()">SCRAMBLE</button>
-        <button class="wide" onclick="resetCube()">RESET</button>
-        <button onclick="handleMove('U')">U</button><button onclick="handleMove('D')">D</button>
-        <button onclick="handleMove('L')">L</button><button onclick="handleMove('R')">R</button>
-        <button onclick="handleMove('F')">F</button><button onclick="handleMove('B')">B</button>
-        <button onclick="handleMove('U\'')">U'</button><button onclick="handleMove('D\'')">D'</button>
-        <button onclick="handleMove('L\'')">L'</button><button onclick="handleMove('R\'')">R'</button>
-        <button onclick="handleMove('F\'')">F'</button><button onclick="handleMove('B\'')">B'</button>
-    </div>
-
 <script>
-    // Feste Farbzuordnung (w, y, g, b-color, o, r-color)
     let cubeState = {};
 
     function resetCube() {
@@ -105,19 +18,16 @@
         ['U','D','F','B','L','R'].forEach(f => {
             const html = cubeState[f].map(c => `<div class="sticker ${c}"></div>`).join('');
             document.getElementById(`face-${f.toLowerCase()}`).innerHTML = html;
-            
             const shadow = document.getElementById(`shadow-${f.toLowerCase()}`);
             if(shadow) shadow.innerHTML = html;
         });
     }
 
-    // Präzise CW Rotation der 3x3 Fläche
     function rotateFaceCW(f) {
         const s = cubeState[f];
         cubeState[f] = [s[6], s[3], s[0], s[7], s[4], s[1], s[8], s[5], s[2]];
     }
 
-    // Exakte Edge-Mappings (hartcodiert für null Fehler)
     function moveU() {
         rotateFaceCW('U');
         const t = [...cubeState.F];
@@ -176,42 +86,58 @@
         let isPrime = m.includes("'");
         let base = m.replace("'", "");
         let times = isPrime ? 3 : 1;
-
         for(let i=0; i<times; i++) {
-            if(base === 'U') moveU();
-            if(base === 'D') moveD();
-            if(base === 'F') moveF();
-            if(base === 'B') moveB();
-            if(base === 'L') moveL();
-            if(base === 'R') moveR();
+            if(base === 'U') moveU(); if(base === 'D') moveD();
+            if(base === 'F') moveF(); if(base === 'B') moveB();
+            if(base === 'L') moveL(); if(base === 'R') moveR();
         }
         render();
     }
 
-    // 3D View Control (nur auf Main Container)
+    // --- VERBESSERTE TOUCH-STEUERUNG ---
     let rotX = -20, rotY = -30, isDragging = false;
+    let lastX, lastY;
+    const sensitivity = 0.8; // Erhöht (vorher effektiv viel niedriger auf Mobile)
+
     const container = document.getElementById('main-container');
     
-    container.addEventListener('pointerdown', () => isDragging = true);
+    container.addEventListener('pointerdown', (e) => {
+        isDragging = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+        // Verhindert Textmarkierungen während des Drehens
+        e.preventDefault();
+    });
+
     window.addEventListener('pointerup', () => isDragging = false);
+
     window.addEventListener('pointermove', (e) => {
         if(!isDragging || e.target.tagName === 'BUTTON') return;
-        rotY += e.movementX * 0.5;
-        rotX -= e.movementY * 0.5;
+
+        // Manuelle Berechnung des Deltas für bessere Mobile-Kompatibilität
+        const deltaX = e.clientX - lastX;
+        const deltaY = e.clientY - lastY;
+
+        rotY += deltaX * sensitivity;
+        rotX -= deltaY * sensitivity;
+
+        // Begrenzung der X-Rotation, damit man den Würfel nicht "überkopft"
+        if(rotX > 90) rotX = 90;
+        if(rotX < -90) rotX = -90;
+
         document.getElementById('cube-visual').style.transform = `rotateX(${rotX}deg) rotateY(${rotY}deg)`;
+        
+        lastX = e.clientX;
+        lastY = e.clientY;
     });
 
     function scramble() {
         const ms = ['U','D','L','R','F','B',"U'","D'","L'","R'","F'","B'"];
         let seq = [];
         let lastMove = '';
-        
         for(let i=0; i<15; i++) {
             let nextMove;
-            do {
-                nextMove = ms[Math.floor(Math.random()*12)];
-            } while (nextMove[0] === lastMove[0]); // Verhindert z.B. U gefolgt von U'
-            
+            do { nextMove = ms[Math.floor(Math.random()*12)]; } while (nextMove[0] === lastMove[0]);
             seq.push(nextMove);
             handleMove(nextMove);
             lastMove = nextMove;
@@ -219,8 +145,5 @@
         document.getElementById('top-bar').innerText = seq.join(' ');
     }
 
-    // Init
     resetCube();
 </script>
-</body>
-</html>

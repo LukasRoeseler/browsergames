@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#111111">
+<title>Simon</title>
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22Simon%22%2C%22short_name%22%3A%22Simon%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23111111%22%2C%22theme_color%22%3A%22%23111111%22%7D">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; user-select: none; }
+
+  :root {
+    --bg: #111111;
+    --device-body: #1a1a1a;
+    --device-rim: #2a2a2a;
+    --center-bg: #0d0d0d;
+    --text-main: #e8e8e8;
+    --text-dim: #555;
+    --shadow-deep: rgba(0,0,0,0.8);
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Arial Rounded MT Bold', 'Arial', sans-serif;
+    overflow: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 50% 40%, #1e1e1e 0%, #080808 100%);
+    z-index: 0;
+  }
+
+  .scene {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  /* ── Device body ── */
+  .device {
+    position: relative;
+    width: min(380px, 92vw);
+    aspect-ratio: 1;
+    background: radial-gradient(circle at 40% 35%, #2e2e2e, #151515 70%);
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 6px #222,
+      0 0 0 12px #1a1a1a,
+      0 0 0 16px #111,
+      0 30px 80px -10px rgba(0,0,0,0.9),
+      inset 0 1px 0 rgba(255,255,255,0.05);
+    padding: 12px;
+  }
+
+  /* ── 4 quadrants ── */
+  .board {
+    width: 100%; height: 100%;
+    border-radius: 50%;
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 8px;
+    padding: 0;
+  }
+
+  .btn {
+    position: relative;
+    cursor: pointer;
+    transition: filter 0.06s ease;
+    overflow: hidden;
+  }
+
+  /* Quadrant shapes via clip-path circle trick — use border-radius per corner */
+  .btn-green  { border-radius: 100% 0 0 0; background: radial-gradient(ellipse at 30% 30%, #00e05a, #006b2a); }
+  .btn-red    { border-radius: 0 100% 0 0; background: radial-gradient(ellipse at 70% 30%, #ff3b3b, #8b0000); }
+  .btn-yellow { border-radius: 0 0 0 100%; background: radial-gradient(ellipse at 30% 70%, #ffd800, #a87000); }
+  .btn-blue   { border-radius: 0 0 100% 0; background: radial-gradient(ellipse at 70% 70%, #3b8eff, #00298b); }
+
+  .btn::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: rgba(255,255,255,0.07);
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+
+  .btn.dim {
+    filter: brightness(0.25) saturate(0.4);
+  }
+
+  .btn.lit {
+    filter: brightness(1.6) saturate(1.3);
+    box-shadow: inset 0 0 40px rgba(255,255,255,0.2);
+  }
+  .btn.lit::after { opacity: 1; }
+
+  /* Gloss highlight */
+  .btn::before {
+    content: '';
+    position: absolute;
+    top: 10%; left: 15%;
+    width: 40%; height: 30%;
+    background: radial-gradient(ellipse, rgba(255,255,255,0.35) 0%, transparent 70%);
+    border-radius: 50%;
+    pointer-events: none;
+  }
+
+  /* ── Center hub ── */
+  .center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 38%;
+    height: 38%;
+    background: radial-gradient(circle at 40% 35%, #252525, #0a0a0a);
+    border-radius: 50%;
+    border: 3px solid #333;
+    box-shadow:
+      0 0 0 4px #111,
+      0 8px 30px rgba(0,0,0,0.7),
+      inset 0 2px 4px rgba(255,255,255,0.07);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    z-index: 10;
+  }
+
+  .logo {
+    font-size: clamp(13px, 3.5vw, 18px);
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: #ccc;
+    text-transform: uppercase;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+
+  .score-display {
+    background: #000;
+    border-radius: 6px;
+    padding: 3px 10px;
+    border: 1px solid #333;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,255,100,0.1);
+    min-width: 54px;
+    text-align: center;
+  }
+
+  .score-number {
+    font-family: 'Courier New', monospace;
+    font-size: clamp(18px, 4vw, 26px);
+    font-weight: bold;
+    color: #00ff66;
+    text-shadow: 0 0 8px rgba(0,255,100,0.7), 0 0 20px rgba(0,255,100,0.3);
+    letter-spacing: 3px;
+    line-height: 1.2;
+  }
+
+  .start-btn {
+    width: clamp(32px, 8vw, 44px);
+    height: clamp(32px, 8vw, 44px);
+    border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #444, #1a1a1a);
+    border: 2px solid #555;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.1);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(9px, 2vw, 11px);
+    font-weight: bold;
+    letter-spacing: 0.5px;
+    color: #aaa;
+    text-transform: uppercase;
+    transition: all 0.1s;
+  }
+
+  .start-btn:active, .start-btn.pressed {
+    transform: scale(0.94);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.7), inset 0 2px 4px rgba(0,0,0,0.5);
+  }
+
+  /* Speed toggle */
+  .speed-dots {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+  .speed-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #333;
+    cursor: pointer;
+    border: 1px solid #555;
+    transition: background 0.2s;
+  }
+  .speed-dot.active { background: #ffd800; box-shadow: 0 0 4px rgba(255,216,0,0.7); }
+
+  /* ── Status bar below device ── */
+  .status {
+    margin-top: 24px;
+    text-align: center;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .status-text {
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    transition: color 0.3s, opacity 0.3s;
+  }
+
+  .status-text.flash-error {
+    color: #ff3b3b !important;
+    animation: errorFlash 0.6s ease;
+  }
+
+  @keyframes errorFlash {
+    0%, 100% { opacity: 1; }
+    30% { opacity: 0.2; }
+    60% { opacity: 1; }
+    80% { opacity: 0.2; }
+  }
+
+  .status-text.active { color: #aaa; }
+  .status-text.win { color: #ffd800; }
+
+  /* ── Strict mode light ── */
+  .strict-light {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #ff3b3b;
+    box-shadow: 0 0 6px rgba(255,59,59,0.8);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .strict-mode .strict-light { opacity: 1; }
+
+  /* Best score */
+  .best-score {
+    margin-top: 10px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: #444;
+    text-transform: uppercase;
+  }
+  .best-score span { color: #666; }
+
+  /* Responsive tweaks */
+  @media (max-width: 400px) {
+    .center { width: 34%; height: 34%; gap: 7px; }
+  }
+
+  /* Win pulse */
+  @keyframes winPulse {
+    0%,100% { transform: translate(-50%,-50%) scale(1); }
+    50% { transform: translate(-50%,-50%) scale(1.05); }
+  }
+  .center.win-anim { animation: winPulse 0.4s ease 3; }
+</style>
+</head>
+<body>
+
+<div class="scene">
+  <div class="device" id="device">
+    <div class="board" id="board">
+      <div class="btn btn-green dim" id="btn-green"   data-color="green"></div>
+      <div class="btn btn-red dim"   id="btn-red"     data-color="red"></div>
+      <div class="btn btn-yellow dim" id="btn-yellow" data-color="yellow"></div>
+      <div class="btn btn-blue dim"  id="btn-blue"    data-color="blue"></div>
+    </div>
+
+    <div class="center" id="center">
+      <div class="logo">Simon</div>
+      <div class="score-display">
+        <div class="score-number" id="score">--</div>
+      </div>
+      <button class="start-btn" id="startBtn">START</button>
+      <div class="speed-dots" id="speedDots">
+        <div class="speed-dot active" data-speed="0" title="Normal"></div>
+        <div class="speed-dot" data-speed="1" title="Schnell"></div>
+        <div class="speed-dot" data-speed="2" title="Turbo"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status">
+    <div class="status-text" id="statusText">Drücke START</div>
+  </div>
+  <div class="best-score">Bestleistung: <span id="bestScore">0</span></div>
+</div>
+
+<script>
+// ─── Audio Engine ───────────────────────────────────────────────
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let actx = null;
+
+function ensureAudio() {
+  if (!actx) actx = new AudioCtx();
+  if (actx.state === 'suspended') actx.resume();
+}
+
+const FREQS = { green: 415, red: 310, yellow: 252, blue: 209 };
+
+function playTone(color, duration = 0.42) {
+  ensureAudio();
+  const freq = FREQS[color];
+  const now = actx.currentTime;
+
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.connect(gain);
+  gain.connect(actx.destination);
+
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, now);
+
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(0.55, now + 0.01);
+  gain.gain.setValueAtTime(0.55, now + duration - 0.06);
+  gain.gain.linearRampToValueAtTime(0, now + duration);
+
+  osc.start(now);
+  osc.stop(now + duration);
+}
+
+function playError() {
+  ensureAudio();
+  const now = actx.currentTime;
+  [150, 120].forEach((freq, i) => {
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.connect(gain);
+    gain.connect(actx.destination);
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, now + i * 0.18);
+    gain.gain.setValueAtTime(0.3, now + i * 0.18);
+    gain.gain.linearRampToValueAtTime(0, now + i * 0.18 + 0.16);
+    osc.start(now + i * 0.18);
+    osc.stop(now + i * 0.18 + 0.16);
+  });
+}
+
+function playWin() {
+  ensureAudio();
+  const melody = [415, 523, 659, 784];
+  melody.forEach((freq, i) => {
+    const osc = actx.createOscillator();
+    const gain = actx.createGain();
+    osc.connect(gain); gain.connect(actx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, actx.currentTime + i * 0.13);
+    gain.gain.setValueAtTime(0.4, actx.currentTime + i * 0.13);
+    gain.gain.linearRampToValueAtTime(0, actx.currentTime + i * 0.13 + 0.18);
+    osc.start(actx.currentTime + i * 0.13);
+    osc.stop(actx.currentTime + i * 0.13 + 0.2);
+  });
+}
+
+// ─── Game State ──────────────────────────────────────────────────
+const COLORS = ['green', 'red', 'yellow', 'blue'];
+const SPEEDS = [520, 360, 220]; // ms per step (normal, fast, turbo)
+const WIN_SCORE = 20;
+
+let sequence = [];
+let playerIndex = 0;
+let level = 0;
+let gameActive = false;
+let accepting = false;
+let speedIndex = 0;
+let bestScore = parseInt(localStorage.getItem('simonBest') || '0');
+let timeoutIds = [];
+
+document.getElementById('bestScore').textContent = bestScore;
+
+// ─── DOM refs ────────────────────────────────────────────────────
+const scoreEl    = document.getElementById('score');
+const statusEl   = document.getElementById('statusText');
+const startBtn   = document.getElementById('startBtn');
+const centerEl   = document.getElementById('center');
+const speedDots  = document.querySelectorAll('.speed-dot');
+const btns       = {};
+COLORS.forEach(c => { btns[c] = document.getElementById('btn-' + c); });
+
+// ─── Helpers ─────────────────────────────────────────────────────
+function clearTimeouts() { timeoutIds.forEach(clearTimeout); timeoutIds = []; }
+function delay(ms) { return new Promise(r => { const id = setTimeout(r, ms); timeoutIds.push(id); }); }
+
+function setStatus(msg, cls = '') {
+  statusEl.textContent = msg;
+  statusEl.className = 'status-text' + (cls ? ' ' + cls : '');
+}
+
+function setScore(n) {
+  scoreEl.textContent = n < 10 ? '0' + n : String(n);
+}
+
+function dimAll() {
+  COLORS.forEach(c => { btns[c].classList.add('dim'); btns[c].classList.remove('lit'); });
+}
+function normalAll() {
+  COLORS.forEach(c => { btns[c].classList.remove('dim'); btns[c].classList.remove('lit'); });
+}
+
+async function flashButton(color, duration) {
+  const el = btns[color];
+  el.classList.remove('dim');
+  el.classList.add('lit');
+  playTone(color, duration / 1000 * 0.9);
+  await delay(duration);
+  el.classList.remove('lit');
+  el.classList.add('dim');
+}
+
+// ─── Speed selector ──────────────────────────────────────────────
+document.getElementById('speedDots').addEventListener('click', e => {
+  const dot = e.target.closest('.speed-dot');
+  if (!dot || gameActive) return;
+  speedIndex = parseInt(dot.dataset.speed);
+  speedDots.forEach(d => d.classList.toggle('active', parseInt(d.dataset.speed) === speedIndex));
+});
+
+// ─── Game flow ───────────────────────────────────────────────────
+async function startGame() {
+  if (gameActive) return;
+  ensureAudio();
+  clearTimeouts();
+  sequence = [];
+  level = 0;
+  gameActive = true;
+  accepting = false;
+  startBtn.classList.add('pressed');
+  setTimeout(() => startBtn.classList.remove('pressed'), 120);
+
+  setScore(0);
+  setStatus('Gut aufgepasst!', 'active');
+  dimAll();
+  await delay(500);
+  await nextRound();
+}
+
+async function nextRound() {
+  accepting = false;
+  level++;
+  const pick = COLORS[Math.floor(Math.random() * 4)];
+  sequence.push(pick);
+  setScore(level);
+  setStatus('Schau zu...', 'active');
+
+  await delay(300);
+  await playSequence();
+
+  if (!gameActive) return;
+  playerIndex = 0;
+  accepting = true;
+  setStatus('Deine Runde!', 'active');
+}
+
+async function playSequence() {
+  const speed = SPEEDS[speedIndex];
+  const litTime  = Math.round(speed * 0.65);
+  const gapTime  = Math.round(speed * 0.35);
+
+  for (let i = 0; i < sequence.length; i++) {
+    if (!gameActive) return;
+    await flashButton(sequence[i], litTime);
+    await delay(gapTime);
+  }
+}
+
+async function handleInput(color) {
+  if (!accepting || !gameActive) return;
+  accepting = false;
+  ensureAudio();
+
+  await flashButton(color, 280);
+
+  if (color !== sequence[playerIndex]) {
+    // Wrong!
+    await wrongAnswer();
+    return;
+  }
+
+  playerIndex++;
+
+  if (playerIndex === sequence.length) {
+    // Completed this round
+    if (level >= WIN_SCORE) {
+      await winGame();
+      return;
+    }
+    setStatus('Richtig! ✓', 'active');
+    await delay(600);
+    if (!gameActive) return;
+    await nextRound();
+  } else {
+    accepting = true;
+  }
+}
+
+async function wrongAnswer() {
+  gameActive = false;
+  accepting = false;
+  playError();
+
+  statusEl.classList.add('flash-error');
+  setStatus('Falsch!');
+  await delay(100);
+  statusEl.classList.remove('flash-error');
+
+  // Flash all red
+  COLORS.forEach(c => { btns[c].classList.remove('dim'); btns[c].classList.add('lit'); });
+  await delay(600);
+  COLORS.forEach(c => { btns[c].classList.remove('lit'); btns[c].classList.add('dim'); });
+  await delay(200);
+  COLORS.forEach(c => { btns[c].classList.remove('dim'); btns[c].classList.add('lit'); });
+  await delay(400);
+  dimAll();
+
+  const reached = level - 1;
+  if (reached > bestScore) {
+    bestScore = reached;
+    localStorage.setItem('simonBest', bestScore);
+    document.getElementById('bestScore').textContent = bestScore;
+  }
+
+  setScore(0);
+  scoreEl.style.color = '#ff3b3b';
+  scoreEl.style.textShadow = '0 0 8px rgba(255,59,59,0.7)';
+  setTimeout(() => {
+    scoreEl.style.color = '';
+    scoreEl.style.textShadow = '';
+  }, 1200);
+
+  setStatus('Spiel vorbei – Drücke START', '');
+  normalAll();
+}
+
+async function winGame() {
+  gameActive = false;
+  accepting = false;
+  playWin();
+
+  setStatus('🏆 Gewonnen!', 'win');
+  centerEl.classList.add('win-anim');
+  setTimeout(() => centerEl.classList.remove('win-anim'), 1200);
+
+  for (let i = 0; i < 3; i++) {
+    for (const c of COLORS) {
+      btns[c].classList.remove('dim');
+      btns[c].classList.add('lit');
+      await delay(80);
+      btns[c].classList.remove('lit');
+      btns[c].classList.add('dim');
+    }
+  }
+
+  if (WIN_SCORE > bestScore) {
+    bestScore = WIN_SCORE;
+    localStorage.setItem('simonBest', bestScore);
+    document.getElementById('bestScore').textContent = bestScore;
+  }
+
+  setScore(WIN_SCORE);
+  normalAll();
+  setStatus('Drücke START für neue Runde', 'win');
+}
+
+// ─── Event listeners ─────────────────────────────────────────────
+startBtn.addEventListener('click', startGame);
+startBtn.addEventListener('touchend', e => { e.preventDefault(); startGame(); });
+
+COLORS.forEach(color => {
+  const el = btns[color];
+  el.addEventListener('mousedown', () => handleInput(color));
+  el.addEventListener('touchstart', e => { e.preventDefault(); handleInput(color); }, { passive: false });
+});
+
+// Keyboard support
+const KEY_MAP = { KeyA: 'green', KeyD: 'red', KeyJ: 'yellow', KeyL: 'blue',
+                  ArrowLeft: 'green', ArrowUp: 'red', ArrowDown: 'yellow', ArrowRight: 'blue',
+                  Space: null, Enter: null };
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'Enter') { startGame(); return; }
+  const c = KEY_MAP[e.code];
+  if (c) handleInput(c);
+});
+
+// Init dim state
+dimAll();
+</script>
+</body>
+</html>

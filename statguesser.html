@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#f5f0e8">
+<title>StatGuesser</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#f5f0e8;--paper:#fff;--ink:#111;--ink2:#333;
+  --dim:#888;--dimmer:#ccc;
+  --red:#d42b2b;--blue:#1a5aff;--gold:#e6a800;--green:#1a8c1a;
+  --font:'Press Start 2P',monospace;
+}
+html,body{width:100%;min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--font);display:flex;flex-direction:column;align-items:center;overflow-x:hidden;image-rendering:pixelated;}
+body::after{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.03) 2px,rgba(0,0,0,0.03) 3px);pointer-events:none;z-index:9999;}
+.screen{display:none;width:min(520px,100%);padding:14px 14px 44px;flex-direction:column;align-items:stretch;}
+.screen.active{display:flex;}
+.pbox{border:3px solid var(--ink);background:var(--paper);box-shadow:4px 4px 0 var(--ink);}
+.btn{display:inline-block;padding:10px 16px;background:var(--ink);color:var(--bg);border:3px solid var(--ink);box-shadow:4px 4px 0 #555;font-family:var(--font);font-size:clamp(7px,2.2vw,9px);letter-spacing:1px;cursor:pointer;transition:transform .05s,box-shadow .05s;text-align:center;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
+.btn:active,.btn.pressed{transform:translate(3px,3px);box-shadow:1px 1px 0 #555;}
+.btn.outline{background:var(--bg);color:var(--ink);}
+.btn.blue{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:4px 4px 0 #0030aa;}
+.btn.blue:active{box-shadow:1px 1px 0 #0030aa;}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none;}
+
+/* ── START ── */
+#startScreen{gap:0;align-items:center;}
+.start-header{text-align:center;padding:24px 0 18px;display:flex;flex-direction:column;gap:10px;align-items:center;}
+.start-title-small{font-size:clamp(6px,1.8vw,8px);color:var(--dim);letter-spacing:3px;}
+.start-title{font-size:clamp(11px,3.5vw,15px);color:var(--ink);letter-spacing:1px;line-height:1.7;text-align:center;}
+.start-title span{color:var(--blue);}
+.start-menu{width:100%;display:flex;flex-direction:column;gap:0;border:3px solid var(--ink);box-shadow:4px 4px 0 var(--ink);}
+.menu-item{padding:14px 18px;background:var(--paper);color:var(--ink);border-bottom:3px solid var(--ink);font-family:var(--font);font-size:clamp(8px,2.5vw,10px);letter-spacing:1px;cursor:pointer;display:flex;align-items:center;gap:10px;-webkit-tap-highlight-color:transparent;}
+.menu-item:last-child{border-bottom:none;}
+.menu-item:hover,.menu-item:active{background:#f0ebe0;}
+.menu-item .mi-icon{font-size:1.2em;width:20px;text-align:center;}
+.menu-item .mi-sub{font-size:5px;color:var(--dim);margin-top:4px;display:block;letter-spacing:.5px;}
+.start-credit{font-size:5px;color:var(--dim);text-align:center;padding:12px 0 2px;letter-spacing:.5px;line-height:2;}
+.start-credit a{color:var(--blue);}
+
+/* ── HUD ── */
+#gameScreen{gap:0;}
+.hud{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border:3px solid var(--ink);border-bottom:none;background:var(--paper);gap:8px;flex-wrap:wrap;}
+.hud-left{display:flex;flex-direction:column;gap:5px;}
+.lives-row{display:flex;gap:5px;align-items:center;}
+.coin-row{display:flex;align-items:center;gap:5px;font-size:clamp(7px,2vw,8px);}
+.coin-val{color:var(--gold);text-shadow:1px 1px 0 #000;}
+.hud-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;}
+.hud-hs{font-size:clamp(5px,1.5vw,6px);color:var(--red);letter-spacing:1px;}
+.hud-hs b{font-size:1.3em;}
+.hud-back{font-size:clamp(5px,1.5vw,6px);color:var(--dim);cursor:pointer;letter-spacing:1px;border:1px solid var(--dim);padding:2px 5px;}
+.heart-c{width:22px;height:18px;image-rendering:pixelated;display:block;flex-shrink:0;}
+
+/* ── CHART ── */
+.chart-wrap{border:3px solid var(--ink);background:var(--paper);position:relative;overflow:hidden;}
+canvas#plot{display:block;width:100%;image-rendering:pixelated;}
+
+/* ── INPUT ── */
+.input-area{border:3px solid var(--ink);border-top:none;background:var(--paper);padding:10px 12px 9px;display:flex;flex-direction:column;gap:8px;}
+.q-label{font-size:clamp(5px,1.5vw,6px);color:var(--dim);letter-spacing:1.5px;}
+.slider-row{display:flex;align-items:center;gap:10px;}
+.slider-val{font-size:clamp(13px,4.5vw,17px);color:var(--ink);min-width:62px;text-align:right;white-space:nowrap;flex-shrink:0;}
+input[type=range]{-webkit-appearance:none;appearance:none;flex:1;height:6px;background:#ddd;outline:none;border:2px solid var(--ink);cursor:pointer;border-radius:0;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;background:var(--ink);border:2px solid var(--bg);border-radius:0;cursor:pointer;box-shadow:2px 2px 0 #555;}
+input[type=range]::-moz-range-thumb{width:16px;height:16px;background:var(--ink);border:2px solid #555;border-radius:0;}
+.tick-row{display:flex;justify-content:space-between;font-size:5px;color:var(--dim);padding:0 2px;margin-top:-4px;}
+.guess-btn{width:100%;padding:10px;background:var(--blue);color:#fff;border:3px solid var(--blue);box-shadow:4px 4px 0 #0030aa;font-family:var(--font);font-size:clamp(7px,2vw,8px);letter-spacing:2px;cursor:pointer;transition:transform .05s,box-shadow .05s;-webkit-tap-highlight-color:transparent;}
+.guess-btn:active,.guess-btn.pressed{transform:translate(3px,3px);box-shadow:1px 1px 0 #0030aa;}
+.guess-btn:disabled{opacity:.35;cursor:not-allowed;transform:none;}
+
+/* ── FEEDBACK ── */
+.feedback-panel{display:none;border:3px solid var(--ink);border-top:none;background:var(--paper);padding:11px 12px;flex-direction:column;gap:8px;animation:pixIn .12s steps(3) forwards;}
+.feedback-panel.show{display:flex;}
+@keyframes pixIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+.fb-stats{display:flex;justify-content:space-between;gap:6px;flex-wrap:wrap;}
+.fb-block{display:flex;flex-direction:column;gap:3px;}
+.fb-lbl{font-size:5px;color:var(--dim);letter-spacing:1px;}
+.fb-num{font-size:clamp(12px,4vw,16px);color:var(--ink);}
+.fb-num.good{color:var(--green);}
+.fb-num.ok{color:var(--ink2);}
+.fb-num.bad{color:var(--red);}
+.err-bar-wrap{height:6px;background:#eee;border:2px solid var(--ink);overflow:hidden;}
+.err-bar-fill{height:100%;background:var(--ink);transition:width .5s steps(10);}
+.err-bar-fill.good{background:var(--green);}
+.err-bar-fill.ok{background:var(--ink2);}
+.err-bar-fill.bad{background:var(--red);}
+.fb-comment{font-size:clamp(5px,1.5vw,6px);color:var(--dim);text-align:center;line-height:2.2;letter-spacing:.5px;border-top:1px solid #eee;padding-top:7px;}
+.fb-coin{font-size:clamp(6px,1.8vw,7px);color:var(--gold);}
+.next-btn{width:100%;padding:9px;background:var(--paper);color:var(--blue);border:3px solid var(--blue);box-shadow:4px 4px 0 #0030aa;font-family:var(--font);font-size:clamp(6px,2vw,8px);letter-spacing:2px;cursor:pointer;transition:transform .05s,box-shadow .05s;-webkit-tap-highlight-color:transparent;}
+.next-btn:active{transform:translate(3px,3px);box-shadow:1px 1px 0 #0030aa;}
+.gameover-panel{display:none;border:3px solid var(--ink);border-top:none;background:var(--paper);padding:20px 14px;flex-direction:column;align-items:center;gap:14px;animation:pixIn .2s steps(4) forwards;}
+.gameover-panel.show{display:flex;}
+.go-title{font-size:clamp(9px,3vw,12px);color:var(--ink);text-align:center;line-height:2;}
+.go-stats{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+.go-stat{border:2px solid var(--dimmer);padding:9px 12px;display:flex;flex-direction:column;align-items:center;gap:5px;}
+.go-stat .gsv{font-size:clamp(14px,5vw,18px);color:var(--ink);}
+.go-stat .gsl{font-size:5px;color:var(--dim);letter-spacing:1px;}
+.bottom-stats{border:3px solid var(--ink);border-top:none;background:var(--paper);padding:9px 12px;display:flex;justify-content:space-between;}
+.bs-item{font-size:clamp(5px,1.5vw,6px);color:var(--ink);letter-spacing:1px;display:flex;flex-direction:column;gap:3px;}
+.bs-val{color:var(--blue);font-size:1.3em;}
+
+/* ── OPTIONS ── */
+#optScreen{gap:0;padding-bottom:44px;}
+.opt-header{display:flex;align-items:center;gap:10px;padding:12px 0 14px;}
+.opt-title{font-size:clamp(8px,2.5vw,11px);color:var(--ink);}
+.opt-section{border:3px solid var(--ink);background:var(--paper);box-shadow:4px 4px 0 var(--ink);margin-bottom:14px;}
+.opt-section-title{padding:8px 12px;border-bottom:3px solid var(--ink);font-size:clamp(6px,1.8vw,7px);color:var(--blue);letter-spacing:2px;background:#f9f6f0;}
+.opt-row{padding:10px 12px;border-bottom:2px solid #eee;display:flex;flex-direction:column;gap:6px;}
+.opt-row:last-child{border-bottom:none;}
+.opt-lbl{font-size:clamp(6px,1.8vw,7px);letter-spacing:1px;}
+.opt-sub{font-size:5px;color:var(--dim);letter-spacing:.5px;line-height:1.8;margin-top:1px;}
+.toggle-group{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.tog-btn{padding:6px 10px;border:2px solid var(--ink);background:var(--bg);font-family:var(--font);font-size:5px;letter-spacing:1px;cursor:pointer;color:var(--ink);transition:background .08s,color .08s;-webkit-tap-highlight-color:transparent;}
+.tog-btn.active{background:var(--ink);color:var(--bg);}
+.opt-slider-row{display:flex;align-items:center;gap:8px;margin-top:4px;}
+.opt-slider-val{font-size:clamp(7px,2vw,9px);min-width:40px;text-align:right;}
+input.opt-range{-webkit-appearance:none;appearance:none;flex:1;height:5px;background:#ddd;outline:none;border:2px solid var(--ink);cursor:pointer;border-radius:0;}
+input.opt-range::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;background:var(--ink);border-radius:0;cursor:pointer;}
+
+/* ── ABOUT ── */
+#aboutScreen{gap:14px;padding-bottom:44px;}
+.about-header{display:flex;align-items:center;gap:10px;padding:12px 0 4px;}
+.about-body{border:3px solid var(--ink);background:var(--paper);box-shadow:4px 4px 0 var(--ink);padding:14px;}
+.about-body p{font-size:5.5px;color:var(--ink2);line-height:2.5;letter-spacing:.3px;margin-bottom:10px;}
+.about-body p:last-child{margin-bottom:0;}
+.about-body a{color:var(--blue);}
+
+/* heart anim */
+@keyframes heartBreak{0%{transform:scale(1);}25%{transform:scale(1.6) rotate(-10deg);}60%{transform:scale(.7);opacity:.4;}100%{transform:scale(1);opacity:.2;}}
+.heart-c.losing{animation:heartBreak .45s steps(5) forwards;}
+/* coin pop */
+@keyframes coinPop{0%{transform:translateY(0) scale(1);opacity:1;}60%{transform:translateY(-18px) scale(1.3);opacity:1;}100%{transform:translateY(-28px) scale(1);opacity:0;}}
+.coin-pop{position:fixed;pointer-events:none;font-family:var(--font);font-size:9px;color:var(--gold);z-index:1000;animation:coinPop .7s steps(6) forwards;}
+</style>
+</head>
+<body>
+
+<!-- ══ START ══ -->
+<div id="startScreen" class="screen active">
+  <div class="start-header">
+    <div class="start-title-small">▶ A STATISTICS TRAINING GAME</div>
+    <div class="start-title">STAT<span>GUESSER</span></div>
+  </div>
+  <div class="start-menu">
+    <div class="menu-item" id="menuPlay"><span class="mi-icon">▶</span><span>PLAY<span class="mi-sub" id="menuPlaySub">CORRELATION · NORMAL · N=50</span></span></div>
+    <div class="menu-item" id="menuOptions"><span class="mi-icon">⚙</span><span>OPTIONS<span class="mi-sub">MODE · DISTRIBUTION · SAMPLE SIZE</span></span></div>
+    <div class="menu-item" id="menuAbout"><span class="mi-icon">?</span><span>ABOUT<span class="mi-sub">WHAT IS THIS GAME?</span></span></div>
+    <div class="menu-item" id="menuOriginal"><span class="mi-icon">↗</span><span>ORIGINAL GAME<span class="mi-sub">GUESSTHECORRELATION.COM BY OMAR WAGIH</span></span></div>
+  </div>
+  <div class="start-credit">inspired by <a href="http://guessthecorrelation.com" target="_blank">guessthecorrelation.com</a> by Omar Wagih<br>modes: correlation · cohen's d · skewness · variance ratio · phi · meta-analysis I²</div>
+</div>
+
+<!-- ══ GAME ══ -->
+<div id="gameScreen" class="screen">
+  <div class="hud">
+    <div class="hud-left">
+      <div class="lives-row" id="livesRow"></div>
+      <div class="coin-row"><canvas class="heart-c" id="coinIcon" width="22" height="18"></canvas><span class="coin-val" id="coinVal">0</span></div>
+    </div>
+    <div class="hud-right">
+      <div class="hud-hs">HIGH SCORE <b id="hudHs">0</b></div>
+      <div class="hud-back" id="hudBack">MENU</div>
+    </div>
+  </div>
+  <div class="chart-wrap"><canvas id="plot"></canvas></div>
+  <div class="input-area" id="inputArea">
+    <div class="q-label" id="qLabel">WHAT IS THE PEARSON CORRELATION?</div>
+    <div class="slider-row">
+      <input type="range" id="corrSlider" min="-100" max="100" value="0" step="1">
+      <span class="slider-val" id="sliderDisplay">0.00</span>
+    </div>
+    <div class="tick-row" id="tickRow"><span>-1</span><span>-0.5</span><span>0</span><span>+0.5</span><span>+1</span></div>
+    <button class="guess-btn" id="guessBtn">[ GUESS ]</button>
+  </div>
+  <div class="feedback-panel" id="feedbackPanel">
+    <div class="fb-stats">
+      <div class="fb-block"><span class="fb-lbl">TRUE</span><span class="fb-num good" id="fbTrue">—</span></div>
+      <div class="fb-block"><span class="fb-lbl">GUESSED</span><span class="fb-num" id="fbGuess">—</span></div>
+      <div class="fb-block"><span class="fb-lbl">DIFF</span><span class="fb-num" id="fbDiff">—</span></div>
+      <div class="fb-block"><span class="fb-lbl">STREAK</span><span class="fb-num" id="fbStreak">—</span></div>
+    </div>
+    <div class="err-bar-wrap"><div class="err-bar-fill" id="errBarFill" style="width:0%"></div></div>
+    <div class="fb-comment" id="fbComment"></div>
+    <div class="fb-coin" id="fbCoin"></div>
+    <button class="next-btn" id="nextBtn">[ NEXT &gt;&gt; ]</button>
+  </div>
+  <div class="gameover-panel" id="gameoverPanel">
+    <div class="go-title" id="goTitle">GAME OVER</div>
+    <div class="lives-row" id="goLives" style="justify-content:center;margin:4px 0;display:flex;gap:5px;"></div>
+    <div class="go-stats">
+      <div class="go-stat"><span class="gsv" id="goCoins">0</span><span class="gsl">COINS</span></div>
+      <div class="go-stat"><span class="gsv" id="goAvg">—</span><span class="gsl">MEAN ERR</span></div>
+      <div class="go-stat"><span class="gsv" id="goBest">—</span><span class="gsl">BEST</span></div>
+      <div class="go-stat"><span class="gsv" id="goStreak">0</span><span class="gsl">STREAK</span></div>
+    </div>
+    <button class="btn blue" id="playAgainBtn">▶ PLAY AGAIN</button>
+    <button class="btn outline" id="goMenuBtn">MENU</button>
+  </div>
+  <div class="bottom-stats">
+    <div class="bs-item">STREAK<span class="bs-val" id="bsStreak">0</span></div>
+    <div class="bs-item">MEAN ERR<span class="bs-val" id="bsMeanErr">—</span></div>
+    <div class="bs-item">ROUND<span class="bs-val" id="bsRound">1</span></div>
+  </div>
+</div>
+
+<!-- ══ OPTIONS ══ -->
+<div id="optScreen" class="screen">
+  <div class="opt-header">
+    <div class="btn outline" id="optBack">◀ BACK</div>
+    <div class="opt-title">OPTIONS</div>
+  </div>
+  <div class="opt-section">
+    <div class="opt-section-title">GAME MODE</div>
+    <div class="opt-row">
+      <div class="opt-lbl">WHAT TO GUESS</div>
+      <div class="opt-sub">Each mode trains a different statistical intuition.</div>
+      <div class="toggle-group" id="modeGroup">
+        <div class="tog-btn active" data-val="correlation">CORR r</div>
+        <div class="tog-btn" data-val="cohens_d">COHEN'S d</div>
+        <div class="tog-btn" data-val="skewness">SKEWNESS</div>
+        <div class="tog-btn" data-val="var_ratio">VAR RATIO</div>
+        <div class="tog-btn" data-val="phi">PHI φ</div>
+        <div class="tog-btn" data-val="meta_i2">META I²</div>
+      </div>
+    </div>
+  </div>
+  <div class="opt-section">
+    <div class="opt-section-title">DISTRIBUTION</div>
+    <div class="opt-row">
+      <div class="opt-lbl">DATA GENERATING PROCESS</div>
+      <div class="opt-sub">Affects cloud shape (not used for phi/meta modes).</div>
+      <div class="toggle-group" id="distGroup">
+        <div class="tog-btn active" data-val="normal">NORMAL</div>
+        <div class="tog-btn" data-val="uniform">UNIFORM</div>
+        <div class="tog-btn" data-val="skewed">SKEWED</div>
+        <div class="tog-btn" data-val="bimodal">BIMODAL</div>
+        <div class="tog-btn" data-val="heavy">HEAVY TAIL</div>
+      </div>
+    </div>
+  </div>
+  <div class="opt-section">
+    <div class="opt-section-title">SAMPLE SIZE</div>
+    <div class="opt-row">
+      <div class="opt-lbl">N = <span id="nLabel">50</span></div>
+      <div class="opt-sub">Points become semi-transparent above N=100.</div>
+      <div class="opt-slider-row">
+        <input type="range" class="opt-range" id="nSlider" min="20" max="250" value="50" step="5">
+        <span class="opt-slider-val" id="nValLabel">50</span>
+      </div>
+    </div>
+  </div>
+  <div class="opt-section">
+    <div class="opt-section-title">DIFFICULTY</div>
+    <div class="opt-row">
+      <div class="opt-lbl">LOSS THRESHOLD</div>
+      <div class="opt-sub">How far off before you lose a heart.</div>
+      <div class="toggle-group" id="diffGroup">
+        <div class="tog-btn" data-val="0.15">HARD (0.15)</div>
+        <div class="tog-btn active" data-val="0.25">NORMAL (0.25)</div>
+        <div class="tog-btn" data-val="0.35">EASY (0.35)</div>
+      </div>
+    </div>
+  </div>
+  <button class="btn blue" id="optSave" style="margin-top:4px;">SAVE &amp; BACK</button>
+</div>
+
+<!-- ══ ABOUT ══ -->
+<div id="aboutScreen" class="screen">
+  <div class="about-header">
+    <div class="btn outline" id="aboutBack">◀ BACK</div>
+    <div class="opt-title">ABOUT</div>
+  </div>
+  <div class="about-body pbox">
+    <p>STATGUESSER trains your statistical intuition. Move the slider to match what you see in the plot, then hit GUESS.</p>
+    <p><b>CORRELATION r:</b> Pearson's r, −1 (neg) to +1 (pos). 0 = no linear link.</p>
+    <p><b>COHEN'S d:</b> Standardised mean difference between two groups shown as violin + dot plots. d=0.2 small, 0.5 medium, 0.8 large. Range: −2 to +2.</p>
+    <p><b>SKEWNESS:</b> Histogram asymmetry. Positive = right tail, negative = left tail. Range: −2 to +2.</p>
+    <p><b>VARIANCE RATIO F:</b> How much more spread group 2 is vs group 1. 1 = equal. Range: 0.25 to 4.</p>
+    <p><b>PHI φ:</b> 2×2 crosstab. Phi is the correlation for binary data. Range: −1 to +1.</p>
+    <p><b>META-ANALYSIS I²:</b> Heterogeneity across a forest plot of study effect sizes. 0% = all studies agree, 100% = totally inconsistent. Range: 0% to 100%.</p>
+    <p>Inspired by <a href="http://guessthecorrelation.com" target="_blank">guessthecorrelation.com</a> by <b>Omar Wagih</b>.</p>
+  </div>
+</div>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════
+// AUDIO
+// ═══════════════════════════════════════════════════════════
+let actx=null;
+function ensureAudio(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume();}
+function beep(freq,dur,type,vol){ensureAudio();const o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.type=type||'square';o.frequency.value=freq||440;g.gain.setValueAtTime(vol||.15,actx.currentTime);g.gain.linearRampToValueAtTime(0,actx.currentTime+dur);o.start(actx.currentTime);o.stop(actx.currentTime+dur);}
+function playClick(){beep(800,.04,'square',.1);}
+function playGood(){ensureAudio();[523,659,784,1047].forEach((f,i)=>setTimeout(()=>beep(f,.09,'square',.14),i*55));}
+function playBad(){ensureAudio();[0,.18,.36].forEach(t=>{const o=actx.createOscillator(),g=actx.createGain();o.connect(g);g.connect(actx.destination);o.type='sawtooth';o.frequency.setValueAtTime(180,actx.currentTime+t);o.frequency.linearRampToValueAtTime(100,actx.currentTime+t+.14);g.gain.setValueAtTime(.2,actx.currentTime+t);g.gain.linearRampToValueAtTime(0,actx.currentTime+t+.14);o.start(actx.currentTime+t);o.stop(actx.currentTime+t+.16);});}
+
+// ═══════════════════════════════════════════════════════════
+// HEARTS & COIN
+// ═══════════════════════════════════════════════════════════
+const H_PAT=[[0,0,1,1,0,0,0,1,1,0,0],[0,1,1,1,1,0,1,1,1,1,0],[1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1],[1,1,1,1,1,1,1,1,1,1,1],[0,1,1,1,1,1,1,1,1,1,0],[0,0,1,1,1,1,1,1,1,0,0],[0,0,0,1,1,1,1,1,0,0,0],[0,0,0,0,1,1,1,0,0,0,0]];
+const C_PAT=[[0,0,1,1,1,1,0,0],[0,1,1,0,0,1,1,0],[1,1,0,0,0,0,1,1],[1,1,0,1,1,0,1,1],[1,1,0,0,0,0,1,1],[0,1,1,0,0,1,1,0],[0,0,1,1,1,1,0,0]];
+function drawPattern(c,pat,color,hlColor){const ctx=c.getContext('2d');const W=c.width,H=c.height;ctx.clearRect(0,0,W,H);const rows=pat.length,cols=pat[0].length;const pw=W/cols,ph=H/rows;for(let r=0;r<rows;r++)for(let cc=0;cc<cols;cc++){if(!pat[r][cc])continue;ctx.fillStyle=color;ctx.fillRect(~~(cc*pw),~~(r*ph),Math.ceil(pw)+1,Math.ceil(ph)+1);if(hlColor){ctx.fillStyle=hlColor;ctx.fillRect(~~(cc*pw),~~(r*ph),Math.ceil(pw/2),Math.ceil(ph/3));}}}
+function drawHeart(c,filled){drawPattern(c,H_PAT,filled?'#d42b2b':'#ccc',filled?'rgba(255,255,255,.25)':null);}
+function drawCoin(c){drawPattern(c,C_PAT,'#e6a800',null);}
+function makeHeart(filled){const c=document.createElement('canvas');c.className='heart-c';c.width=22;c.height=18;drawHeart(c,filled);return c;}
+function renderLives(container,cur,max){container.innerHTML='';for(let i=0;i<max;i++)container.appendChild(makeHeart(i<cur));}
+function animateLostHeart(container,idx){const h=container.querySelectorAll('.heart-c')[idx];if(!h)return;h.classList.add('losing');setTimeout(()=>{drawHeart(h,false);h.classList.remove('losing');},500);}
+
+// ═══════════════════════════════════════════════════════════
+// RNG
+// ═══════════════════════════════════════════════════════════
+function randn(){let u=0,v=0;while(!u)u=Math.random();while(!v)v=Math.random();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function randU(a,b){return a+Math.random()*(b-a);}
+function randSkewed(){return Math.exp(randn()*.6)-Math.exp(.18);}
+function randBimodal(){return Math.random()<.5?randn()-1.5:randn()+1.5;}
+function randHeavy(){const u=randn(),v=randn();return Math.max(-3.5,Math.min(3.5,u/Math.sqrt(v*v/2)*.4));}
+function makeSample(n,dist){const f={normal:randn,uniform:()=>randU(-2,2),skewed:randSkewed,bimodal:randBimodal,heavy:randHeavy}[dist]||randn;return Array.from({length:n},f);}
+function sampleMean(a){return a.reduce((s,v)=>s+v,0)/a.length;}
+function sampleVar(a){const m=sampleMean(a);return a.reduce((s,v)=>s+(v-m)**2,0)/(a.length-1);}
+function sampleSD(a){return Math.sqrt(sampleVar(a));}
+function pearson(pts){const n=pts.length,mx=pts.reduce((s,p)=>s+p[0],0)/n,my=pts.reduce((s,p)=>s+p[1],0)/n;let num=0,dx2=0,dy2=0;for(const[x,y]of pts){const dx=x-mx,dy=y-my;num+=dx*dy;dx2+=dx*dx;dy2+=dy*dy;}return num/Math.sqrt(dx2*dy2)||0;}
+function sampleSkewness(a){const n=a.length,m=sampleMean(a),s=sampleSD(a);if(s<1e-9)return 0;return a.reduce((acc,v)=>acc+((v-m)/s)**3,0)/n;}
+
+// ═══════════════════════════════════════════════════════════
+// DATA GENERATION
+// ═══════════════════════════════════════════════════════════
+function genCorrelation(n,dist){
+  const rho=+(Math.random()*1.9-.95).toFixed(2);
+  const xs=makeSample(n,dist),noise=makeSample(n,dist);
+  const pts=xs.map((x,i)=>[x,rho*x+Math.sqrt(Math.max(0,1-rho*rho))*noise[i]]);
+  return{pts,trueVal:parseFloat(pearson(pts).toFixed(2)),type:'scatter'};
+}
+
+function genCohensD(n,dist){
+  // Target d in [-2, +2]
+  const targetD=+(Math.random()*4-2).toFixed(2);
+  const g1=makeSample(n,dist);
+  const g2=makeSample(n,dist).map(v=>v+targetD);
+  const m1=sampleMean(g1),m2=sampleMean(g2);
+  const pooled=Math.sqrt((sampleVar(g1)+sampleVar(g2))/2);
+  const trueD=parseFloat(((m2-m1)/pooled).toFixed(2));
+  // Clamp displayed value to [-2,2] to match slider
+  const clampedD=Math.max(-2,Math.min(2,trueD));
+  return{g1,g2,trueVal:clampedD,type:'violin'};
+}
+
+function genSkewness(n,dist){
+  // Use a mix: sample from a controlled skewed distribution
+  const targetSkew=+(Math.random()*4-2).toFixed(1);
+  // Gamma-based skew: skew = 2/sqrt(shape), shape = 4/targetSkew^2
+  let arr;
+  if(Math.abs(targetSkew)<0.15){
+    arr=makeSample(n,'normal');
+  } else {
+    const shape=Math.max(0.25,4/(targetSkew*targetSkew));
+    // Approximate gamma via sum of exponentials
+    arr=Array.from({length:n},()=>{
+      let s=0;const k=Math.max(1,Math.round(shape));
+      for(let i=0;i<k;i++)s-=Math.log(Math.random()||1e-10);
+      return s/k;
+    });
+    if(targetSkew<0)arr=arr.map(v=>-v);
+    // standardise
+    const m=sampleMean(arr),sd=sampleSD(arr)||1;
+    arr=arr.map(v=>(v-m)/sd);
+  }
+  const trueS=parseFloat(sampleSkewness(arr).toFixed(2));
+  return{arr,trueVal:Math.max(-2,Math.min(2,trueS)),type:'histogram'};
+}
+
+function genVarRatio(n,dist){
+  const logR=Math.random()*Math.log(16)-Math.log(4);
+  const r=Math.exp(logR);
+  const g1=makeSample(n,dist);
+  const g2=makeSample(n,dist).map(v=>v*Math.sqrt(r));
+  const trueR=parseFloat((sampleVar(g2)/sampleVar(g1)).toFixed(2));
+  return{g1,g2,trueVal:Math.max(.25,Math.min(4,trueR)),type:'twogroups'};
+}
+
+function genPhi(n){
+  // Generate 2x2 table with target phi
+  const targetPhi=+(Math.random()*1.9-.95).toFixed(2);
+  // Marginals: p(A)=0.5, p(B)=0.5 for simplicity; vary them slightly
+  const pA=0.3+Math.random()*0.4;
+  const pB=0.3+Math.random()*0.4;
+  // phi = (p11 - pA*pB) / sqrt(pA*(1-pA)*pB*(1-pB))
+  const denom=Math.sqrt(pA*(1-pA)*pB*(1-pB));
+  const p11=Math.max(0.01,Math.min(pA*pB+targetPhi*denom, Math.min(pA,pB)-0.01));
+  const p10=pA-p11,p01=pB-p11,p00=1-pA-pB+p11;
+  // Sample
+  let a=0,b=0,c=0,d=0;
+  for(let i=0;i<n;i++){
+    const r=Math.random();
+    if(r<p11)a++;else if(r<p11+p10)b++;else if(r<p11+p10+p01)c++;else d++;
+  }
+  const tot=a+b+c+d;
+  const truePhi=((a*d-b*c)/Math.sqrt((a+b)*(c+d)*(a+c)*(b+d)))||0;
+  return{a,b,c,d,n:tot,trueVal:parseFloat(truePhi.toFixed(2)),type:'crosstab'};
+}
+
+function genMetaI2(nStudies){
+  // I² = tau²/(tau²+sigma²)  — we simulate a forest plot
+  // target I² 0-100
+  const targetI2=Math.round(Math.random()*100);
+  const tau2=targetI2/100*0.15; // between-study variance
+  const trueEffect=+(Math.random()*1.4-.7).toFixed(2); // overall ES
+  const studies=[];
+  for(let i=0;i<nStudies;i++){
+    const ni=Math.round(20+Math.random()*180);
+    const se=1/Math.sqrt(ni)*1.5; // within-study SE
+    const studyEffect=trueEffect+Math.sqrt(tau2)*randn()+se*randn();
+    studies.push({effect:parseFloat(studyEffect.toFixed(2)),se:parseFloat(se.toFixed(3)),n:ni});
+  }
+  // Compute DerSimonian-Laird I²
+  const k=studies.length;
+  const wi=studies.map(s=>1/(s.se**2));
+  const sumW=wi.reduce((a,b)=>a+b,0);
+  const effBar=studies.reduce((s,st,i)=>s+wi[i]*st.effect,0)/sumW;
+  const Q=studies.reduce((s,st,i)=>s+wi[i]*(st.effect-effBar)**2,0);
+  const I2=Math.max(0,Math.min(100,(Q-(k-1))/Q*100))||0;
+  return{studies,trueEffect,trueVal:Math.round(I2),type:'forest'};
+}
+
+// ═══════════════════════════════════════════════════════════
+// CANVAS
+// ═══════════════════════════════════════════════════════════
+const canvas=document.getElementById('plot');
+const ctx=canvas.getContext('2d');
+
+function resizeCanvas(){
+  const dpr=window.devicePixelRatio||1;
+  const W=canvas.parentElement.clientWidth-6;
+  const H=Math.min(Math.round(W*0.78),Math.round(window.innerHeight*0.42));
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
+  canvas.width=Math.round(W*dpr);canvas.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function getDims(){const dpr=window.devicePixelRatio||1;return{W:canvas.width/dpr,H:canvas.height/dpr};}
+
+// ── helpers ──
+function gridAndAxes(pad,W,H,gridH=true,gridV=true){
+  const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+  ctx.strokeStyle='#ebebeb';ctx.lineWidth=1;
+  if(gridV)for(let i=0;i<=4;i++){const x=~~(pad.l+i/4*pw)+.5;ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,pad.t+ph);ctx.stroke();}
+  if(gridH)for(let i=0;i<=4;i++){const y=~~(pad.t+i/4*ph)+.5;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();}
+  ctx.strokeStyle='#aaa';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,pad.t+ph);ctx.moveTo(pad.l,pad.t+ph);ctx.lineTo(pad.l+pw,pad.t+ph);ctx.stroke();
+}
+
+function pixFont(size){ctx.font=`${size}px "Press Start 2P",monospace`;}
+
+function yAxisTicks(toY,values,padL){
+  ctx.fillStyle='#999';pixFont(7);ctx.textAlign='right';
+  for(const v of values)ctx.fillText(typeof v==='number'?v.toFixed(1):v,padL-5,~~toY(v)+3);
+}
+
+function xAxisTicks(toX,values,padT,pH){
+  ctx.fillStyle='#999';pixFont(7);ctx.textAlign='center';
+  for(const v of values)ctx.fillText(typeof v==='number'?v.toFixed(1):v,~~toX(v),padT+pH+17);
+}
+
+function resultLabel(text,W){
+  ctx.font='7px "Press Start 2P",monospace';ctx.fillStyle='#1a5aff';ctx.textAlign='center';
+  ctx.fillText(text,W/2,11);
+}
+
+// ── Scatter ──
+let animState={raf:null,pts:[]};
+function lerp(a,b,t){return a+(b-a)*t;}
+function easeIO(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+
+function startAnimation(fromPts,toPts,dur){
+  if(animState.raf)cancelAnimationFrame(animState.raf);
+  const t0=performance.now();
+  const n=Math.min(fromPts.length,toPts.length);
+  const fp=fromPts.slice(0,n),tp=toPts.slice(0,n);
+  function frame(now){
+    const e=easeIO(Math.min(1,(now-t0)/dur));
+    animState.pts=fp.map(([x,y],i)=>[lerp(x,tp[i][0],e),lerp(y,tp[i][1],e)]);
+    drawScatter(animState.pts,false);
+    if(e<1)animState.raf=requestAnimationFrame(frame);else animState.pts=tp;
+  }
+  animState.raf=requestAnimationFrame(frame);
+}
+
+function drawScatter(pts,showFit){
+  const{W,H}=getDims();
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  const pad={l:38,r:12,t:12,b:28};
+  const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+  gridAndAxes(pad,W,H);
+  const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+  const xmin=Math.min(...xs),xmax=Math.max(...xs),ymin=Math.min(...ys),ymax=Math.max(...ys);
+  const xr=xmax-xmin||1,yr=ymax-ymin||1;
+  const toX=v=>pad.l+((v-xmin)/xr)*pw;
+  const toY=v=>pad.t+ph-((v-ymin)/yr)*ph;
+  if(showFit){
+    const n=pts.length,mx=xs.reduce((a,b)=>a+b,0)/n,my=ys.reduce((a,b)=>a+b,0)/n;
+    let num=0,den=0;
+    for(const[x,y]of pts){const dx=x-mx;num+=dx*(y-my);den+=dx*dx;}
+    const sl=num/den,ic=my-sl*mx;
+    ctx.strokeStyle='#1a5aff';ctx.lineWidth=2;ctx.setLineDash([6,5]);
+    ctx.beginPath();ctx.moveTo(~~toX(xmin),~~toY(sl*xmin+ic));ctx.lineTo(~~toX(xmax),~~toY(sl*xmax+ic));ctx.stroke();ctx.setLineDash([]);
+  }
+  const n=pts.length;
+  const alpha=n>100?Math.max(.3,1-(n-100)/300):.85;
+  const r=Math.max(2.5,Math.min(4,120/Math.sqrt(n)));
+  for(const[x,y]of pts){ctx.beginPath();ctx.arc(~~toX(x),~~toY(y),r,0,Math.PI*2);ctx.fillStyle=`rgba(17,17,17,${alpha})`;ctx.fill();}
+  yAxisTicks(toY,[ymin,(ymin+ymax)/2,ymax],pad.l);
+  xAxisTicks(toX,[xmin,(xmin+xmax)/2,xmax],pad.t,ph);
+}
+
+// ── Violin (Cohen's d) with Y-axis ──
+function kde(arr,mn,mx,steps=80){
+  const bw=1.06*Math.sqrt(sampleVar(arr)||1)*Math.pow(arr.length,-.2);
+  const pts=[];
+  for(let i=0;i<=steps;i++){
+    const x=mn+(mx-mn)*(i/steps);
+    const dens=arr.reduce((s,v)=>s+Math.exp(-.5*((x-v)/bw)**2)/(bw*Math.sqrt(2*Math.PI)),0)/arr.length;
+    pts.push([x,dens]);
+  }
+  return pts;
+}
+
+function drawViolin(g1,g2,showResult,trueD){
+  const{W,H}=getDims();
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  const all=[...g1,...g2];
+  const vmin=Math.min(...all)-.5,vmax=Math.max(...all)+.5;
+  const pad={l:40,r:10,t:18,b:22};
+  const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+
+  // Grid (horizontal only for violin)
+  ctx.strokeStyle='#ebebeb';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=~~(pad.t+i/4*ph)+.5;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(pad.l+pw,y);ctx.stroke();}
+  // Y axis line
+  ctx.strokeStyle='#aaa';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(pad.l,pad.t);ctx.lineTo(pad.l,pad.t+ph);ctx.stroke();
+
+  const toY=v=>pad.t+ph-((v-vmin)/(vmax-vmin))*ph;
+
+  // Y axis ticks
+  const yTicks=[vmin,vmin+(vmax-vmin)*0.25,vmin+(vmax-vmin)*0.5,vmin+(vmax-vmin)*0.75,vmax];
+  ctx.fillStyle='#999';pixFont(6);ctx.textAlign='right';
+  for(const v of yTicks)ctx.fillText(v.toFixed(1),pad.l-4,~~toY(v)+3);
+
+  const COLORS=[['#e05050cc','#c02020'],['#20a0a0cc','#108080']];
+  [g1,g2].forEach((grp,gi)=>{
+    const cx=pad.l+(gi+.5)*(pw/2);
+    const halfW=pw*.17;
+    const kd=kde(grp,vmin,vmax);
+    const maxD=Math.max(...kd.map(p=>p[1]))||1;
+    ctx.beginPath();
+    ctx.moveTo(cx,toY(kd[0][0]));
+    for(const[v,d]of kd){ctx.lineTo(cx+(d/maxD)*halfW,toY(v));}
+    for(let i=kd.length-1;i>=0;i--){const[v,d]=kd[i];ctx.lineTo(cx-(d/maxD)*halfW,toY(v));}
+    ctx.closePath();
+    ctx.fillStyle=COLORS[gi][0];ctx.fill();
+    ctx.strokeStyle=COLORS[gi][1];ctx.lineWidth=1.5;ctx.stroke();
+    // Mean line
+    const m=sampleMean(grp);
+    const dm=kd.reduce((best,p)=>Math.abs(p[0]-m)<Math.abs(best[0]-m)?p:best,kd[0]);
+    const lw=(dm[1]/maxD)*halfW;
+    ctx.strokeStyle='#111';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(cx-lw,toY(m));ctx.lineTo(cx+lw,toY(m));ctx.stroke();
+    // Dots
+    const n=grp.length;
+    const alpha=n>100?Math.max(.25,1-(n-100)/300):.7;
+    const ptR=Math.max(2,Math.min(3.5,80/Math.sqrt(n)));
+    for(let i=0;i<grp.length;i++){
+      const jit=(Math.sin(i*937.3)*0.5)*halfW*.4;
+      ctx.beginPath();ctx.arc(cx+jit,toY(grp[i]),ptR,0,Math.PI*2);
+      ctx.fillStyle=`rgba(0,0,0,${alpha})`;ctx.fill();
+    }
+    ctx.fillStyle='#888';pixFont(6);ctx.textAlign='center';
+    ctx.fillText('G'+(gi+1),cx,pad.t+ph+15);
+  });
+
+  if(showResult){resultLabel(`d = ${trueD}`,W);}
+}
+
+// ── Histogram (Skewness) ──
+function drawHistogram(arr,showResult,trueS){
+  const{W,H}=getDims();
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  const n=arr.length;
+  const bins=Math.max(8,Math.min(25,Math.round(Math.sqrt(n)*1.5)));
+  const vmin=Math.min(...arr),vmax=Math.max(...arr);
+  const bw=(vmax-vmin)/bins;
+  const counts=Array(bins).fill(0);
+  for(const v of arr){const i=Math.min(bins-1,Math.floor((v-vmin)/bw));counts[i]++;}
+  const maxCount=Math.max(...counts)||1;
+  const pad={l:40,r:12,t:14,b:28};
+  const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+
+  gridAndAxes(pad,W,H,true,false);
+
+  const toX=v=>pad.l+((v-vmin)/(vmax-vmin))*pw;
+  const toY=v=>pad.t+ph-(v/maxCount)*ph;
+  const barW=pw/bins;
+
+  // Bars
+  for(let i=0;i<bins;i++){
+    const bx=pad.l+i*barW;
+    const by=toY(counts[i]);
+    const bh=pad.t+ph-by;
+    ctx.fillStyle='rgba(26,90,255,0.55)';
+    ctx.fillRect(~~bx+1,~~by,~~barW-2,~~bh);
+    ctx.strokeStyle='#1a5aff';ctx.lineWidth=1;
+    ctx.strokeRect(~~bx+1,~~by,~~barW-2,~~bh);
+  }
+
+  // Y ticks
+  ctx.fillStyle='#999';pixFont(6);ctx.textAlign='right';
+  for(const c of[0,Math.round(maxCount*.5),maxCount]){ctx.fillText(c,pad.l-4,~~toY(c)+3);}
+  // X ticks
+  xAxisTicks(toX,[vmin,(vmin+vmax)/2,vmax],pad.t,ph);
+
+  // Skewness arrow/label
+  if(showResult){resultLabel(`skew = ${trueS}`,W);}
+}
+
+// ── Two groups (Variance Ratio) ──
+function drawTwoGroups(g1,g2,showResult,trueR){
+  const{W,H}=getDims();
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  const all=[...g1,...g2];
+  const vmin=Math.min(...all)-.5,vmax=Math.max(...all)+.5;
+  const pad={l:40,r:12,t:12,b:22};
+  const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+  gridAndAxes(pad,W,H);
+  const toY=v=>pad.t+ph-((v-vmin)/(vmax-vmin))*ph;
+  // Y ticks
+  yAxisTicks(toY,[vmin,(vmin+vmax)/2,vmax],pad.l);
+
+  [g1,g2].forEach((grp,gi)=>{
+    const cx=pad.l+(gi+.5)*(pw/2);
+    const jW=pw*.13;
+    const n=grp.length;
+    const alpha=n>100?Math.max(.25,1-(n-100)/300):.7;
+    const ptR=Math.max(2.5,Math.min(4,90/Math.sqrt(n)));
+    for(let i=0;i<grp.length;i++){
+      const jit=(Math.sin(i*7.3)*.5)*jW;
+      ctx.beginPath();ctx.arc(cx+jit,toY(grp[i]),ptR,0,Math.PI*2);
+      ctx.fillStyle=gi===0?`rgba(200,50,50,${alpha})`:`rgba(50,150,200,${alpha})`;ctx.fill();
+    }
+    const m=sampleMean(grp);
+    ctx.strokeStyle='#111';ctx.lineWidth=2;
+    ctx.beginPath();ctx.moveTo(cx-jW,toY(m));ctx.lineTo(cx+jW,toY(m));ctx.stroke();
+    ctx.fillStyle='#888';pixFont(6);ctx.textAlign='center';
+    ctx.fillText('G'+(gi+1),cx,pad.t+ph+15);
+  });
+  if(showResult){resultLabel(`F = ${trueR}`,W);}
+}
+
+// ── 2×2 Crosstab (Phi) ──
+function drawCrosstab(data,showResult){
+  const{W,H}=getDims();
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  const{a,b,c,d,n,trueVal}=data;
+  // Layout: 4 cells + row/col labels
+  const pad={l:60,r:14,t:30,b:30};
+  const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+  const cw=pw/2,ch=ph/2;
+
+  // Background shading by cell proportion
+  const cells=[[a,b],[c,d]];
+  const maxCell=Math.max(a,b,c,d)||1;
+  const COLORS=['rgba(26,90,255,','rgba(212,43,43,'];
+  cells.forEach((row,ri)=>row.forEach((v,ci)=>{
+    const x=pad.l+ci*cw,y=pad.t+ri*ch;
+    const intensity=.12+.4*(v/maxCell);
+    ctx.fillStyle=COLORS[ri]+intensity+')';
+    ctx.fillRect(~~x,~~y,~~cw,~~ch);
+    // Cell count & percent
+    const pct=Math.round(v/n*100);
+    ctx.fillStyle='#111';pixFont(Math.min(10,cw*.12));ctx.textAlign='center';
+    ctx.fillText(`${v}`,~~(x+cw/2),~~(y+ch*.45));
+    ctx.fillStyle='#555';pixFont(Math.min(7,cw*.09));
+    ctx.fillText(`(${pct}%)`,~~(x+cw/2),~~(y+ch*.7));
+  }));
+
+  // Grid
+  ctx.strokeStyle='#111';ctx.lineWidth=2;
+  ctx.strokeRect(pad.l,pad.t,pw,ph);
+  ctx.beginPath();ctx.moveTo(pad.l+cw,pad.t);ctx.lineTo(pad.l+cw,pad.t+ph);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(pad.l,pad.t+ch);ctx.lineTo(pad.l+pw,pad.t+ch);ctx.stroke();
+
+  // Column headers (B-)
+  ctx.fillStyle='#333';pixFont(Math.min(7,cw*.1));ctx.textAlign='center';
+  ctx.fillText('B+',~~(pad.l+cw*.5),pad.t-8);
+  ctx.fillText('B−',~~(pad.l+cw*1.5),pad.t-8);
+
+  // Row headers
+  ctx.textAlign='right';
+  ctx.fillText('A+',pad.l-6,~~(pad.t+ch*.55));
+  ctx.fillText('A−',pad.l-6,~~(pad.t+ch*1.55));
+
+  // Marginals
+  const rowSum=[a+b,c+d],colSum=[a+c,b+d];
+  ctx.fillStyle='#666';pixFont(Math.min(6,cw*.09));ctx.textAlign='left';
+  rowSum.forEach((v,i)=>ctx.fillText('Σ='+v,pad.l+pw+3,~~(pad.t+ch*(i+.55))));
+  ctx.textAlign='center';
+  colSum.forEach((v,i)=>ctx.fillText('Σ='+v,~~(pad.l+cw*(i+.5)),pad.t+ph+14));
+
+  if(showResult){
+    ctx.font='7px "Press Start 2P",monospace';ctx.fillStyle='#1a5aff';ctx.textAlign='center';
+    ctx.fillText(`φ = ${trueVal.toFixed(2)}`,W/2,H-4);
+  }
+}
+
+// ── Forest Plot (Meta I²) ──
+function drawForest(data,showResult){
+  const{W,H}=getDims();
+  ctx.fillStyle='#fff';ctx.fillRect(0,0,W,H);
+  const{studies,trueEffect,trueVal}=data;
+  const k=studies.length;
+
+  // X-axis: effect size range
+  const allCI=studies.flatMap(s=>[s.effect-1.96*s.se,s.effect+1.96*s.se]);
+  const xmin=Math.min(...allCI,trueEffect-0.1)-0.2;
+  const xmax=Math.max(...allCI,trueEffect+0.1)+0.2;
+
+  const pad={l:14,r:14,t:10,b:36};
+  const pw=W-pad.l-pad.r,ph=H-pad.t-pad.b;
+  const rowH=ph/(k+1.5); // +1.5 for diamond row
+  const toX=v=>pad.l+((v-xmin)/(xmax-xmin))*pw;
+  const toY=i=>pad.t+(i+.5)*rowH;
+
+  // Grid verticals
+  ctx.strokeStyle='#ebebeb';ctx.lineWidth=1;
+  for(let i=0;i<=4;i++){const x=~~(pad.l+i/4*pw)+.5;ctx.beginPath();ctx.moveTo(x,pad.t);ctx.lineTo(x,pad.t+ph);ctx.stroke();}
+
+  // Zero line
+  const x0=~~toX(0);
+  ctx.strokeStyle='#bbb';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(x0,pad.t);ctx.lineTo(x0,pad.t+ph-rowH*.3);ctx.stroke();ctx.setLineDash([]);
+
+  // Studies
+  const maxW=studies.reduce((mx,s)=>Math.max(mx,s.n),1);
+  studies.forEach((s,i)=>{
+    const y=~~toY(i);
+    const xEff=~~toX(s.effect);
+    const xLo=~~toX(s.effect-1.96*s.se);
+    const xHi=~~toX(s.effect+1.96*s.se);
+    // CI line
+    ctx.strokeStyle='#333';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(xLo,y);ctx.lineTo(xHi,y);ctx.stroke();
+    // End ticks
+    ctx.beginPath();ctx.moveTo(xLo,y-3);ctx.lineTo(xLo,y+3);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(xHi,y-3);ctx.lineTo(xHi,y+3);ctx.stroke();
+    // Square (size ∝ sqrt(n))
+    const sz=Math.max(4,Math.min(10,5*Math.sqrt(s.n/maxW)*1.5));
+    ctx.fillStyle='#111';
+    ctx.fillRect(xEff-~~(sz/2),y-~~(sz/2),~~sz,~~sz);
+  });
+
+  // Diamond (pooled)
+  const poolY=~~toY(k+.1);
+  const wi=studies.map(s=>1/s.se**2);
+  const sumW=wi.reduce((a,b)=>a+b,0);
+  const poolEff=studies.reduce((s,st,i)=>s+wi[i]*st.effect,0)/sumW;
+  const poolSE=1/Math.sqrt(sumW);
+  const dxC=~~toX(poolEff),dxL=~~toX(poolEff-1.96*poolSE),dxR=~~toX(poolEff+1.96*poolSE);
+  ctx.fillStyle='#1a5aff';
+  ctx.beginPath();ctx.moveTo(dxC,poolY-7);ctx.lineTo(dxR,poolY);ctx.lineTo(dxC,poolY+7);ctx.lineTo(dxL,poolY);ctx.closePath();ctx.fill();
+
+  // X axis
+  ctx.strokeStyle='#aaa';ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.moveTo(pad.l,pad.t+ph);ctx.lineTo(pad.l+pw,pad.t+ph);ctx.stroke();
+  // X ticks
+  ctx.fillStyle='#999';pixFont(7);ctx.textAlign='center';
+  const xTicks=[xmin,(xmin+xmax)/2,0,xmax].filter((v,i,a)=>a.indexOf(v)===i);
+  for(const v of xTicks)ctx.fillText(v.toFixed(1),~~toX(v),pad.t+ph+16);
+  // X axis label
+  ctx.fillStyle='#777';pixFont(6);ctx.textAlign='center';
+  ctx.fillText('EFFECT SIZE (SMD)',W/2,pad.t+ph+28);
+
+  // I² label
+  if(showResult){
+    ctx.font='7px "Press Start 2P",monospace';ctx.fillStyle='#1a5aff';ctx.textAlign='center';
+    ctx.fillText(`I² = ${trueVal}%`,W/2,10);
+  }
+}
+
+// ── Dispatch ──
+function drawCurrentData(data,showResult){
+  if(!data)return;
+  const t=data.type;
+  if(t==='scatter')drawScatter(data.pts,showResult);
+  else if(t==='violin')drawViolin(data.g1,data.g2,showResult,data.trueVal);
+  else if(t==='histogram')drawHistogram(data.arr,showResult,data.trueVal);
+  else if(t==='twogroups')drawTwoGroups(data.g1,data.g2,showResult,data.trueVal);
+  else if(t==='crosstab')drawCrosstab(data,showResult);
+  else if(t==='forest')drawForest(data,showResult);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS & SLIDER CONFIG
+// ═══════════════════════════════════════════════════════════
+const settings={mode:'correlation',dist:'normal',n:50,lossThresh:.25};
+
+const SLIDER_CFG={
+  correlation:{min:-100,max:100,def:0,ticks:['-1','-.5','0','+.5','+1'],label:'PEARSON CORRELATION r',fmt:v=>v.toFixed(2),scale:100,maxErr:1},
+  cohens_d:   {min:-200,max:200,def:0,ticks:['-2','-1','0','+1','+2'],label:"COHEN'S d",fmt:v=>v.toFixed(2),scale:100,maxErr:2},
+  skewness:   {min:-200,max:200,def:0,ticks:['-2','-1','0','+1','+2'],label:'SKEWNESS',fmt:v=>v.toFixed(2),scale:100,maxErr:2},
+  var_ratio:  {min:25,max:400,def:100,ticks:['.25','1','2','3','4'],label:'VARIANCE RATIO F',fmt:v=>v.toFixed(2),scale:100,maxErr:3},
+  phi:        {min:-100,max:100,def:0,ticks:['-1','-.5','0','+.5','+1'],label:'PHI COEFFICIENT φ',fmt:v=>v.toFixed(2),scale:100,maxErr:1},
+  meta_i2:    {min:0,max:100,def:50,ticks:['0%','25%','50%','75%','100%'],label:'HETEROGENEITY I²',fmt:v=>Math.round(v)+'%',scale:1,maxErr:50},
+};
+
+function getSliderVal(){
+  const cfg=SLIDER_CFG[settings.mode];
+  return parseFloat(document.getElementById('corrSlider').value)/cfg.scale;
+}
+
+function setupSlider(mode){
+  const cfg=SLIDER_CFG[mode]||SLIDER_CFG.correlation;
+  const sl=document.getElementById('corrSlider');
+  sl.min=cfg.min;sl.max=cfg.max;sl.value=cfg.def;sl.step=1;
+  document.getElementById('sliderDisplay').textContent=cfg.fmt(cfg.def/cfg.scale);
+  document.getElementById('qLabel').textContent='WHAT IS THE '+cfg.label+'?';
+  const tr=document.getElementById('tickRow');
+  tr.innerHTML=cfg.ticks.map(t=>`<span>${t}</span>`).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// GAME STATE
+// ═══════════════════════════════════════════════════════════
+let gs={lives:3,coins:0,round:0,streak:0,maxStreak:0,errors:[],guessed:false,currentData:null,trueVal:0,hs:parseInt(localStorage.getItem('stg_hs')||'0')};
+
+function generateRound(){
+  const{mode,dist,n}=settings;
+  if(mode==='correlation')return genCorrelation(n,dist);
+  if(mode==='cohens_d')return genCohensD(n,dist);
+  if(mode==='skewness')return genSkewness(n,dist);
+  if(mode==='var_ratio')return genVarRatio(n,dist);
+  if(mode==='phi')return genPhi(n);
+  if(mode==='meta_i2'){const k=Math.max(5,Math.min(14,Math.round(n/8)));return genMetaI2(k);}
+}
+
+// ═══════════════════════════════════════════════════════════
+// SCREENS
+// ═══════════════════════════════════════════════════════════
+function showScreen(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+
+// Options toggles
+document.querySelectorAll('[data-val]').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    playClick();
+    btn.parentElement.querySelectorAll('.tog-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+document.getElementById('nSlider').addEventListener('input',function(){document.getElementById('nLabel').textContent=this.value;document.getElementById('nValLabel').textContent=this.value;});
+
+function saveOptions(){
+  settings.mode=document.querySelector('#modeGroup .tog-btn.active')?.dataset.val||'correlation';
+  settings.dist=document.querySelector('#distGroup .tog-btn.active')?.dataset.val||'normal';
+  settings.n=parseInt(document.getElementById('nSlider').value);
+  settings.lossThresh=parseFloat(document.querySelector('#diffGroup .tog-btn.active')?.dataset.val||'.25');
+  const mN={correlation:'CORR',cohens_d:"COHEN'S D",skewness:'SKEW',var_ratio:'VAR RATIO',phi:'PHI',meta_i2:'META I²'};
+  const dN={normal:'NORMAL',uniform:'UNIFORM',skewed:'SKEWED',bimodal:'BIMODAL',heavy:'HEAVY TAIL'};
+  document.getElementById('menuPlaySub').textContent=`${mN[settings.mode]||settings.mode} · ${dN[settings.dist]||settings.dist} · N=${settings.n}`;
+}
+
+// Nav
+document.getElementById('menuPlay').addEventListener('click',()=>{playClick();saveOptions();startGame();});
+document.getElementById('menuOptions').addEventListener('click',()=>{playClick();showScreen('optScreen');});
+document.getElementById('menuAbout').addEventListener('click',()=>{playClick();showScreen('aboutScreen');});
+document.getElementById('menuOriginal').addEventListener('click',()=>{playClick();window.open('http://guessthecorrelation.com','_blank');});
+document.getElementById('optBack').addEventListener('click',()=>{playClick();showScreen('startScreen');});
+document.getElementById('optSave').addEventListener('click',()=>{playClick();saveOptions();showScreen('startScreen');});
+document.getElementById('aboutBack').addEventListener('click',()=>{playClick();showScreen('startScreen');});
+document.getElementById('hudBack').addEventListener('click',()=>{playClick();showScreen('startScreen');});
+document.getElementById('goMenuBtn').addEventListener('click',()=>{playClick();showScreen('startScreen');});
+document.getElementById('playAgainBtn').addEventListener('click',()=>{playClick();startGame();});
+
+// Slider
+document.getElementById('corrSlider').addEventListener('input',function(){
+  playClick();
+  const cfg=SLIDER_CFG[settings.mode];
+  document.getElementById('sliderDisplay').textContent=cfg.fmt(parseFloat(this.value)/cfg.scale);
+});
+
+// Guess / Next
+document.getElementById('guessBtn').addEventListener('click',submitGuess);
+document.getElementById('nextBtn').addEventListener('click',nextRound);
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'||e.code==='Enter'){
+    e.preventDefault();
+    if(document.getElementById('gameoverPanel').classList.contains('show')){startGame();return;}
+    if(!gs.guessed)submitGuess();else nextRound();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// GAME LOGIC
+// ═══════════════════════════════════════════════════════════
+function startGame(){
+  gs={...gs,lives:3,coins:0,round:0,streak:0,maxStreak:0,errors:[],guessed:false,currentData:null};
+  document.getElementById('gameoverPanel').classList.remove('show');
+  document.getElementById('feedbackPanel').classList.remove('show');
+  document.getElementById('inputArea').style.display='';
+  renderLives(document.getElementById('livesRow'),3,3);
+  drawCoin(document.getElementById('coinIcon'));
+  document.getElementById('coinVal').textContent=0;
+  document.getElementById('hudHs').textContent=gs.hs;
+  setupSlider(settings.mode);
+  showScreen('gameScreen');
+  resizeCanvas();
+  nextRound();
+}
+
+function nextRound(){
+  gs.guessed=false;gs.round++;
+  document.getElementById('feedbackPanel').classList.remove('show');
+  document.getElementById('inputArea').style.display='';
+  document.getElementById('guessBtn').disabled=false;
+  document.getElementById('bsRound').textContent=gs.round;
+  const cfg=SLIDER_CFG[settings.mode];
+  document.getElementById('corrSlider').value=cfg.def;
+  document.getElementById('sliderDisplay').textContent=cfg.fmt(cfg.def/cfg.scale);
+
+  const oldData=gs.currentData;
+  const newData=generateRound();
+  gs.currentData=newData;gs.trueVal=newData.trueVal;
+  resizeCanvas();
+
+  if(oldData&&newData.type==='scatter'&&oldData.type==='scatter'){
+    startAnimation(oldData.pts.slice(0,Math.min(oldData.pts.length,newData.pts.length)),
+                   newData.pts.slice(0,Math.min(oldData.pts.length,newData.pts.length)),600);
+  } else {
+    drawCurrentData(newData,false);
+  }
+}
+
+function submitGuess(){
+  if(gs.guessed)return;
+  playClick();gs.guessed=true;
+  document.getElementById('guessBtn').disabled=true;
+  document.getElementById('inputArea').style.display='none';
+
+  const guess=getSliderVal();
+  const trueV=gs.trueVal;
+  const err=Math.abs(guess-trueV);
+  gs.errors.push(err);
+
+  const cfg=SLIDER_CFG[settings.mode];
+  const normErr=err/cfg.maxErr; // normalised 0-1
+  const isGood=normErr<settings.lossThresh*0.4;
+  const isOk=err<settings.lossThresh*(settings.mode==='meta_i2'?20:1);
+  const isBad=!isOk;
+
+  const coinsEarned=normErr<.03?3:normErr<.08?2:isOk?1:0;
+  gs.coins+=coinsEarned;
+  document.getElementById('coinVal').textContent=gs.coins;
+
+  if(isOk){gs.streak++;if(gs.streak>gs.maxStreak)gs.maxStreak=gs.streak;}else gs.streak=0;
+  document.getElementById('bsStreak').textContent=gs.streak;
+  const avgErr=gs.errors.reduce((a,b)=>a+b,0)/gs.errors.length;
+  document.getElementById('bsMeanErr').textContent=avgErr.toFixed(2);
+
+  if(isBad){animateLostHeart(document.getElementById('livesRow'),gs.lives-1);gs.lives--;playBad();}
+  else playGood();
+
+  if(animState.raf)cancelAnimationFrame(animState.raf);
+  resizeCanvas();drawCurrentData(gs.currentData,true);
+
+  const cl=isGood?'good':isOk?'ok':'bad';
+  document.getElementById('fbTrue').textContent=cfg.fmt(trueV);
+  document.getElementById('fbGuess').textContent=cfg.fmt(guess);
+  document.getElementById('fbDiff').textContent=err.toFixed(2);
+  document.getElementById('fbDiff').className='fb-num '+cl;
+  document.getElementById('fbStreak').textContent=gs.streak;
+  document.getElementById('fbGuess').className='fb-num '+cl;
+
+  const fill=document.getElementById('errBarFill');
+  fill.style.width='0%';fill.className='err-bar-fill '+cl;
+  setTimeout(()=>{fill.style.width=Math.min(100,normErr*100)+'%';},60);
+
+  const msgs={
+    good:['EXCELLENT!','PERFECT READ!','SHARP EYES!','NAILED IT!'],
+    ok:  ['CLOSE ENOUGH.','NOT BAD.','DECENT GUESS.','ALMOST THERE.'],
+    bad: ['KEEP PRACTICING.','STATS IS HARD.','LOOK MORE CAREFULLY!','WAY OFF!'],
+  };
+  document.getElementById('fbComment').textContent=msgs[cl][~~(Math.random()*msgs[cl].length)];
+  document.getElementById('fbCoin').textContent=coinsEarned>0?`+${coinsEarned} 🪙`:'NO COIN';
+  document.getElementById('feedbackPanel').classList.add('show');
+
+  if(coinsEarned>0){
+    const el=document.createElement('div');el.className='coin-pop';el.textContent=`+${coinsEarned}🪙`;
+    const r=document.getElementById('coinVal').getBoundingClientRect();
+    el.style.left=r.left+'px';el.style.top=r.top+'px';
+    document.body.appendChild(el);setTimeout(()=>el.remove(),800);
+  }
+
+  if(gs.coins>gs.hs){gs.hs=gs.coins;localStorage.setItem('stg_hs',gs.hs);document.getElementById('hudHs').textContent=gs.hs;}
+  if(gs.lives<=0)setTimeout(showGameOver,900);
+}
+
+function showGameOver(){
+  document.getElementById('feedbackPanel').classList.remove('show');
+  document.getElementById('inputArea').style.display='none';
+  const avgErr=gs.errors.length?gs.errors.reduce((a,b)=>a+b,0)/gs.errors.length:0;
+  const bestErr=gs.errors.length?Math.min(...gs.errors):0;
+  document.getElementById('goCoins').textContent=gs.coins;
+  document.getElementById('goAvg').textContent=avgErr.toFixed(2);
+  document.getElementById('goBest').textContent=bestErr.toFixed(2);
+  document.getElementById('goStreak').textContent=gs.maxStreak;
+  const titles=[[.05,'PERFECT GAME!'],[.1,'EXCEPTIONAL!'],[.18,'WELL DONE.'],[.3,'NOT BAD.'],[Infinity,'GAME OVER.']];
+  document.getElementById('goTitle').textContent=(titles.find(([t])=>avgErr<t)||[null,'GAME OVER.'])[1];
+  renderLives(document.getElementById('goLives'),gs.lives,3);
+  document.getElementById('gameoverPanel').classList.add('show');
+}
+
+window.addEventListener('resize',()=>{resizeCanvas();if(gs.currentData)drawCurrentData(gs.currentData,gs.guessed);});
+
+// Init
+drawCoin(document.getElementById('coinIcon'));
+</script>
+</body>
+</html>

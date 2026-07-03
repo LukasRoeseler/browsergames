@@ -1,11 +1,11 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Escape Order 66</title>
+<title>Escape Order 66 — Fable 5 Version</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;touch-action:none}
   html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Impact','Arial Black',sans-serif;color:#fff}
@@ -16,12 +16,13 @@
   h1{font-size:clamp(34px,9vw,84px);letter-spacing:.12em;text-transform:uppercase;color:#ffcc00;text-shadow:4px 4px 0 #aa0000,8px 8px 0 #000;margin-bottom:6px;text-align:center;line-height:.95;transform:skewX(-8deg)}
   h2{font-size:clamp(14px,3vw,22px);color:#cc4444;letter-spacing:.4em;margin-bottom:24px;text-transform:uppercase;text-align:center}
   .menu-btn{background:linear-gradient(180deg,#222,#000);border:3px solid #ffcc00;color:#ffcc00;padding:14px 28px;font-size:clamp(14px,3.5vw,20px);font-family:inherit;letter-spacing:.2em;text-transform:uppercase;margin:6px;cursor:pointer;min-width:240px;transition:all .15s;clip-path:polygon(8% 0,100% 0,92% 100%,0 100%)}
-  .menu-btn:hover,.menu-btn:active{background:linear-gradient(180deg,#ffcc00,#aa8800);color:#000;transform:scale(1.05)}
+  .menu-btn:hover,.menu-btn:active,.menu-btn.gp-focus{background:linear-gradient(180deg,#ffcc00,#aa8800);color:#000;transform:scale(1.05)}
   .jedi-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;max-width:600px;width:100%;margin:16px 0}
   @media(min-width:700px){.jedi-grid{grid-template-columns:repeat(4,1fr)}}
   .jedi-card{background:linear-gradient(180deg,rgba(20,20,30,.95),rgba(0,0,0,.95));border:2px solid #444;padding:10px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
   .jedi-card.selected{border-color:#ffcc00;box-shadow:0 0 20px #ffcc00,inset 0 0 30px rgba(255,204,0,.2)}
-  .jedi-card .portrait{height:110px;background:#0a0a0a;margin-bottom:6px;position:relative;overflow:hidden;border:1px solid #222}
+  .jedi-card.gp-focus{border-color:#88ddff;box-shadow:0 0 20px #88ddff}
+  .jedi-card .portrait{height:130px;background:#0a0a0a;margin-bottom:6px;position:relative;overflow:hidden;border:1px solid #222}
   .jedi-card h3{font-size:13px;color:#fff;letter-spacing:.08em;margin-bottom:3px}
   .jedi-card .ability{font-size:10px;color:#ff8844;letter-spacing:.05em}
   #hud{position:fixed;top:0;left:0;right:0;padding:max(10px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 10px max(10px,env(safe-area-inset-left));pointer-events:none;z-index:50;display:flex;justify-content:space-between;align-items:flex-start;font-size:14px}
@@ -29,9 +30,13 @@
   .stat-label{font-size:10px;color:#ffcc00;letter-spacing:.2em}
   .stat-val{font-size:18px;color:#fff}
   .health-bar{width:140px;height:10px;background:#330000;border:1px solid #ff4444;margin-top:3px;position:relative;overflow:hidden}
-  .health-fill{height:100%;background:linear-gradient(90deg,#ff0000,#ff8800);transition:width .2s}
+  .health-fill{height:100%;background:linear-gradient(90deg,#ff0000,#ff8800);transition:width .15s}
   .special-bar{width:140px;height:6px;background:#001133;border:1px solid #4488ff;margin-top:2px;position:relative;overflow:hidden}
   .special-fill{height:100%;background:linear-gradient(90deg,#0044ff,#88ccff);transition:width .1s}
+  .combo-display{position:fixed;top:50%;right:8%;transform:translateY(-50%);pointer-events:none;z-index:55;text-align:right;opacity:0;transition:opacity .15s}
+  .combo-display.show{opacity:1}
+  .combo-display .num{font-size:60px;color:#ffcc00;text-shadow:4px 4px 0 #aa0000,6px 6px 0 #000;line-height:1;font-family:'Impact'}
+  .combo-display .lbl{font-size:14px;color:#fff;letter-spacing:.3em}
   #controls{position:fixed;bottom:0;left:0;right:0;padding:20px;pointer-events:none;z-index:60;display:flex;justify-content:space-between;align-items:flex-end}
   .joystick{width:140px;height:140px;background:radial-gradient(circle,rgba(255,204,0,.15),rgba(0,0,0,.5));border:3px solid rgba(255,204,0,.4);border-radius:50%;position:relative;pointer-events:auto;touch-action:none}
   .stick{width:60px;height:60px;background:radial-gradient(circle at 30% 30%,#ffcc00,#aa6600);border:2px solid #fff;border-radius:50%;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);box-shadow:0 4px 12px rgba(0,0,0,.6)}
@@ -43,9 +48,11 @@
   .abtn.block{border-color:#4488ff;color:#88aaff}
   .abtn.special{border-color:#ffcc00;color:#ffee88;box-shadow:0 0 15px rgba(255,204,0,.5)}
   .abtn.disabled{opacity:.4;border-color:#666;color:#888;box-shadow:none}
-  @media(min-width:900px) and (hover:hover){#controls{display:none}}
-  .pc-hint{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:#666;letter-spacing:.2em;text-transform:uppercase;display:none;z-index:55;pointer-events:none}
-  @media(min-width:900px) and (hover:hover){.pc-hint{display:block}}
+  .hide-touch{display:none!important}
+  .pc-hint{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);font-size:11px;color:#666;letter-spacing:.2em;text-transform:uppercase;display:none;z-index:55;pointer-events:none;text-align:center;line-height:1.6}
+  .pc-hint.show{display:block}
+  #gpBadge{position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,40,80,.85);border:1px solid #44aaff;color:#88ccff;font-size:10px;letter-spacing:.2em;padding:4px 10px;z-index:80;display:none;clip-path:polygon(8% 0,100% 0,92% 100%,0 100%)}
+  #gpBadge.show{display:block}
   .calib-instr{max-width:500px;text-align:center;color:#ccc;font-size:14px;line-height:1.5;margin:10px 0;letter-spacing:.05em}
   .calib-controls{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:center;margin:18px 0}
   .calib-controls label{display:flex;flex-direction:column;align-items:center;font-size:11px;color:#ffcc00;letter-spacing:.15em}
@@ -60,6 +67,9 @@
   #orientationLock{position:fixed;inset:0;background:#000;z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;color:#ffcc00;text-align:center;padding:20px;font-size:18px;letter-spacing:.15em}
   #orientationLock svg{width:80px;height:80px;margin-bottom:20px;animation:rot 2s ease-in-out infinite}
   @keyframes rot{0%,100%{transform:rotate(0)}50%{transform:rotate(90deg)}}
+  #pauseOverlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:90;display:none;flex-direction:column;align-items:center;justify-content:center}
+  #pauseOverlay.show{display:flex}
+  #pauseOverlay h1{font-size:50px}
 </style>
 </head>
 <body>
@@ -71,9 +81,11 @@
 
 <div id="orientationLock">
   <svg viewBox="0 0 24 24" fill="#ffcc00"><path d="M16.48 2.52c3.27 1.55 5.61 4.72 5.97 8.48h1.5C23.44 4.84 18.29 0 12 0l-.66.03 3.81 3.81 1.33-1.32zm-6.25-.77c-.59-.59-1.54-.59-2.12 0L1.75 8.11c-.59.59-.59 1.54 0 2.12l12.02 12.02c.59.59 1.54.59 2.12 0l6.36-6.36c.59-.59.59-1.54 0-2.12L10.23 1.75zm4.6 19.44L2.81 9.17l6.36-6.36 12.02 12.02-6.36 6.36zm-7.31.29C4.25 19.94 1.91 16.76 1.55 13H.05C.56 19.16 5.71 24 12 24l.66-.03-3.81-3.81-1.33 1.33z"/></svg>
-  <div>BITTE GERÄT QUER HALTEN</div>
+  <div>PLEASE ROTATE YOUR DEVICE</div>
   <div style="font-size:12px;margin-top:10px;color:#888">Landscape mode required</div>
 </div>
+
+<div id="gpBadge">🎮 GAMEPAD CONNECTED</div>
 
 <div id="hud" class="hidden">
   <div class="stat-box">
@@ -91,6 +103,8 @@
   </div>
 </div>
 
+<div class="combo-display" id="comboDisp"><div class="num" id="comboNum">0</div><div class="lbl">COMBO</div></div>
+
 <div id="controls" class="hidden">
   <div class="joystick" id="joystick"><div class="stick" id="stick"></div></div>
   <div class="action-buttons">
@@ -100,59 +114,66 @@
     <button class="abtn special" id="btnSpecial">SPECIAL</button>
   </div>
 </div>
-<div class="pc-hint">WASD/Pfeile · J=ATK · K=BLOCK · L=SPECIAL · SPACE/W=JUMP</div>
+<div class="pc-hint" id="pcHint">WASD/Arrows · J=ATK · K=BLOCK · L=SPECIAL · SPACE=JUMP · ESC=Pause</div>
 
 <div class="overlay" id="mainMenu">
   <div class="scroll-text">
     <div class="scroll-text-inner">
-      ORDER 66 WURDE AUSGEFÜHRT<br>
-      DIE KLONE HABEN SICH GEGEN DIE JEDI GEWANDT<br>
-      ÜBERALL IN DER GALAXIS WERDEN JEDI GEJAGT<br>
-      ÜBERLEBE SO LANGE WIE MÖGLICH<br>
+      ORDER 66 HAS BEEN EXECUTED<br>
+      THE CLONES HAVE TURNED AGAINST THE JEDI<br>
+      ACROSS THE GALAXY, JEDI ARE BEING HUNTED<br>
+      SURVIVE AS LONG AS YOU CAN<br>
     </div>
   </div>
   <h1>Escape</h1>
-  <h2 style="color:#ff2222;margin-bottom:30px">Order 66</h2>
+  <h2 style="color:#ff2222;margin-bottom:30px">Order 66 <span style="font-size:14px;letter-spacing:4px;color:#ffaa44">FABLE 5 VERSION</span></h2>
   <button class="menu-btn" id="btnPlay">START</button>
-  <button class="menu-btn" id="btnCalibrate">UI KALIBRIEREN</button>
-  <button class="menu-btn" id="btnAudio">AUDIO: AN</button>
+  <button class="menu-btn" id="btnCalibrate">CALIBRATE UI</button>
+  <button class="menu-btn" id="btnAudio">AUDIO: ON</button>
 </div>
 
 <div class="overlay hidden" id="calibMenu">
-  <h1 style="font-size:32px">UI KALIBRIERUNG</h1>
-  <p class="calib-instr">Justiere die Ränder, falls Buttons abgeschnitten werden (z.B. Samsung A41 / Opera).</p>
+  <h1 style="font-size:32px">UI CALIBRATION</h1>
+  <p class="calib-instr">Adjust the margins if buttons get cut off (e.g. Samsung A41 / Opera).</p>
   <div class="calib-controls">
-    <label>UNTEN<input type="range" id="cBottom" min="0" max="100" value="20"></label>
-    <label>LINKS<input type="range" id="cLeft" min="0" max="100" value="20"></label>
-    <label>RECHTS<input type="range" id="cRight" min="0" max="100" value="20"></label>
-    <label>OBEN<input type="range" id="cTop" min="0" max="60" value="10"></label>
+    <label>BOTTOM<input type="range" id="cBottom" min="0" max="100" value="20"></label>
+    <label>LEFT<input type="range" id="cLeft" min="0" max="100" value="20"></label>
+    <label>RIGHT<input type="range" id="cRight" min="0" max="100" value="20"></label>
+    <label>TOP<input type="range" id="cTop" min="0" max="60" value="10"></label>
   </div>
-  <p class="calib-instr" style="font-size:11px">Rote Linie = Safe Area · Gelbe Linie = Buttons</p>
-  <button class="menu-btn" id="btnCalibBack">SPEICHERN & ZURÜCK</button>
+  <p class="calib-instr" style="font-size:11px">Red line = safe area · Yellow line = buttons</p>
+  <button class="menu-btn" id="btnCalibBack">SAVE & BACK</button>
 </div>
 
 <div class="overlay hidden" id="charSelect">
-  <h1 style="font-size:38px">WÄHLE EINEN JEDI</h1>
+  <h1 style="font-size:38px">CHOOSE YOUR JEDI</h1>
   <div class="jedi-grid" id="jediGrid"></div>
-  <p class="force-hint" id="abilityDesc">Wähle einen Jedi aus</p>
-  <button class="menu-btn" id="btnConfirmJedi">WEITER</button>
-  <button class="menu-btn" id="btnBackMenu">ZURÜCK</button>
+  <p class="force-hint" id="abilityDesc">Select a Jedi</p>
+  <button class="menu-btn" id="btnConfirmJedi">CONTINUE</button>
+  <button class="menu-btn" id="btnBackMenu">BACK</button>
 </div>
 
 <div class="overlay hidden" id="levelSelect">
-  <h1 style="font-size:38px">SCHLACHTFELD</h1>
+  <h1 style="font-size:38px">BATTLEFIELD</h1>
   <div class="jedi-grid" id="levelGrid" style="grid-template-columns:repeat(3,1fr);max-width:700px"></div>
-  <button class="menu-btn" id="btnConfirmLevel">ANGRIFF</button>
-  <button class="menu-btn" id="btnBackChar">ZURÜCK</button>
+  <button class="menu-btn" id="btnConfirmLevel">ATTACK</button>
+  <button class="menu-btn" id="btnBackChar">BACK</button>
 </div>
 
 <div class="overlay hidden" id="gameOver">
-  <h1>GEFALLEN</h1>
-  <h2 style="color:#ff4444">DER JEDI WURDE GETÖTET</h2>
-  <div class="stats-display">DISTANZ: <span id="finalDist">0</span></div>
+  <h1>FALLEN</h1>
+  <h2 style="color:#ff4444">THE JEDI HAS BEEN SLAIN</h2>
+  <div class="stats-display">DISTANCE: <span id="finalDist">0</span></div>
   <div class="stats-display">CLONES KIA: <span id="finalKills">0</span></div>
-  <button class="menu-btn" id="btnRetry">NOCHMAL</button>
-  <button class="menu-btn" id="btnMenu">HAUPTMENÜ</button>
+  <div class="stats-display" style="font-size:14px">MAX COMBO: <span id="finalCombo" style="font-size:18px">0</span></div>
+  <button class="menu-btn" id="btnRetry">RETRY</button>
+  <button class="menu-btn" id="btnMenu">MAIN MENU</button>
+</div>
+
+<div id="pauseOverlay">
+  <h1>PAUSED</h1>
+  <button class="menu-btn" id="btnResume">RESUME</button>
+  <button class="menu-btn" id="btnQuitPause">MAIN MENU</button>
 </div>
 
 <canvas id="calibCanvas" style="position:fixed;inset:0;pointer-events:none;z-index:99;display:none"></canvas>
@@ -160,35 +181,146 @@
 <script>
 'use strict';
 
+/* ============================================================
+   GLOBAL STATE
+   ============================================================ */
 const G = {
   canvas:{}, ctx:{},
   W:0, H:0, DPR:1, scale:1,
-  state:'menu',
+  state:'menu', paused:false,
   selectedJedi:0, selectedLevel:0,
   calib:{top:10,bottom:20,left:20,right:20},
   audio:{ctx:null,master:null,enabled:true,saberHum:null,music:null,musicNodes:[]},
-  input:{
-    keys:{}, joy:{x:0,y:0,active:false}, joyStartX:0, joyStartY:0, joyId:null,
-    btn:{atk:false,block:false,jump:false,special:false,jumpEdge:false,atkEdge:false,specialEdge:false}
-  },
-  time:{last:0,dt:0},
-  cam:{shake:0,shakeT:0},
+  time:{last:0,dt:0,frame:0},
+  cam:{shake:0,shakeT:0,x:0,y:0},
   player:null,
   enemies:[], bolts:[], particles:[], bodies:[], platforms:[], obstacles:[], explosions:[],
   saberTrail:[],
   level:null,
-  distance:0, kills:0,
+  distance:0, kills:0, maxCombo:0, comboCount:0, comboTimer:0,
   stars:[], embers:[], rain:[],
   saberThrow:null, forceWave:null, lightning:[],
   spawnTimer:0,
   scrollX:0, worldGenX:0,
   flashT:0,
   isMobile:false,
-  currentMusic:null
+  currentMusic:null,
+  hitStop:0,       // freeze-frame timer
+  slowMo:1,        // 1=normal, <1=slow
+  slowMoT:0,
+  menuFocus:0      // index in current menu for gamepad nav
 };
 
 /* ============================================================
-   AUDIO ENGINE - WebAudio + MIDI-style orchestral
+   GAMEPAD MANAGER - polls every frame, debounces button presses
+   ============================================================ */
+const GP = {
+  DEADZONE: 0.18,
+  active: null,
+  prevBtns: [],
+  // edge events (consumed per frame)
+  press: {},
+  axes: {x:0, y:0, rx:0, ry:0},
+  connected: false,
+  rumbleSupport: false,
+
+  init(){
+    window.addEventListener('gamepadconnected', e=>{
+      this.connected = true;
+      this.active = e.gamepad.index;
+      const badge = document.getElementById('gpBadge');
+      badge.classList.add('show');
+      setTimeout(()=>badge.classList.remove('show'), 3000);
+      // Check rumble support
+      const gp = navigator.getGamepads()[this.active];
+      this.rumbleSupport = !!(gp && (gp.vibrationActuator || gp.hapticActuators));
+    });
+    window.addEventListener('gamepaddisconnected', e=>{
+      if(e.gamepad.index === this.active){
+        this.connected = false;
+        this.active = null;
+        this.prevBtns = [];
+      }
+    });
+  },
+
+  poll(){
+    // Reset edge flags
+    this.press = {};
+    if(!('getGamepads' in navigator)) return null;
+    const gps = navigator.getGamepads();
+    let gp = null;
+    if(this.active != null) gp = gps[this.active];
+    if(!gp){
+      for(const g of gps){ if(g && g.connected){ gp=g; this.active=g.index; break; } }
+    }
+    if(!gp){
+      this.connected = false;
+      this.axes.x=0; this.axes.y=0;
+      return null;
+    }
+    this.connected = true;
+
+    // Read axes with deadzone
+    const dz = this.DEADZONE;
+    const ax = gp.axes[0] || 0;
+    const ay = gp.axes[1] || 0;
+    const arx = gp.axes[2] || 0;
+    const ary = gp.axes[3] || 0;
+    this.axes.x = Math.abs(ax) > dz ? this.curve(ax) : 0;
+    this.axes.y = Math.abs(ay) > dz ? this.curve(ay) : 0;
+    this.axes.rx = Math.abs(arx) > dz ? this.curve(arx) : 0;
+    this.axes.ry = Math.abs(ary) > dz ? this.curve(ary) : 0;
+
+    // D-pad as movement override
+    if(gp.buttons[14] && gp.buttons[14].pressed) this.axes.x = -1;
+    if(gp.buttons[15] && gp.buttons[15].pressed) this.axes.x = 1;
+    if(gp.buttons[12] && gp.buttons[12].pressed) this.axes.y = -1;
+    if(gp.buttons[13] && gp.buttons[13].pressed) this.axes.y = 1;
+
+    // Detect button edges
+    for(let i=0; i<gp.buttons.length; i++){
+      const cur = gp.buttons[i].pressed;
+      const prev = this.prevBtns[i] || false;
+      if(cur && !prev) this.press[i] = true;
+      this.prevBtns[i] = cur;
+    }
+    return gp;
+  },
+
+  curve(v){
+    // Smooth curve after deadzone for fine control
+    const dz = this.DEADZONE;
+    const sign = Math.sign(v);
+    const mag = (Math.abs(v) - dz) / (1 - dz);
+    return sign * Math.min(1, mag);
+  },
+
+  held(idx){
+    const gp = this.active != null ? navigator.getGamepads()[this.active] : null;
+    if(!gp || !gp.buttons[idx]) return false;
+    return gp.buttons[idx].pressed;
+  },
+
+  pressed(idx){ return !!this.press[idx]; },
+
+  rumble(strong, weak, dur){
+    if(!this.rumbleSupport || this.active == null) return;
+    const gp = navigator.getGamepads()[this.active];
+    if(!gp) return;
+    try{
+      if(gp.vibrationActuator && gp.vibrationActuator.playEffect){
+        gp.vibrationActuator.playEffect('dual-rumble', {
+          startDelay: 0, duration: dur,
+          weakMagnitude: weak, strongMagnitude: strong
+        });
+      }
+    }catch(e){}
+  }
+};
+
+/* ============================================================
+   AUDIO ENGINE
    ============================================================ */
 const Audio = {
   init(){
@@ -198,19 +330,14 @@ const Audio = {
       G.audio.ctx = new AC();
       G.audio.master = G.audio.ctx.createGain();
       G.audio.master.gain.value = 0.4;
-      G.audio.master.connect(G.audio.ctx.destination);
-      // Master compressor
       const comp = G.audio.ctx.createDynamicsCompressor();
-      comp.threshold.value = -10;
-      comp.ratio.value = 4;
-      G.audio.master.disconnect();
+      comp.threshold.value = -10; comp.ratio.value = 4;
       G.audio.master.connect(comp);
       comp.connect(G.audio.ctx.destination);
     }catch(e){}
   },
   resume(){ if(G.audio.ctx && G.audio.ctx.state==='suspended') G.audio.ctx.resume(); },
 
-  // pew - high pitched short blaster
   pew(){
     if(!G.audio.enabled || !G.audio.ctx) return;
     const ctx=G.audio.ctx, t=ctx.currentTime;
@@ -223,7 +350,6 @@ const Audio = {
     g.gain.exponentialRampToValueAtTime(0.001,t+0.08);
     o.connect(g); g.connect(G.audio.master);
     o.start(t); o.stop(t+0.1);
-    // tail: noise pop
     const buf=ctx.createBuffer(1,400,ctx.sampleRate);
     const d=buf.getChannelData(0);
     for(let i=0;i<400;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/60);
@@ -233,7 +359,6 @@ const Audio = {
     s.start(t+0.005);
   },
 
-  // saber surr - swing tone
   saberSwing(){
     if(!G.audio.enabled || !G.audio.ctx) return;
     const ctx=G.audio.ctx, t=ctx.currentTime;
@@ -243,10 +368,10 @@ const Audio = {
     o.frequency.exponentialRampToValueAtTime(420,t+0.18);
     bp.type='bandpass'; bp.frequency.value=600; bp.Q.value=8;
     g.gain.setValueAtTime(0,t);
-    g.gain.linearRampToValueAtTime(0.18,t+0.03);
-    g.gain.exponentialRampToValueAtTime(0.001,t+0.25);
+    g.gain.linearRampToValueAtTime(0.22,t+0.02);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.22);
     o.connect(bp); bp.connect(g); g.connect(G.audio.master);
-    o.start(t); o.stop(t+0.27);
+    o.start(t); o.stop(t+0.25);
   },
 
   saberOn(){
@@ -297,12 +422,10 @@ const Audio = {
     o.start(t); o.stop(t+0.12);
   },
 
-  // clone death - 10% wilhelm-ish, 90% subtle
   cloneDie(){
     if(!G.audio.enabled || !G.audio.ctx) return;
     const ctx=G.audio.ctx, t=ctx.currentTime;
     if(Math.random() < 0.10){
-      // Wilhelm-ish scream: pitched squeal
       const o=ctx.createOscillator(), g=ctx.createGain();
       o.type='sawtooth';
       o.frequency.setValueAtTime(500,t);
@@ -317,7 +440,6 @@ const Audio = {
       o.connect(bp); bp.connect(g); g.connect(G.audio.master);
       o.start(t); o.stop(t+0.42);
     } else {
-      // subtle "urgh" - low grunt
       const o=ctx.createOscillator(), g=ctx.createGain();
       o.type='sawtooth';
       o.frequency.setValueAtTime(140,t);
@@ -366,18 +488,101 @@ const Audio = {
     o.start(t); o.stop(t+0.12);
   },
 
-  /* ============================================================
-     ORCHESTRAL MUSIC - MIDI-style sequencer
-     "Battle of the Heroes" style for menu (urgent strings, brass)
-     "Anakin's Dark Deeds" style for game (tragic, mournful)
-     ============================================================ */
+  landSnd(){
+    if(!G.audio.enabled || !G.audio.ctx) return;
+    const ctx=G.audio.ctx, t=ctx.currentTime;
+    const buf=ctx.createBuffer(1, 800, ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<800;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/200);
+    const s=ctx.createBufferSource(), gn=ctx.createGain();
+    s.buffer=buf; gn.gain.value=0.08;
+    const bp = ctx.createBiquadFilter();
+    bp.type='lowpass'; bp.frequency.value=400;
+    s.connect(bp); bp.connect(gn); gn.connect(G.audio.master);
+    s.start(t);
+  },
+
+  comboSnd(level){
+    if(!G.audio.enabled || !G.audio.ctx) return;
+    const ctx=G.audio.ctx, t=ctx.currentTime;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine';
+    const baseF = 440 + level*80;
+    o.frequency.setValueAtTime(baseF, t);
+    o.frequency.exponentialRampToValueAtTime(baseF*1.5, t+0.1);
+    g.gain.setValueAtTime(0.10, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.15);
+    o.connect(g); g.connect(G.audio.master);
+    o.start(t); o.stop(t+0.16);
+  },
+
+  // REMASTER: hit-confirm "thock" layered under the swing
+  hitSnd(){
+    if(!G.audio.enabled || !G.audio.ctx) return;
+    const ctx=G.audio.ctx, t=ctx.currentTime;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(210, t);
+    o.frequency.exponentialRampToValueAtTime(80, t+0.09);
+    g.gain.setValueAtTime(0.22, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.1);
+    o.connect(g); g.connect(G.audio.master);
+    o.start(t); o.stop(t+0.12);
+  },
+
+  // REMASTER: deep kill layer (plays with cloneDie/forceBoom)
+  killSnd(){
+    if(!G.audio.enabled || !G.audio.ctx) return;
+    const ctx=G.audio.ctx, t=ctx.currentTime;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(95, t);
+    o.frequency.exponentialRampToValueAtTime(36, t+0.22);
+    g.gain.setValueAtTime(0.3, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.26);
+    o.connect(g); g.connect(G.audio.master);
+    o.start(t); o.stop(t+0.3);
+    const buf=ctx.createBuffer(1, 1400, ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<1400;i++) d[i]=(Math.random()*2-1)*Math.exp(-i/300);
+    const s=ctx.createBufferSource(), gn=ctx.createGain();
+    s.buffer=buf; gn.gain.value=0.16;
+    const lp=ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value=900;
+    s.connect(lp); lp.connect(gn); gn.connect(G.audio.master);
+    s.start(t);
+  },
+
+  // REMASTER: perfect-parry bright ting
+  parrySnd(){
+    if(!G.audio.enabled || !G.audio.ctx) return;
+    const ctx=G.audio.ctx, t=ctx.currentTime;
+    for(const [f, p, d] of [[1900, 0.14, 0.3], [2850, 0.07, 0.22], [950, 0.08, 0.12]]){
+      const o=ctx.createOscillator(), g=ctx.createGain();
+      o.type='sine'; o.frequency.value=f;
+      g.gain.setValueAtTime(p, t); g.gain.exponentialRampToValueAtTime(0.001, t+d);
+      o.connect(g); g.connect(G.audio.master);
+      o.start(t); o.stop(t+d+0.05);
+    }
+  },
+
+  // REMASTER: soft rising charge warning while an enemy aims
+  chargeSnd(){
+    if(!G.audio.enabled || !G.audio.ctx) return;
+    const ctx=G.audio.ctx, t=ctx.currentTime;
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(480, t);
+    o.frequency.exponentialRampToValueAtTime(880, t+0.4);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(0.05, t+0.1);
+    g.gain.exponentialRampToValueAtTime(0.001, t+0.45);
+    o.connect(g); g.connect(G.audio.master);
+    o.start(t); o.stop(t+0.5);
+  },
+
   playNote(freq, t, dur, vel, type, gain){
     const ctx = G.audio.ctx;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = type || 'sawtooth';
     o.frequency.setValueAtTime(freq, t);
-    // ADSR
     const peak = vel * 0.16;
     g.gain.setValueAtTime(0, t);
     g.gain.linearRampToValueAtTime(peak, t + 0.04);
@@ -389,7 +594,6 @@ const Audio = {
     return o;
   },
 
-  // Choir-like ahh sound (multiple detuned oscillators)
   playChoirNote(freq, t, dur, vel, gain){
     const ctx = G.audio.ctx;
     const detunes = [-7, 0, 5];
@@ -410,7 +614,6 @@ const Audio = {
     }
   },
 
-  // Brass-like (sawtooth with filter)
   playBrass(freq, t, dur, vel, gain){
     const ctx = G.audio.ctx;
     const o = ctx.createOscillator();
@@ -433,7 +636,6 @@ const Audio = {
     G.audio.musicNodes.push(o);
   },
 
-  // Timpani / percussion
   playPerc(t, vel, gain){
     const ctx = G.audio.ctx;
     const o = ctx.createOscillator();
@@ -458,8 +660,6 @@ const Audio = {
     musicGain.gain.value = 0.7;
     musicGain.connect(G.audio.master);
     G.audio.musicGain = musicGain;
-
-    // Reverb-like via convolver fallback: multiple delays
     const delay = ctx.createDelay();
     delay.delayTime.value = 0.18;
     const fb = ctx.createGain();
@@ -467,8 +667,6 @@ const Audio = {
     delay.connect(fb); fb.connect(delay);
     delay.connect(musicGain);
     G.audio.musicReverb = delay;
-
-    // Schedule loop
     G.audio.musicTrack = track;
     G.audio.musicNextBeat = ctx.currentTime + 0.1;
     G.audio.musicBar = 0;
@@ -479,7 +677,7 @@ const Audio = {
     if(!G.audio.musicTrack) return;
     const ctx = G.audio.ctx;
     const lookahead = 0.5;
-    const beatLen = 0.5; // 120 bpm
+    const beatLen = 0.5;
     while(G.audio.musicNextBeat < ctx.currentTime + lookahead){
       this._scheduleBeat(G.audio.musicBar, G.audio.musicNextBeat, beatLen);
       G.audio.musicNextBeat += beatLen;
@@ -492,38 +690,21 @@ const Audio = {
     const g = G.audio.musicGain;
     const rev = G.audio.musicReverb;
     const track = G.audio.musicTrack;
-
-    // Notes (frequencies for D minor scale, suiting Star Wars tragic feel)
     const D = 73.42, E = 82.41, F = 87.31, G_ = 98.00, A = 110.00, Bb = 116.54, C = 130.81;
     const D2 = 146.83, E2 = 164.81, F2 = 174.61, G2 = 196.00, A2 = 220.00, Bb2 = 233.08, C2 = 261.63;
-    const D3 = 293.66, E3 = 329.63, F3 = 349.23, G3 = 392.00, A3 = 440.00, Bb3 = 466.16, C3 = 523.25;
+    const C3 = 261.63;
 
     if(track === 'menu'){
-      // Battle of the Heroes - urgent staccato + dramatic brass swells
-      // Pattern over 16 beats (4 bars)
       const p = beatIdx % 32;
-
-      // Bass line (timpani-like every beat)
       if(p % 2 === 0) this.playPerc(t, 0.7, g);
-
-      // Driving bass (cellos)
       const bassPattern = [D, D, D, D, F, F, E, E, D, D, D, D, A, A, G_, G_,
                             D, D, D, D, F, F, E, E, D, D, A, A, Bb, Bb, A, A];
       this.playNote(bassPattern[p], t, beatLen*0.9, 0.7, 'sawtooth', g);
-
-      // Strings melody (every 2 beats)
       if(p % 2 === 0){
-        const melodyPattern = [
-          A2, F2, D2, F2, A2, C3, A2, F2,
-          A2, F2, D2, F2, G2, A2, G2, F2
-        ];
+        const melodyPattern = [A2, F2, D2, F2, A2, C3, A2, F2, A2, F2, D2, F2, G2, A2, G2, F2];
         const idx = Math.floor(p/2);
-        if(idx < melodyPattern.length){
-          this.playBrass(melodyPattern[idx], t, beatLen*1.8, 0.6, rev);
-        }
+        if(idx < melodyPattern.length) this.playBrass(melodyPattern[idx], t, beatLen*1.8, 0.6, rev);
       }
-
-      // Choir on accents
       if(p === 0 || p === 16){
         this.playChoirNote(D2, t, beatLen*4, 0.9, rev);
         this.playChoirNote(A2, t, beatLen*4, 0.7, rev);
@@ -533,45 +714,23 @@ const Audio = {
         this.playChoirNote(C3, t, beatLen*4, 0.6, rev);
       }
     } else if(track === 'game') {
-      // Anakin's Dark Deeds - slow, mournful, low strings, sparse
-      // 4 bars / 16 beats pattern
       const p = beatIdx % 32;
-
-      // Slow timpani roll
       if(p % 8 === 0) this.playPerc(t, 0.5, g);
-
-      // Sustained bass drone (cellos)
       if(p % 4 === 0){
         const bassNotes = [D, D, F, A];
         const idx = Math.floor(p/4) % 4;
         this.playNote(bassNotes[idx], t, beatLen*4.5, 0.5, 'sawtooth', g);
         this.playNote(bassNotes[idx]/2, t, beatLen*4.5, 0.4, 'sine', g);
       }
-
-      // Tragic melody (every 4 beats - slow)
       if(p % 4 === 0){
-        const melody = [
-          A2, F2, E2, D2,
-          F2, G2, A2, F2,
-          A2, Bb2, A2, F2,
-          E2, D2, E2, F2
-        ];
+        const melody = [A2, F2, E2, D2, F2, G2, A2, F2, A2, Bb2, A2, F2, E2, D2, E2, F2];
         const idx = Math.floor(p/4) % melody.length;
         this.playBrass(melody[idx], t, beatLen*3.5, 0.5, rev);
       }
-
-      // Ethereal choir on each bar
       if(p % 8 === 0){
-        const harmonies = [
-          [D2, F2, A2],
-          [D2, F2, A2],
-          [Bb, D2, F2],
-          [A, C2, E2]
-        ];
+        const harmonies = [[D2, F2, A2],[D2, F2, A2],[Bb, D2, F2],[A, C2, E2]];
         const idx = Math.floor(p/8) % harmonies.length;
-        for(const note of harmonies[idx]){
-          this.playChoirNote(note, t, beatLen*7.5, 0.6, rev);
-        }
+        for(const note of harmonies[idx]) this.playChoirNote(note, t, beatLen*7.5, 0.6, rev);
       }
     }
   },
@@ -581,39 +740,195 @@ const Audio = {
     G.audio.musicTrack = null;
     G.currentMusic = null;
     if(G.audio.musicGain){
-      try{
-        G.audio.musicGain.gain.linearRampToValueAtTime(0, G.audio.ctx.currentTime + 0.5);
-      }catch(e){}
+      try{ G.audio.musicGain.gain.linearRampToValueAtTime(0, G.audio.ctx.currentTime + 0.5); }catch(e){}
     }
-    // Clean up old nodes
     setTimeout(()=>{
-      for(const n of G.audio.musicNodes){
-        try{ n.stop(); }catch(e){}
-      }
+      for(const n of G.audio.musicNodes){ try{ n.stop(); }catch(e){} }
       G.audio.musicNodes=[];
     }, 600);
   }
 };
 
 /* ============================================================
-   DATA - Jedi & Levels
+   DATA
    ============================================================ */
+// combo: three attack styles per character (horizontal / overhead / rising / spin / stab)
+// airStyle: how their strike looks while airborne
 const JEDI = [
-  {name:'MACE WINDU', color:'#a020f0', ability:'FORCE PUSH', desc:'Stößt alle Gegner in Sichtweite mit physikalischem Impuls weg.',
-   skin:{skin:'#5a3a28',robe:'#3a2818',hilt:'#888',hair:'bald',eyes:'#1a1a1a'}, special:'push'},
-  {name:'PLO KOON', color:'#ff8800', ability:'ELECTRIC JUDGMENT', desc:'Gelbe Macht-Blitze springen zwischen Feinden hin und her.',
-   skin:{skin:'#a65040',robe:'#4a3018',hilt:'#aaa',hair:'mask',eyes:'#ff8800'}, special:'lightning'},
-  {name:'AAYLA SECURA', color:'#3399ff', ability:'SABER THROW', desc:'Schwert rotiert als Projektil nach vorne und kehrt zurück.',
-   skin:{skin:'#7ab0e0',robe:'#5a3020',hilt:'#999',hair:'lekku',eyes:'#704020'}, special:'throw'},
-  // Female Jedi with double-bladed lightsaber from canon: BASTILA SHAN (KOTOR/Old Republic)
-  {name:'BASTILA SHAN', color:'#ffcc00', ability:'SABER WHIRLWIND', desc:'Doppelschwert-Wirbelsturm: 3 Sekunden unbesiegbar, mäht alles nieder.',
-   skin:{skin:'#e8c4a4',robe:'#603020',hilt:'#888',hair:'bun',eyes:'#3a5028'}, special:'whirl'}
+  {name:'MACE WINDU', color:'#a020f0', ability:'FORCE PUSH', desc:'Shoves every enemy in sight away with a physical Force impulse.',
+   skin:{skin:'#5a3a28',robe:'#3a2818',hilt:'#888',hair:'bald',eyes:'#1a1a1a'}, special:'push',
+   combo:['overhead','horizontal','stab'], airStyle:'airslam'},
+  {name:'PLO KOON', color:'#ff8800', ability:'ELECTRIC JUDGMENT', desc:'Yellow Force lightning arcs from enemy to enemy.',
+   skin:{skin:'#a65040',robe:'#4a3018',hilt:'#aaa',hair:'mask',eyes:'#ff8800'}, special:'lightning',
+   combo:['horizontal','overhead','rising'], airStyle:'airslam'},
+  {name:'AAYLA SECURA', color:'#3399ff', ability:'SABER THROW', desc:'Hurls the saber forward as a spinning projectile that returns.',
+   skin:{skin:'#7ab0e0',robe:'#5a3020',hilt:'#999',hair:'lekku',eyes:'#704020'}, special:'throw',
+   combo:['rising','horizontal','spin'], airStyle:'airspin'},
+  {name:'BASTILA SHAN', color:'#ffcc00', ability:'SABER WHIRLWIND', desc:'Twin-blade whirlwind: invulnerable rampage that mows everything down.',
+   skin:{skin:'#e8c4a4',robe:'#603020',hilt:'#888',hair:'bun',eyes:'#3a5028'}, special:'whirl',
+   combo:['spin','rising','spin'], airStyle:'airspin'}
 ];
 const LEVELS = [
-  {name:'JEDI TEMPEL', key:'temple', sky:'#1a0808', fog:'#3a1010', accent:'#ff6622'},
+  {name:'JEDI TEMPLE', key:'temple', sky:'#1a0808', fog:'#3a1010', accent:'#ff6622'},
   {name:'KASHYYYK', key:'kashyyyk', sky:'#1a3020', fog:'#284028', accent:'#88cc44'},
   {name:'MUUNILINST', key:'muunilinst', sky:'#1a2840', fog:'#3a5878', accent:'#88aaff'}
 ];
+
+/* ============================================================
+   INPUT MANAGER - unified for keyboard + touch + gamepad
+   Buffers presses so they survive frame timing & feel snappy.
+   ============================================================ */
+const Input = {
+  // Continuous (held)
+  moveX: 0,     // -1..+1
+  block: false,
+  // Edge events with small buffer windows
+  buf: { jump:0, atk:0, special:0, pause:0 },
+  BUF_TIME: 0.12,
+  // Internal keyboard state
+  keys: {},
+  // Touch joystick
+  joy: { x:0, y:0, active:false, startX:0, startY:0, id:null },
+  // Touch button state
+  touch: { atk:false, block:false, jump:false, special:false },
+
+  init(){
+    // Keyboard
+    window.addEventListener('keydown', e=>{
+      const k = e.key.toLowerCase();
+      if(this.keys[k]) return; // ignore key repeat
+      this.keys[k] = true;
+      if(['j','k','l',' ','arrowup','arrowdown','arrowleft','arrowright','w','a','s','d','escape','p'].includes(k)) e.preventDefault();
+      if(k==='j') this.buf.atk = this.BUF_TIME;
+      if(k===' '||k==='w'||k==='arrowup') this.buf.jump = this.BUF_TIME;
+      if(k==='l') this.buf.special = this.BUF_TIME;
+      if(k==='escape'||k==='p') this.buf.pause = this.BUF_TIME;
+    });
+    window.addEventListener('keyup', e=>{
+      this.keys[e.key.toLowerCase()] = false;
+    });
+
+    // Touch joystick
+    const joy = document.getElementById('joystick'), stick = document.getElementById('stick');
+    const onStart = (e)=>{
+      e.preventDefault();
+      const r = joy.getBoundingClientRect();
+      this.joy.startX = r.left + r.width/2;
+      this.joy.startY = r.top + r.height/2;
+      this.joy.active = true;
+      this.joy.id = e.touches ? e.touches[0].identifier : 'mouse';
+      onMove(e);
+    };
+    const onMove = (e)=>{
+      if(!this.joy.active) return;
+      e.preventDefault();
+      let t;
+      if(e.touches){
+        for(const tt of e.touches){ if(tt.identifier===this.joy.id){ t=tt; break;} }
+        if(!t) return;
+      } else { t = e; }
+      let dx = t.clientX - this.joy.startX;
+      let dy = t.clientY - this.joy.startY;
+      const max = 55;
+      const d = Math.hypot(dx,dy);
+      if(d>max){ dx*=max/d; dy*=max/d; }
+      stick.style.left = (50 + dx/joy.offsetWidth*100)+'%';
+      stick.style.top = (50 + dy/joy.offsetHeight*100)+'%';
+      this.joy.x = dx/max;
+      this.joy.y = dy/max;
+    };
+    const onEnd = (e)=>{
+      if(e && e.touches){
+        for(const tt of e.touches){ if(tt.identifier===this.joy.id) return; }
+      }
+      this.joy.active = false; this.joy.x=0; this.joy.y=0; this.joy.id=null;
+      stick.style.left='50%'; stick.style.top='50%';
+    };
+    joy.addEventListener('touchstart', onStart, {passive:false});
+    joy.addEventListener('touchmove', onMove, {passive:false});
+    joy.addEventListener('touchend', onEnd);
+    joy.addEventListener('touchcancel', onEnd);
+    joy.addEventListener('mousedown', onStart);
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onEnd);
+
+    const bind = (id, key)=>{
+      const b = document.getElementById(id);
+      const dn = (e)=>{
+        e.preventDefault();
+        this.touch[key] = true;
+        if(key==='atk') this.buf.atk = this.BUF_TIME;
+        if(key==='jump') this.buf.jump = this.BUF_TIME;
+        if(key==='special') this.buf.special = this.BUF_TIME;
+      };
+      const up = (e)=>{ e.preventDefault(); this.touch[key] = false; };
+      b.addEventListener('touchstart', dn, {passive:false});
+      b.addEventListener('touchend', up);
+      b.addEventListener('touchcancel', up);
+      b.addEventListener('mousedown', dn);
+      b.addEventListener('mouseup', up);
+      b.addEventListener('mouseleave', up);
+    };
+    bind('btnAttack','atk');
+    bind('btnBlock','block');
+    bind('btnJump','jump');
+    bind('btnSpecial','special');
+
+    GP.init();
+  },
+
+  /**
+   * Sample all input sources & decay buffers.
+   * Call once per frame BEFORE update.
+   * Gamepad button mapping (standard layout):
+   *   0 (A/Cross)   = JUMP
+   *   2 (X/Square)  = ATTACK
+   *   1 (B/Circle)  = BLOCK (alt)
+   *   3 (Y/Triangle)= SPECIAL
+   *   4 (LB/L1)     = BLOCK
+   *   5 (RB/R1)     = ATTACK (alt)
+   *   6 (LT/L2)     = SPECIAL (alt)
+   *   7 (RT/R2)     = ATTACK (alt)
+   *   9 (Start)     = PAUSE
+   */
+  sample(dt){
+    GP.poll();
+    // Move axis
+    let mx = 0;
+    if(this.keys['a']||this.keys['arrowleft']) mx -= 1;
+    if(this.keys['d']||this.keys['arrowright']) mx += 1;
+    mx += this.joy.x;
+    if(GP.connected) mx += GP.axes.x;
+    this.moveX = Math.max(-1, Math.min(1, mx));
+
+    // Block held (any source)
+    this.block = !!this.keys['k'] || this.touch.block ||
+                 GP.held(1) || GP.held(4);
+
+    // Gamepad edge presses -> buffer
+    if(GP.pressed(0)) this.buf.jump = this.BUF_TIME;
+    if(GP.pressed(2) || GP.pressed(5) || GP.pressed(7)) this.buf.atk = this.BUF_TIME;
+    if(GP.pressed(3) || GP.pressed(6)) this.buf.special = this.BUF_TIME;
+    if(GP.pressed(9)) this.buf.pause = this.BUF_TIME;
+
+    // Decay buffers
+    for(const k in this.buf){
+      if(this.buf[k] > 0) this.buf[k] -= dt;
+    }
+  },
+
+  // Consume buffered press (call when used)
+  consume(name){
+    if(this.buf[name] > 0){
+      this.buf[name] = 0;
+      return true;
+    }
+    return false;
+  },
+
+  // Check without consuming
+  peek(name){ return this.buf[name] > 0; }
+};
 
 /* ============================================================
    SETUP
@@ -628,7 +943,6 @@ function setup(){
   G.ctx.fx = G.canvas.fx.getContext('2d');
   G.ctx.calib = G.canvas.calib.getContext('2d');
 
-  // Detect mobile
   G.isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (window.matchMedia && window.matchMedia('(pointer:coarse)').matches);
 
   resize();
@@ -642,17 +956,20 @@ function setup(){
   }catch(e){}
 
   setupMenus();
-  setupInput();
+  Input.init();
   buildJediCards();
   buildLevelCards();
   initStars();
   applyCalib();
+
+  // PC hint visible when not mobile
+  if(!G.isMobile) document.getElementById('pcHint').classList.add('show');
+
   requestAnimationFrame(loop);
 }
 
 function checkOrientation(){
   const lock = document.getElementById('orientationLock');
-  // ONLY enforce landscape on mobile
   if(G.isMobile && window.innerHeight > window.innerWidth){
     lock.style.display = 'flex';
   } else {
@@ -683,19 +1000,16 @@ function initStars(){
 }
 
 /* ============================================================
-   MENUS
+   MENU SYSTEM
    ============================================================ */
 function show(id){
   ['mainMenu','calibMenu','charSelect','levelSelect','gameOver'].forEach(x=>{
     document.getElementById(x).classList.toggle('hidden', x!==id);
   });
-  // Music control based on screen
   if(id === 'mainMenu' || id === 'charSelect' || id === 'levelSelect' || id === 'gameOver'){
     if(G.audio.ctx && G.audio.enabled && G.currentMusic !== 'menu'){
       Audio.startMusic('menu');
     }
-  } else if(id === null){
-    // Game starts - music handled in startGame
   }
 }
 
@@ -708,7 +1022,7 @@ function setupMenus(){
   document.getElementById('btnCalibrate').onclick = ()=>{ show('calibMenu'); openCalib(); };
   document.getElementById('btnAudio').onclick = (e)=>{
     G.audio.enabled = !G.audio.enabled;
-    e.target.textContent = 'AUDIO: ' + (G.audio.enabled?'AN':'AUS');
+    e.target.textContent = 'AUDIO: ' + (G.audio.enabled?'ON':'OFF');
     if(!G.audio.enabled){ Audio.saberHumStop(); Audio.stopMusic(); }
     else if(G.state==='menu'){ Audio.init(); Audio.startMusic('menu'); }
   };
@@ -724,6 +1038,14 @@ function setupMenus(){
     Audio.saberHumStop();
   };
   document.getElementById('btnCalibBack').onclick = closeCalib;
+  document.getElementById('btnResume').onclick = ()=>togglePause(false);
+  document.getElementById('btnQuitPause').onclick = ()=>{
+    togglePause(false);
+    show('mainMenu'); G.state='menu';
+    document.getElementById('hud').classList.add('hidden');
+    document.getElementById('controls').classList.add('hidden');
+    Audio.saberHumStop();
+  };
 
   ['cBottom','cLeft','cRight','cTop'].forEach(id=>{
     const el = document.getElementById(id);
@@ -731,6 +1053,20 @@ function setupMenus(){
     el.value = G.calib[k];
     el.oninput = ()=>{ G.calib[k]=parseInt(el.value); applyCalib(); drawCalibGuide(); };
   });
+}
+
+function togglePause(force){
+  const want = force !== undefined ? force : !G.paused;
+  if(G.state !== 'playing' && G.state !== 'paused') return;
+  G.paused = want;
+  document.getElementById('pauseOverlay').classList.toggle('show', want);
+  if(want){
+    G.state = 'paused';
+    Audio.saberHumStop();
+  } else {
+    G.state = 'playing';
+    if(G.player && G.player.saberOn) Audio.saberHumStart();
+  }
 }
 
 function openCalib(){ G.canvas.calib.style.display='block'; drawCalibGuide(); }
@@ -781,7 +1117,7 @@ function buildJediCards(){
       const div=document.getElementById('port'+i);
       if(!div) return;
       const c=document.createElement('canvas');
-      c.width=200; c.height=120; c.style.width='100%'; c.style.height='100%';
+      c.width=200; c.height=130; c.style.width='100%'; c.style.height='100%';
       const ctx=c.getContext('2d');
       drawJediPortrait(ctx, j);
       div.innerHTML=''; div.appendChild(c);
@@ -835,108 +1171,54 @@ function drawLevelThumb(ctx,l){
 }
 
 /* ============================================================
-   INPUT
+   REMASTER TUNING — all feel constants in one place
    ============================================================ */
-function setupInput(){
-  window.addEventListener('keydown', e=>{
-    const k = e.key.toLowerCase();
-    G.input.keys[k] = true;
-    if(['j','k','l',' ','arrowup','arrowdown','arrowleft','arrowright','w','a','s','d'].includes(k)) e.preventDefault();
-    if(k==='j') G.input.btn.atkEdge=true;
-    if(k===' '||k==='w'||k==='arrowup') G.input.btn.jumpEdge=true;
-    if(k==='l') G.input.btn.specialEdge=true;
-  });
-  window.addEventListener('keyup', e=>{ G.input.keys[e.key.toLowerCase()]=false; });
-
-  const joy=document.getElementById('joystick'), stick=document.getElementById('stick');
-  const onStart=(e)=>{
-    e.preventDefault();
-    const r = joy.getBoundingClientRect();
-    G.input.joyStartX = r.left+r.width/2;
-    G.input.joyStartY = r.top+r.height/2;
-    G.input.joy.active=true;
-    G.input.joyId = e.touches ? e.touches[0].identifier : 'mouse';
-    onMove(e);
-  };
-  const onMove=(e)=>{
-    if(!G.input.joy.active) return;
-    e.preventDefault();
-    let t;
-    if(e.touches){
-      for(const tt of e.touches){ if(tt.identifier===G.input.joyId){ t=tt; break;} }
-      if(!t) return;
-    } else { t=e; }
-    let dx = t.clientX - G.input.joyStartX;
-    let dy = t.clientY - G.input.joyStartY;
-    const max = 55;
-    const d = Math.hypot(dx,dy);
-    if(d>max){ dx*=max/d; dy*=max/d; }
-    stick.style.left = (50 + dx/joy.offsetWidth*100)+'%';
-    stick.style.top = (50 + dy/joy.offsetHeight*100)+'%';
-    G.input.joy.x = dx/max;
-    G.input.joy.y = dy/max;
-  };
-  const onEnd=(e)=>{
-    if(e && e.touches){
-      for(const tt of e.touches){ if(tt.identifier===G.input.joyId) return; }
-    }
-    G.input.joy.active=false; G.input.joy.x=0; G.input.joy.y=0; G.input.joyId=null;
-    stick.style.left='50%'; stick.style.top='50%';
-  };
-  joy.addEventListener('touchstart',onStart,{passive:false});
-  joy.addEventListener('touchmove',onMove,{passive:false});
-  joy.addEventListener('touchend',onEnd);
-  joy.addEventListener('touchcancel',onEnd);
-  joy.addEventListener('mousedown',onStart);
-  window.addEventListener('mousemove',onMove);
-  window.addEventListener('mouseup',onEnd);
-
-  const bind=(id,key)=>{
-    const b=document.getElementById(id);
-    const dn=(e)=>{ e.preventDefault(); G.input.btn[key]=true;
-      if(key==='atk') G.input.btn.atkEdge=true;
-      if(key==='jump') G.input.btn.jumpEdge=true;
-      if(key==='special') G.input.btn.specialEdge=true;
-    };
-    const up=(e)=>{ e.preventDefault(); G.input.btn[key]=false; };
-    b.addEventListener('touchstart',dn,{passive:false});
-    b.addEventListener('touchend',up);
-    b.addEventListener('touchcancel',up);
-    b.addEventListener('mousedown',dn);
-    b.addEventListener('mouseup',up);
-    b.addEventListener('mouseleave',up);
-  };
-  bind('btnAttack','atk');
-  bind('btnBlock','block');
-  bind('btnJump','jump');
-  bind('btnSpecial','special');
-}
+const TUNE = {
+  hitStopHit:  0.06,   // enemy takes a saber hit
+  hitStopKill: 0.12,   // enemy dies (was 0.035)
+  hitStopStab: 0.16,   // 3rd-combo stab kill
+  hitStopHurt: 0.08,   // player takes damage
+  stabDmgMult: 1.5,    // stab bonus vs droids (hp chunks)
+  stabLunge:   420,    // forward impulse on stab
+  parryWindow: 0.15,   // block press-to-impact window for perfect parry
+  parrySP: 10, blockSP: 5, killSP: 3,
+  raiseTrooper: 0.8, raiseDroid: 0.6,   // telegraph durations (were 1.0 / 0.7)
+  startInvuln: 0.5,
+  landShake: 3, hardLandVy: 0,          // hardLandVy set at runtime (G.H based)
+  whirlInvuln: 2.0,                     // was 3.0 (whole whirl) — now a vulnerable tail
+  comboMilestones: [3, 5, 8, 12],
+};
 
 /* ============================================================
-   GAME START
+   GAME START - bigger characters (0.20), snappier physics
    ============================================================ */
 function startGame(){
   Audio.init(); Audio.resume();
   G.state='playing';
-  // Hide overlays
+  G.paused = false;
   ['mainMenu','calibMenu','charSelect','levelSelect','gameOver'].forEach(x=>{
     document.getElementById(x).classList.add('hidden');
   });
   document.getElementById('hud').classList.remove('hidden');
-  document.getElementById('controls').classList.remove('hidden');
+  // Only show touch controls on touch devices
+  if(G.isMobile) document.getElementById('controls').classList.remove('hidden');
+  else document.getElementById('controls').classList.add('hidden');
   applyCalib();
 
-  G.distance=0; G.kills=0;
+  G.distance=0; G.kills=0; G.maxCombo=0; G.comboCount=0; G.comboTimer=0;
   G.scrollX=0; G.worldGenX=0;
-  G.cam={shake:0,shakeT:0};
+  G.cam={shake:0,shakeT:0,x:0,y:0};
   G.enemies=[]; G.bolts=[]; G.particles=[]; G.bodies=[]; G.platforms=[]; G.obstacles=[]; G.explosions=[];
   G.saberTrail=[];
   G.saberThrow=null; G.forceWave=null; G.lightning=[];
   G.spawnTimer=2;
   G.embers=[]; G.rain=[];
+  G.hitStop=0; G.slowMo=1; G.slowMoT=0;
+  G.floaters=[]; G.parryFlashT=0;
 
-  const heroH = G.H * 0.16; // BIGGER characters - 16% of screen
-  const groundY = G.H * 0.78;
+  // BIGGER hero: 20% of screen height (was 16%)
+  const heroH = G.H * 0.20;
+  const groundY = G.H * 0.80;
 
   G.player = {
     x: G.W*0.3, y: groundY,
@@ -944,19 +1226,26 @@ function startGame(){
     w: heroH*0.42, h: heroH,
     facing:1,
     onGround:true,
+    coyoteT:0,         // grace period for jump after leaving platform
+    jumpHeld:0,        // for variable jump height
+    jumpMinT:0,        // guaranteed full-power window before the height cut can apply
     hp:100, maxHp:100,
     sp:0, maxSp:100,
     blocking:false,
     blockHoldT:0,
+    blockPressT:99,    // time since block press edge (perfect-parry timing)
     attacking:false, attackT:0, attackCombo:0, attackQueued:false,
     saberOn:false,
-    invuln:0, whirl:0,
+    invuln:TUNE.startInvuln, whirl:0,
     dead:false, deathT:0,
     jedi: JEDI[G.selectedJedi],
-    saberAngle: 0, // 0 = pointed forward
+    saberAngle: 0,
     saberTargetAngle: 0,
     runT:0,
-    lastDir: 1
+    lastDir: 1,
+    landSquash: 0,     // visual squash on landing
+    _stabT: 0,
+    _prevOnGround: true
   };
   G.level = LEVELS[G.selectedLevel];
 
@@ -964,8 +1253,8 @@ function startGame(){
   G.worldGenX = G.W + 200;
 
   document.getElementById('jediName').textContent = G.player.jedi.name;
+  document.getElementById('comboDisp').classList.remove('show');
 
-  // Switch to game music
   Audio.stopMusic();
   setTimeout(()=>Audio.startMusic('game'), 600);
 
@@ -974,15 +1263,12 @@ function startGame(){
 }
 
 /* ============================================================
-   PROCEDURAL GEN - with stairs, gaps, obstacles, layers
+   PROCEDURAL TERRAIN
    ============================================================ */
 function generateAhead(){
-  const baseGroundY = G.H*0.78;
   while(G.worldGenX < G.scrollX + G.W*1.5){
     const r = Math.random();
     const diff = Math.min(G.distance / 1500, 1);
-
-    // Pick terrain feature type
     const featType = pickFeatureType(r, diff);
 
     if(featType === 'gap'){
@@ -995,7 +1281,6 @@ function generateAhead(){
       G.platforms.push({x:G.worldGenX+gap, y:newY, w:platW, h:G.H, ground:false, type:'platform'});
       G.worldGenX += gap + platW;
     } else if(featType === 'stairs'){
-      // Series of small stairs going up or down
       const dir = Math.random()<0.5 ? 1 : -1;
       const stepCount = 2 + Math.floor(Math.random()*3);
       const stepH = 25 + Math.random()*15;
@@ -1008,22 +1293,18 @@ function generateAhead(){
         G.worldGenX += stepW;
       }
     } else if(featType === 'obstacle'){
-      // Flat ground with an obstacle to jump over
       const w = 350 + Math.random()*200;
       const y = lastPlatformY();
       G.platforms.push({x:G.worldGenX, y:y, w:w, h:G.H, ground:true, type:'flat'});
-      // Add obstacle in middle
       const obsX = G.worldGenX + w*0.4 + Math.random()*w*0.2;
       const obsW = 60 + Math.random()*40;
       const obsH = 50 + Math.random()*30;
       G.obstacles.push({x:obsX, y:y, w:obsW, h:obsH, type: G.level.key==='kashyyyk'?'log':'crate'});
       G.worldGenX += w;
     } else if(featType === 'twolayer' && diff > 0.3){
-      // Lower path + upper platform
       const w = 400 + Math.random()*200;
       const lowerY = lastPlatformY();
       G.platforms.push({x:G.worldGenX, y:lowerY, w:w, h:G.H, ground:false, type:'flat'});
-      // Upper platform
       const upperY = lowerY - 150 - Math.random()*60;
       const upperX = G.worldGenX + 80 + Math.random()*80;
       const upperW = w - 200;
@@ -1032,7 +1313,6 @@ function generateAhead(){
       }
       G.worldGenX += w;
     } else {
-      // Flat continuation
       const w = 280 + Math.random()*250;
       const y = lastPlatformY();
       G.platforms.push({x:G.worldGenX, y:y, w:w, h:G.H, ground:true, type:'flat'});
@@ -1044,7 +1324,6 @@ function generateAhead(){
 }
 
 function pickFeatureType(r, diff){
-  // Probabilities scale with difficulty
   if(r < 0.40) return 'flat';
   if(r < 0.55) return 'obstacle';
   if(r < 0.75) return 'gap';
@@ -1053,8 +1332,7 @@ function pickFeatureType(r, diff){
 }
 
 function lastPlatformY(){
-  // Get y of platform that the right edge ends on (lowest y - i.e. main path)
-  let bestY = G.H*0.78;
+  let bestY = G.H*0.80;
   let bestEnd = -Infinity;
   for(const p of G.platforms){
     const end = p.x + p.w;
@@ -1071,9 +1349,8 @@ function spawnEnemy(){
   const x = fromRight ? G.scrollX + G.W + 60 : G.scrollX - 60;
   const p = findPlatformAt(x);
   if(!p) return;
-  const heroH = G.H*0.16;
+  const heroH = G.H*0.20;
   const diff = Math.min(G.distance / 1500, 1);
-  // Mix droids in - more frequent at higher difficulty
   const droidChance = 0.20 + diff*0.15;
   let etype;
   const r = Math.random();
@@ -1088,7 +1365,7 @@ function spawnEnemy(){
     h: heroH * (isDroid ? 1.05 : 0.92),
     onGround:true,
     facing: fromRight?-1:1,
-    hp: isDroid ? 3 : 1,
+    hp: isDroid ? 2 : 1,   // B2s take 2 saber hits, clones 1
     aimT: 0,
     raiseT: 0,
     burstCount:0, burstDelay:0,
@@ -1099,7 +1376,8 @@ function spawnEnemy(){
     crouching: !isDroid && Math.random()<0.3,
     dead:false,
     sinceFire: 1.5 + Math.random()*1.5,
-    armRecoil: 0
+    armRecoil: 0,
+    hitFlash: 0
   });
 }
 
@@ -1114,23 +1392,15 @@ function findPlatformAt(x){
 }
 
 function checkObstacleCollision(x, y, prevY, vx, w, h){
-  // Returns {blocked:false} or {blocked:true, newX}
   for(const o of G.obstacles){
-    // Top of obstacle is at o.y - o.h
     const topY = o.y - o.h;
     if(x + w*0.5 > o.x && x - w*0.5 < o.x + o.w){
-      // Horizontally overlapping
       if(y > topY && prevY <= topY + 5){
-        // Was above, now below top - landed on top
         return {landed:true, newY:topY};
       }
       if(y > topY && y - h < o.y){
-        // Inside obstacle - blocked horizontally
-        if(vx > 0){
-          return {blocked:true, newX: o.x - w*0.5};
-        } else if(vx < 0){
-          return {blocked:true, newX: o.x + o.w + w*0.5};
-        }
+        if(vx > 0) return {blocked:true, newX: o.x - w*0.5};
+        else if(vx < 0) return {blocked:true, newX: o.x + o.w + w*0.5};
       }
     }
   }
@@ -1146,37 +1416,63 @@ function loop(t){
   G.time.last = t;
   if(dt > 0.1) dt = 0.1;
   G.time.dt = dt;
+  G.time.frame++;
+
+  // Always sample input
+  Input.sample(dt);
 
   if(G.state==='playing'){
-    update(dt);
-    render();
+    // Pause toggle via gamepad / kb
+    if(Input.consume('pause')){
+      togglePause(true);
+    } else {
+      // Hit stop freezes physics for cinematic impact
+      if(G.hitStop > 0){
+        G.hitStop -= dt;
+      } else {
+        let scaledDt = dt;
+        if(G.slowMoT > 0){
+          G.slowMoT -= dt;
+          scaledDt *= G.slowMo;
+          if(G.slowMoT <= 0) G.slowMo = 1;
+        }
+        update(scaledDt);
+      }
+      render();
+    }
+  } else if(G.state==='paused'){
+    if(Input.consume('pause')) togglePause(false);
+    render(); // freeze render
   } else {
     renderMenuBg(dt);
+    handleMenuGamepad();
   }
-
-  G.input.btn.jumpEdge=false;
-  G.input.btn.atkEdge=false;
-  G.input.btn.specialEdge=false;
 
   requestAnimationFrame(loop);
 }
 
+function handleMenuGamepad(){
+  // Gamepad button 0 (A) acts as "click on focused" - we just trigger Play when on main menu
+  // Simple: A confirms primary action, B goes back
+  if(GP.pressed(0)){
+    // Find first visible primary menu button
+    const visibleOverlay = ['mainMenu','charSelect','levelSelect','gameOver'].find(id =>
+      !document.getElementById(id).classList.contains('hidden'));
+    if(visibleOverlay){
+      const overlay = document.getElementById(visibleOverlay);
+      const btn = overlay.querySelector('.menu-btn:not(.disabled)');
+      if(btn) btn.click();
+    }
+  }
+}
+
 /* ============================================================
-   UPDATE
+   UPDATE - snappy physics
    ============================================================ */
 function update(dt){
-  let mx = 0;
-  if(G.input.keys['a']||G.input.keys['arrowleft']) mx -= 1;
-  if(G.input.keys['d']||G.input.keys['arrowright']) mx += 1;
-  mx += G.input.joy.x;
-  mx = Math.max(-1,Math.min(1,mx));
-
-  let jumpPress = G.input.btn.jumpEdge;
-  let atkPress = G.input.btn.atkEdge;
-  let specialPress = G.input.btn.specialEdge;
-  let blocking = G.input.btn.block || G.input.keys['k'];
-
   const p = G.player;
+  const mx = Input.moveX;
+  const blocking = Input.block;
 
   if(p.dead){
     p.deathT += dt;
@@ -1188,63 +1484,123 @@ function update(dt){
       G.state='dead';
       document.getElementById('finalDist').textContent = Math.floor(G.distance)+'m';
       document.getElementById('finalKills').textContent = G.kills;
+      document.getElementById('finalCombo').textContent = G.maxCombo;
       Audio.saberHumStop();
       Audio.stopMusic();
       setTimeout(()=>Audio.startMusic('menu'), 300);
       show('gameOver');
     }
-    updateCamera(dt); updateBolts(dt); updateParticles(dt); updateBodies(dt); updateAtmosphere(dt);
+    updateCamera(dt); updateBolts(dt); updateParticles(dt); updateBodies(dt); updateAtmosphere(dt); updateFloaters(dt);
     return;
   }
 
-  // Block: always available, but reduces speed
-  if(blocking && !p.attacking && p.whirl<=0){
-    if(!p.blocking){ p.blockHoldT = 0; }
-    p.blocking=true;
+  // ===== BLOCK (can cancel attack recovery; press edge starts parry timer) =====
+  p.blockPressT += dt;
+  const canBlock = !p.attacking || p.attackT > 0.12; // block-cancel after the strike lands
+  if(blocking && canBlock && p.whirl<=0){
+    if(!p.blocking){ p.blockHoldT = 0; p.blockPressT = 0; }
+    if(p.attacking){ p.attacking=false; p.attackCombo=0; p.attackQueued=false; }
+    p.blocking = true;
     p.blockHoldT += dt;
   } else {
-    p.blocking=false;
+    p.blocking = false;
     p.blockHoldT = 0;
   }
 
-  // Movement: 70% speed when blocking
-  const speedMul = p.whirl>0 ? 1.6 : (p.blocking ? 0.7 : 1.0);
-  const moveSpd = G.W*0.32 * speedMul;
-  p.vx = mx * moveSpd;
+  // ===== MOVEMENT - snappy: direct velocity, fast turn =====
+  const speedMul = p.whirl>0 ? 1.6 : (p.blocking ? 0.65 : 1.0);
+  const moveSpd = G.W * 0.72 * speedMul; // slightly faster
+  // Air control: 88% of ground (still responsive)
+  const airMul = p.onGround ? 1.0 : 0.92;
+  // Smooth-snap: blend target velocity with current at 25x dt (very fast)
+  const targetVx = mx * moveSpd * airMul;
+  const blendRate = p.onGround ? 25 : 12;
+  // strikes carry their own dash — don't let steering eat the lunge
+  const attackLunging = p.attacking && p.attackT < 0.12;
+  if(!attackLunging) p.vx += (targetVx - p.vx) * Math.min(1, dt * blendRate);
+  // Snap to zero on input release for crisp stops
+  if(Math.abs(mx) < 0.05 && p.onGround && !p.attacking){
+    p.vx *= Math.pow(0.001, dt); // strong friction
+    if(Math.abs(p.vx) < 5) p.vx = 0;
+  }
 
-  if(Math.abs(mx)>0.1){
-    p.facing = mx>0?1:-1;
+  if(Math.abs(mx) > 0.15){
+    p.facing = mx>0 ? 1 : -1;
     p.lastDir = p.facing;
   }
 
-  if(jumpPress && p.onGround && !p.attacking){
-    p.vy = -G.H*0.95;
-    p.onGround=false;
+  // ===== JUMP (with coyote time & buffer) =====
+  if(p.onGround){
+    p.coyoteT = 0.12;
+  } else {
+    p.coyoteT -= dt;
+  }
+  // Jump if buffered & coyote ok (jump-cancels attack recovery)
+  if(Input.peek('jump') && p.coyoteT > 0 && (!p.attacking || p.attackT > 0.12)){
+    if(p.attacking){ p.attacking=false; p.attackCombo=0; p.attackQueued=false; }
+    Input.consume('jump');
+    p.vy = -G.H*1.1;    // crisper jump arc, a bit more headroom over obstacles
+    p.onGround = false;
+    p.coyoteT = 0;
+    p.jumpHeld = 0.25;    // variable height window
+    p.jumpMinT = 0.16;    // guaranteed full-power time — even a fast tap clears obstacles with margin
     Audio.jumpSnd();
+    spawnDust(p.x, p.y, p.facing);
+  }
+  // Variable jump height: cut velocity if button released early, but never before jumpMinT
+  if(p.jumpHeld > 0){
+    p.jumpHeld -= dt;
+    if(p.jumpMinT > 0) p.jumpMinT -= dt;
+    // Find any jump source currently held
+    const jumpDown = Input.keys[' '] || Input.keys['w'] || Input.keys['arrowup'] ||
+                     Input.touch.jump || GP.held(0);
+    if(p.jumpMinT <= 0 && !jumpDown && p.vy < 0){
+      p.vy *= 0.5; // cut jump short
+      p.jumpHeld = 0;
+    }
   }
 
-  // Attack chain - 3 hits if pressed quickly
-  if(atkPress && p.whirl<=0 && !p.blocking){
-    if(!p.attacking){
-      p.attacking=true;
-      p.attackT=0;
-      p.attackCombo = 0;
-      Audio.saberSwing();
-    } else if(p.attackT > 0.12 && p.attackCombo < 2){
-      // Queue next combo step
-      p.attackQueued = true;
+  // ===== ATTACK (buffered, chained, magnetized to enemies) =====
+  if(p.whirl <= 0 && !p.blocking){
+    if(Input.peek('atk')){
+      if(!p.attacking){
+        Input.consume('atk');
+        p.attacking = true;
+        p.attackT = 0;
+        p.attackCombo = 0;
+        p.attackStyle = attackStyle(p);
+        lungeToNearest(p);
+        if(p.attackStyle === 'stab') p.vx = p.facing * Math.max(Math.abs(p.vx), TUNE.stabLunge);
+        Audio.saberSwing();
+        GP.rumble(0.3, 0.5, 80);
+      } else if(p.attackT > 0.07 && p.attackCombo < 2){
+        // Queue without consuming yet; consume on chain
+        p.attackQueued = true;
+      }
     }
   }
 
   if(p.attacking){
     p.attackT += dt;
-    const segDur = 0.32;
+    // airborne strikes hang in the air for the pose (Tartakovsky pause)
+    if(!p.onGround && p.attackT < styleDur(p.attackStyle||'horizontal')*0.75 && p.vy > -100){
+      p.vy = Math.min(p.vy, 70);   // hard clamp beats gravity for the strike frames
+    }
+    const segDur = styleDur(p.attackStyle || 'horizontal');
     if(p.attackT >= segDur){
       if(p.attackQueued && p.attackCombo < 2){
+        Input.consume('atk');
         p.attackCombo++;
         p.attackT = 0;
         p.attackQueued = false;
+        p.attackStyle = attackStyle(p);
+        lungeToNearest(p);
+        if(p.attackStyle === 'stab'){
+          p.vx = p.facing * Math.max(Math.abs(p.vx), TUNE.stabLunge);
+          GP.rumble(0.5, 0.7, 110);
+        }
         Audio.saberSwing();
+        GP.rumble(0.3, 0.5, 80);
       } else {
         p.attacking = false;
         p.attackCombo = 0;
@@ -1253,67 +1609,65 @@ function update(dt){
     }
   }
 
-  // Saber angle target based on state
-  if(p.whirl>0){
-    p.saberAngle += dt*30;
+  // ===== SABER ANGLE — per-character strike choreography =====
+  // angles for facing right: 0 = forward, -PI/2 = up, +PI/2 = down; mirrored via PI - a
+  if(p.whirl > 0){
+    p.saberAngle += dt * 30;
   } else if(p.attacking){
-    // 3 visually distinct swing animations
-    const t = p.attackT / 0.32;
-    const e = easeInOut(t);
-    let startAng, endAng;
-    if(p.attackCombo === 0){
-      // Big OVERHEAD slash: from above-back to forward-down
-      // Starts: saber raised over head pointing back
-      // Ends: saber pointing down-forward after slash
-      startAng = -Math.PI*0.85;
-      endAng = Math.PI*0.45;
-    } else if(p.attackCombo === 1){
-      // RISING UPPERCUT slash: from below-forward to above-forward
-      startAng = Math.PI*0.45;
-      endAng = -Math.PI*0.85;
-    } else {
-      // STAB / THRUST forward: small recoil then thrust
-      // Quick forward jab, with slight pull-back at start
+    const style = p.attackStyle || 'horizontal';
+    const segDur = styleDur(style);
+    const t = Math.min(p.attackT / segDur, 1);
+    p._stabT = 0;
+    if(style === 'stab'){
       const stab = t < 0.3 ? -0.25*(1-t/0.3) : (t-0.3)/0.7 * 0.15;
-      startAng = -Math.PI*0.05;
-      endAng = startAng;
-      p.saberAngle = startAng + stab;
-      // Translate "thrust" effect handled by drawing — nothing more here
+      p.saberAngle = -Math.PI*0.05 + stab;
       if(p.facing === -1) p.saberAngle = Math.PI - p.saberAngle;
-      // Skip rest of saber computation
       p._stabT = t;
-    }
-    if(p.attackCombo !== 2){
-      p.saberAngle = startAng + (endAng - startAng) * e;
-      if(p.facing === -1) p.saberAngle = Math.PI - p.saberAngle;
-      p._stabT = 0;
+    } else if(style === 'spin' || style === 'airspin'){
+      // whirly hit: one full revolution, eased so it whips then settles
+      const e = easeOutCubic(t);
+      let ang = -Math.PI*0.85 + e * Math.PI*2;
+      p.saberAngle = p.facing === 1 ? ang : Math.PI - ang;
+    } else {
+      // anticipation (first 18%): wind back, then snap through the arc
+      let a0, a1;
+      if(style === 'overhead')      { a0 = -Math.PI*0.62; a1 =  Math.PI*0.38; }  // chop from above
+      else if(style === 'rising')   { a0 =  Math.PI*0.55; a1 = -Math.PI*0.65; }  // uppercut from below
+      else if(style === 'airslam')  { a0 = -Math.PI*0.72; a1 =  Math.PI*0.52; }  // falling slam
+      else                          { a0 = -Math.PI*0.85; a1 =  Math.PI*0.45; }  // horizontal cross
+      let ang;
+      if(t < 0.18) ang = a0 - 0.22 * (t/0.18);
+      else ang = a0 + (a1 - a0) * easeOutQuart((t - 0.18) / 0.82);
+      p.saberAngle = p.facing === 1 ? ang : Math.PI - ang;
     }
   } else if(p.blocking){
-    // Block stance: saber held vertically in front
     p.saberTargetAngle = -Math.PI/2;
-    p.saberAngle += (p.saberTargetAngle - p.saberAngle) * Math.min(1, dt*15);
+    p.saberAngle += (p.saberTargetAngle - p.saberAngle) * Math.min(1, dt*18);
     p._stabT = 0;
   } else {
-    // Default: saber held forward, slight drag when running
-    let target = p.facing===1 ? 0 : Math.PI;
-    if(Math.abs(p.vx) > G.W*0.1){
-      const drag = -p.facing * Math.min(0.5, Math.abs(p.vx)/(G.W*0.4)) * 0.6;
-      target += drag;
-    }
+    // stances: air = blade raised high, run = blade trailing low behind, idle = ready
+    let target;
+    if(!p.onGround)                       target = -Math.PI*0.55;
+    else if(Math.abs(p.vx) > G.W*0.18)    target =  Math.PI*0.66;
+    else                                  target = -0.25;
+    if(p.facing === -1) target = Math.PI - target;
     let diff = target - p.saberAngle;
     while(diff > Math.PI) diff -= Math.PI*2;
     while(diff < -Math.PI) diff += Math.PI*2;
-    p.saberAngle += diff * Math.min(1, dt*10);
+    p.saberAngle += diff * Math.min(1, dt*14);
     p._stabT = 0;
   }
 
-  if(specialPress && p.sp >= p.maxSp){
+  // ===== SPECIAL =====
+  if(Input.consume('special') && p.sp >= p.maxSp){
     p.sp = 0;
     triggerSpecial();
+    GP.rumble(0.8, 0.6, 200);
   }
   p.sp = Math.min(p.maxSp, p.sp + dt * 8);
 
-  if(p.whirl>0){
+  // ===== WHIRLWIND DAMAGE =====
+  if(p.whirl > 0){
     p.whirl -= dt;
     p.invuln = Math.max(p.invuln, 0.05);
     const r = p.h*1.4;
@@ -1326,73 +1680,64 @@ function update(dt){
     }
   }
 
-  if(p.invuln>0) p.invuln-=dt;
+  if(p.invuln > 0) p.invuln -= dt;
 
-  if(Math.abs(mx)>0.1 && p.onGround){
-    p.runT += dt*10;
+  // ===== RUN ANIMATION =====
+  if(Math.abs(mx) > 0.1 && p.onGround){
+    p.runT += dt*12; // slightly faster run cycle
   } else if(!p.onGround){
-    // In air - hold mid-jump pose
     p.runT = Math.PI/2;
   } else {
-    // Idle - slowly return to neutral (runT = 0 or PI)
-    const target = 0;
-    const diff = target - (p.runT % (Math.PI*2));
-    p.runT += diff * Math.min(1, dt*5);
+    p.runT += (0 - p.runT) * Math.min(1, dt*8);
   }
 
-  // Save prev position for obstacle collision
-  const prevY = p.y;
-  const prevX = p.x;
+  // ===== LAND SQUASH =====
+  if(p.landSquash > 0) p.landSquash -= dt * 6;
 
-  // Gravity & integrate
-  p.vy += 2200*dt;
+  // ===== INTEGRATE =====
+  const prevY = p.y;
+  p.vy += 2400*dt;  // slightly heavier gravity for snappy fall
+  if(p.vy > G.H*2.5) p.vy = G.H*2.5;
   p.x += p.vx*dt;
   p.y += p.vy*dt;
 
-  // Check obstacles
   const obsCheck = checkObstacleCollision(p.x, p.y, prevY, p.vx, p.w, p.h);
   if(obsCheck.landed){
-    p.y = obsCheck.newY;
-    p.vy = 0;
-    p.onGround = true;
+    if(!p._prevOnGround) onLand(p);
+    p.y = obsCheck.newY; p.vy = 0; p.onGround = true;
   } else if(obsCheck.blocked){
-    p.x = obsCheck.newX;
-    p.vx = 0;
+    p.x = obsCheck.newX; p.vx = 0;
   }
 
-  // Platform collision
   const plat = findPlatformAt(p.x);
-  if(plat && p.y >= plat.y && p.vy>=0 && prevY <= plat.y + 5){
-    p.y = plat.y;
-    p.vy = 0;
-    p.onGround = true;
-  } else if(plat && p.y >= plat.y && p.vy>=0){
-    p.y = plat.y;
-    p.vy = 0;
-    p.onGround = true;
-  } else if(!plat) {
-    p.onGround=false;
-    if(p.y > G.H + 100){
-      damagePlayer(9999);
-    }
+  if(plat && p.y >= plat.y && p.vy>=0){
+    if(!p._prevOnGround) onLand(p);
+    p.y = plat.y; p.vy = 0; p.onGround = true;
+  } else if(!plat){
+    p.onGround = false;
+    if(p.y > G.H + 100) damagePlayer(9999);
   } else if(!obsCheck.landed){
-    p.onGround=false;
+    p.onGround = false;
   }
+  p._prevOnGround = p.onGround;
 
-  const targetCam = p.x - G.W*0.35;
-  G.scrollX += (targetCam - G.scrollX)*Math.min(1, dt*4);
+  // ===== CAMERA - snappy lookahead =====
+  const lookAhead = p.facing * G.W*0.06 + p.vx * 0.15;
+  const targetCam = p.x - G.W*0.35 + lookAhead;
+  G.scrollX += (targetCam - G.scrollX) * Math.min(1, dt*6); // faster cam tracking
   if(G.scrollX < 0) G.scrollX = 0;
 
   G.distance = Math.max(G.distance, G.scrollX/40);
 
   generateAhead();
 
+  // ===== SPAWN =====
   G.spawnTimer -= dt;
   const diff = Math.min(G.distance / 1500, 1);
   const targetEnemies = 3 + Math.floor(diff*4);
   if(G.spawnTimer<=0 && G.enemies.length < targetEnemies){
     spawnEnemy();
-    G.spawnTimer = 1.6 - diff*0.7;
+    G.spawnTimer = 1.5 - diff*0.7;
   }
 
   updateEnemies(dt, diff);
@@ -1406,10 +1751,19 @@ function update(dt){
   updateSaberTrail(dt);
   updateCamera(dt);
   updateAtmosphere(dt);
+  updateFloaters(dt);
+  if(G.parryFlashT > 0) G.parryFlashT -= dt;
+
+  // ===== COMBO TIMER =====
+  if(G.comboTimer > 0){
+    G.comboTimer -= dt;
+    if(G.comboTimer <= 0){
+      G.comboCount = 0;
+      document.getElementById('comboDisp').classList.remove('show');
+    }
+  }
 
   if(p.attacking) checkSaberHits();
-
-  // Track saber blade tip for trail effect
   trackSaberTrail(dt);
 
   document.getElementById('hpFill').style.width = Math.max(0,p.hp/p.maxHp*100)+'%';
@@ -1419,12 +1773,111 @@ function update(dt){
   document.getElementById('btnSpecial').classList.toggle('disabled', p.sp<p.maxSp);
 }
 
+function onLand(p){
+  p.landSquash = 1;
+  Audio.landSnd();
+  spawnDust(p.x, p.y, 0);
+  const hard = p.vy > G.H * 1.3;   // falling fast = heavier impact
+  cameraShake(hard ? 5 : TUNE.landShake, 0.1);
+  if(hard){ spawnDust(p.x - 15, p.y, -1); spawnDust(p.x + 15, p.y, 1); }
+}
+
+function spawnDust(x, y, dir){
+  for(let i=0;i<5;i++){
+    G.particles.push({
+      x: x + (Math.random()-0.5)*30,
+      y: y - 4,
+      vx: (Math.random()-0.5)*150 + dir*40,
+      vy: -50 - Math.random()*80,
+      life: 0.3+Math.random()*0.2, max:0.5,
+      color: '#998866', size: 3+Math.random()*3,
+      type:'smoke'
+    });
+  }
+}
+
+function U_clamp(v, a, b){ return v < a ? a : v > b ? b : v; }
 function easeInOut(t){
   return t<0.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2;
 }
+function easeOutCubic(t){ return 1 - Math.pow(1-t, 3); }
+function easeOutQuart(t){ return 1 - Math.pow(1-t, 4); }
+
+/* ---------- attack choreography (Tartakovsky-style) ---------- */
+// the current strike's style: airborne characters swing differently
+function attackStyle(p){
+  return !p.onGround ? (p.jedi.airStyle || 'airslam') : (p.jedi.combo ? p.jedi.combo[p.attackCombo] : 'horizontal') || 'horizontal';
+}
+function styleDur(style){
+  if(style === 'spin' || style === 'airspin') return 0.26;
+  if(style === 'stab') return 0.22;
+  if(style === 'airslam') return 0.20;
+  return 0.18;   // horizontal / overhead / rising: blink-fast
+}
+// every strike hurls the jedi at the nearest enemy — hits ARE movement
+function lungeToNearest(p){
+  let best = null, bd = p.h * 3.2;
+  for(const e of G.enemies){
+    if(e.dead) continue;
+    const d = Math.abs(e.x - p.x);
+    if(d < bd){ bd = d; best = e; }
+  }
+  if(best){
+    p.facing = best.x > p.x ? 1 : -1;
+    p.lastDir = p.facing;
+    const gap = Math.abs(best.x - p.x) - p.h*0.55;
+    if(gap > 0) p.vx = p.facing * Math.min(1600, Math.max(650, gap*5));
+  }
+}
+
+function addCombo(){
+  G.comboCount++;
+  G.comboTimer = 2.0;
+  if(G.comboCount > G.maxCombo) G.maxCombo = G.comboCount;
+  if(G.comboCount >= 2){
+    const cd = document.getElementById('comboDisp');
+    document.getElementById('comboNum').textContent = G.comboCount;
+    cd.classList.add('show');
+    // scale pop on every increment
+    cd.style.transition = 'transform 0.08s';
+    cd.style.transform = 'scale(1.35)';
+    setTimeout(()=>{ cd.style.transform = ''; }, 90);
+    if(G.comboCount % 3 === 0) Audio.comboSnd(Math.min(8, Math.floor(G.comboCount/3)));
+  }
+}
+
+/* ---------- floating score/combo text ---------- */
+function spawnFloater(x, y, text, color, size){
+  G.floaters.push({x, y, vy:-70, life:0.9, max:0.9, text, color:color||'#ffd77a', size:size||20});
+}
+function updateFloaters(dt){
+  for(let i=G.floaters.length-1;i>=0;i--){
+    const f=G.floaters[i];
+    f.y += f.vy*dt;
+    f.vy *= Math.pow(0.05, dt);
+    f.life -= dt;
+    if(f.life<=0) G.floaters.splice(i,1);
+  }
+}
+function drawFloaters(ctx){
+  for(const f of G.floaters){
+    const a = Math.min(1, f.life / (f.max*0.5));
+    const pop = f.life > f.max*0.85 ? 1 + (f.life - f.max*0.85)/(f.max*0.15)*0.4 : 1;
+    ctx.font = `bold ${Math.round(f.size*pop)}px 'Segoe UI', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.globalAlpha = a;
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    ctx.lineWidth = 4;
+    ctx.strokeText(f.text, f.x - G.scrollX, f.y);
+    ctx.fillStyle = f.color;
+    ctx.fillText(f.text, f.x - G.scrollX, f.y);
+    ctx.globalAlpha = 1;
+  }
+  ctx.textAlign = 'left';
+}
 
 /* ============================================================
-   ENEMIES - stand still, can crouch, raise rifle before firing
+   ENEMIES
    ============================================================ */
 function updateEnemies(dt, diff){
   const p = G.player;
@@ -1433,17 +1886,16 @@ function updateEnemies(dt, diff){
     if(e.dead){ G.enemies.splice(i,1); continue; }
     if(e.x < G.scrollX - 200 || e.x > G.scrollX + G.W + 600){ G.enemies.splice(i,1); continue; }
 
+    if(e.hitFlash > 0) e.hitFlash -= dt;
+
     const dx = p.x - e.x;
     const dist = Math.abs(dx);
     e.facing = dx>0?1:-1;
     const isDroid = e.type === 'droid';
 
-    // Recoil decay
     if(e.armRecoil > 0) e.armRecoil = Math.max(0, e.armRecoil - dt*4);
 
-    // Droids walk slowly toward player; clones stand still
     if(isDroid){
-      // Slow advance, stop in fire range
       const fireRange = 500;
       if(dist > fireRange + 50){
         e.vx = e.facing * G.W * 0.06;
@@ -1463,10 +1915,11 @@ function updateEnemies(dt, diff){
       if(dist < fireRange && e.sinceFire > cooldown){
         e.state = 'raise';
         e.raiseT = 0;
+        Audio.chargeSnd();   // audible warning, even offscreen
       }
     } else if(e.state === 'raise'){
       e.raiseT += dt;
-      const raiseDur = isDroid ? 0.7 : 1.0;
+      const raiseDur = isDroid ? TUNE.raiseDroid : TUNE.raiseTrooper;
       if(e.raiseT >= raiseDur){
         e.state = 'shoot';
         e.burstCount = isDroid ? 4 : 3;
@@ -1504,29 +1957,23 @@ function fireBolt(e, inaccurate){
   const isDroid = e.type === 'droid';
   const f = e.facing;
   const h = e.h;
-  // Get muzzle world position - matches the visual rifle/arm position
   let sx, sy;
   if(isDroid){
-    // B2 fires from forearm
     const torsoY = -h*0.78;
     const shoulderY = torsoY + h*0.08;
-    // Forearm extended forward when shooting
     const forearmX = h*0.45*f;
     const forearmY = shoulderY + h*0.05;
     sx = e.x + forearmX;
     sy = e.y + forearmY;
   } else {
-    // Clone fires from rifle muzzle
     const crouchOff = e.crouching ? h*0.20 : 0;
     const torsoY = -h*0.42 - h*0.30 + crouchOff;
     const shoulderY = torsoY + h*0.04;
-    // Rifle aimed horizontal during shoot
     const handX = h*0.18*f + Math.cos(0)*h*0.28*1.1*f;
     const handY = shoulderY + h*0.05;
     const muzzleX = handX + h*0.45*f;
-    const muzzleY = handY;
     sx = e.x + muzzleX;
-    sy = e.y + muzzleY;
+    sy = e.y + handY;
   }
   let tx = p.x, ty = p.y - p.h*0.5;
   if(inaccurate){
@@ -1535,18 +1982,17 @@ function fireBolt(e, inaccurate){
   }
   const dx=tx-sx, dy=ty-sy;
   const d = Math.hypot(dx,dy);
-  const speed = G.W*0.45 + Math.min(G.distance,2000)*0.03;
+  const speed = G.W*0.5625 + Math.min(G.distance,2000)*0.0375;
   G.bolts.push({
     x:sx, y:sy,
     vx: dx/d*speed, vy: dy/d*speed,
     life: 3.5,
-    color:'#33aaff',  // BLUE blaster bolts
+    color:'#33aaff',
     coreColor:'#ffffff',
     fromEnemy:true,
     len: G.H*0.06
   });
   Audio.pew();
-  // Muzzle flash particles - blue/white tinged
   for(let i=0;i<3;i++){
     G.particles.push({
       x:sx, y:sy,
@@ -1568,26 +2014,44 @@ function updateBolts(dt){
     b.life -= dt;
     if(b.life<=0){ G.bolts.splice(i,1); continue; }
     if(b.fromEnemy && !p.dead){
-      // Block detection - only effective from facing direction
       if(p.blocking){
         const dx=b.x-p.x, dy=b.y-(p.y-p.h*0.5);
-        // Only block from front (player facing direction)
         if(Math.abs(dx)<p.w*1.6 && Math.abs(dy)<p.h*0.7 && Math.sign(dx)===p.facing){
           spawnSparks(b.x,b.y,'#fff',8);
           Audio.saberClash();
-          // Within first 1s: reflect directly back to source
-          if(p.blockHoldT < 1.0){
+          GP.rumble(0.2, 0.4, 60);
+          cameraShake(4, 0.1);
+          if(p.blockPressT < TUNE.parryWindow){
+            // PERFECT PARRY: auto-aimed return, big reward
+            let tgt = null, td = 1e9;
+            for(const e of G.enemies){
+              if(e.dead) continue;
+              const d = Math.abs(e.x - p.x);
+              if(d < td){ td = d; tgt = e; }
+            }
+            const speed = Math.hypot(b.vx, b.vy) * 1.3;
+            let ang;
+            if(tgt) ang = Math.atan2((tgt.y - tgt.h*0.5) - b.y, tgt.x - b.x);
+            else ang = Math.atan2(-b.vy, -b.vx);
+            b.vx = Math.cos(ang) * speed;
+            b.vy = Math.sin(ang) * speed;
+            b.fromEnemy=false;
+            b.color='#ffee88'; b.coreColor='#ffffff';
+            p.sp = Math.min(p.maxSp, p.sp + TUNE.parrySP);
+            G.parryFlashT = 0.12;
+            G.slowMo = 0.85; G.slowMoT = Math.max(G.slowMoT, 0.12);
+            spawnSparks(b.x, b.y, '#ffee88', 14);
+            Audio.parrySnd();
+            GP.rumble(0.7, 0.4, 110);
+          } else if(p.blockHoldT < 1.0){
             const ang = Math.atan2(-b.vy, -b.vx);
             const speed = Math.hypot(b.vx, b.vy);
             b.vx = Math.cos(ang) * speed * 1.1;
             b.vy = Math.sin(ang) * speed * 1.1;
             b.fromEnemy=false;
-            // Reflected blue bolts - brighter cyan
-            b.color='#88ddff';
-            b.coreColor='#ffffff';
-            G.player.sp = Math.min(p.maxSp, p.sp + 5);
+            b.color='#88ddff'; b.coreColor='#ffffff';
+            G.player.sp = Math.min(p.maxSp, p.sp + TUNE.blockSP);
           } else {
-            // After 1s: reflect with random ±45° spread
             const baseAng = Math.atan2(-b.vy, -b.vx);
             const spread = (Math.random() - 0.5) * Math.PI * 0.5;
             const ang = baseAng + spread;
@@ -1595,8 +2059,7 @@ function updateBolts(dt){
             b.vx = Math.cos(ang) * speed * 0.9;
             b.vy = Math.sin(ang) * speed * 0.9;
             b.fromEnemy=false;
-            b.color='#88ddff';
-            b.coreColor='#ffffff';
+            b.color='#88ddff'; b.coreColor='#ffffff';
           }
           continue;
         }
@@ -1625,12 +2088,10 @@ function updateBolts(dt){
         if(Math.abs(dx)<e.w*0.8 && Math.abs(dy)<e.h*0.6){
           if(e.type === 'droid'){
             e.hp--;
+            e.hitFlash = 0.1;
             spawnSparks(b.x,b.y,'#88ccff',12);
-            // metal hit sound
             Audio.saberClash();
-            if(e.hp <= 0){
-              killEnemy(e, b.vx*0.5, -200);
-            }
+            if(e.hp <= 0) killEnemy(e, b.vx*0.5, -200);
           } else {
             killEnemy(e, b.vx*0.5, -200);
           }
@@ -1647,26 +2108,43 @@ function damagePlayer(amt){
   if(p.dead) return;
   p.hp -= amt;
   p.invuln = 0.6;
-  cameraShake(8, 0.25);
-  G.flashT = 0.15;
+  cameraShake(10, 0.3);
+  G.flashT = 0.25;
+  G.hitStop = Math.max(G.hitStop, TUNE.hitStopHurt);
+  spawnSparks(p.x, p.y - p.h*0.6, '#ffffff', 8);
+  GP.rumble(0.5, 0.9, 250);
   if(p.hp<=0){
     p.hp=0; p.dead=true; p.deathT=0;
     p.saberOn=false;
     Audio.saberHumStop();
-    Audio.cloneDie(); // jedi grunts too
+    Audio.cloneDie();
+    GP.rumble(1.0, 1.0, 600);
   }
 }
 
-function killEnemy(e, vx, vy){
+function killEnemy(e, vx, vy, opts){
   if(e.dead) return;
   e.dead = true;
   G.kills++;
+  addCombo();
+  const stab = opts && opts.stab;
+  // MEATY: tiered hit-stop — stab kills freeze hardest
+  G.hitStop = Math.max(G.hitStop, stab ? TUNE.hitStopStab : TUNE.hitStopKill);
+  GP.rumble(stab ? 0.7 : 0.4, stab ? 0.9 : 0.7, stab ? 140 : 100);
+  Audio.killSnd();
+
+  // style points
+  const p = G.player;
+  if(p && !p.dead){
+    p.sp = Math.min(p.maxSp, p.sp + TUNE.killSP + (stab ? 2 : 0));
+  }
+  // ending a hot combo in a kill: brief cinematic dip
+  if(G.comboCount >= 3){ G.slowMo = Math.min(G.slowMo, 0.9); G.slowMoT = Math.max(G.slowMoT, 0.2); }
+
   if(e.type === 'droid'){
-    // Droid explodes - red puff cloud like in Tartakovsky
     spawnDroidExplosion(e.x, e.y - e.h*0.5);
-    cameraShake(8, 0.25);
+    cameraShake(12, 0.35);
     Audio.forceBoom();
-    // Don't add body - droid is destroyed in explosion
     return;
   }
   const variant = Math.floor(Math.random()*3);
@@ -1678,50 +2156,39 @@ function killEnemy(e, vx, vy){
     variant, life:4,
     type:e.type
   });
-  spawnSparks(e.x, e.y - e.h*0.5, '#ffaa00', 14);
+  spawnSparks(e.x, e.y - e.h*0.5, '#ffaa00', 20);
+  spawnSparks(e.x, e.y - e.h*0.5, '#ffffff', 6);
   spawnDeathParticles(e.x, e.y-e.h*0.5);
-  cameraShake(3,0.1);
+  cameraShake(stab ? 8 : 5, 0.14);
   Audio.cloneDie();
 }
 
 function spawnDroidExplosion(x, y){
-  // Tartakovsky-style red/orange puff explosion
-  G.explosions.push({
-    x, y, r:0, maxR: G.H*0.18, life: 0.6, max:0.6
-  });
-  // Debris streaks
+  G.explosions.push({ x, y, r:0, maxR: G.H*0.18, life: 0.6, max:0.6 });
   for(let i=0;i<8;i++){
     const a = Math.random()*Math.PI*2;
     const sp = 200+Math.random()*300;
     G.particles.push({
-      x, y,
-      vx: Math.cos(a)*sp,
-      vy: Math.sin(a)*sp - 100,
+      x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 100,
       life: 0.6+Math.random()*0.4, max:1.0,
       color: '#aa2211', size: 4+Math.random()*4,
       type:'debris', trail:true
     });
   }
-  // Smoke puffs
   for(let i=0;i<12;i++){
     const a = Math.random()*Math.PI*2;
     const sp = 60+Math.random()*120;
     G.particles.push({
-      x: x+(Math.random()-0.5)*30,
-      y: y+(Math.random()-0.5)*30,
-      vx: Math.cos(a)*sp,
-      vy: Math.sin(a)*sp - 50,
+      x: x+(Math.random()-0.5)*30, y: y+(Math.random()-0.5)*30,
+      vx: Math.cos(a)*sp, vy: Math.sin(a)*sp - 50,
       life: 0.8+Math.random()*0.4, max:1.2,
       color: i<4?'#cc3322':'#552211',
-      size: 10+Math.random()*8,
-      type:'puff'
+      size: 10+Math.random()*8, type:'puff'
     });
   }
-  // Bright initial flash
   for(let i=0;i<5;i++){
     G.particles.push({
-      x, y,
-      vx:(Math.random()-0.5)*200, vy:(Math.random()-0.5)*200,
+      x, y, vx:(Math.random()-0.5)*200, vy:(Math.random()-0.5)*200,
       life:0.15, max:0.15,
       color:'#ffee88', size:8+Math.random()*6, type:'spark'
     });
@@ -1730,34 +2197,35 @@ function spawnDroidExplosion(x, y){
 
 function checkSaberHits(){
   const p = G.player;
-  // BIGGER hitbox - longer reach
-  const reach = p.h*1.4;
+  const style = p.attackStyle || 'horizontal';
+  // strikes connect only after the anticipation frames
+  if(p.attackT < styleDur(style) * 0.15) return;
+  const spin = style === 'spin' || style === 'airspin';
+  const stab = style === 'stab';
+  const reach = p.h * (spin ? 1.4 : 1.3);
   for(const e of G.enemies){
     if(e.dead) continue;
     const dx=e.x-p.x, dy=e.y-e.h*0.5 - (p.y-p.h*0.5);
     const d = Math.hypot(dx,dy);
-    if(d < reach && Math.sign(dx)===p.facing){
+    // whirly hits strike all around; others only in facing direction
+    if(d < reach && (spin || Math.sign(dx)===p.facing)){
       if(e.type === 'droid'){
-        e.hp -= 2; // saber cuts droids fast
+        // B2 battle droids: 2 hits — a stab finishes in one
+        e.hp -= stab ? 2 : 1;
+        e.hitFlash = 0.1;
+        G.hitStop = Math.max(G.hitStop, TUNE.hitStopHit);
+        Audio.hitSnd();
         spawnSparks(e.x, e.y - e.h*0.5, '#88ccff', 8);
-        if(e.hp <= 0) killEnemy(e, p.facing*400, -250);
+        if(e.hp <= 0) killEnemy(e, p.facing*(stab?600:400), -250, {stab});
       } else {
-        killEnemy(e, p.facing*400, -250);
-      }
-    }
-    if(p.attackCombo === 2 && d < reach*0.9 && Math.abs(dx) < reach){
-      if(e.type === 'droid'){
-        e.hp -= 2;
-        if(e.hp <= 0) killEnemy(e, p.facing*500, -200);
-      } else {
-        killEnemy(e, p.facing*500, -200);
+        // clones: always one clean hit
+        killEnemy(e, p.facing*(stab?600:400), -250, {stab});
       }
     }
   }
 }
 
 function getSaberTipWorld(p){
-  // Compute blade tip in world coordinates - matches drawing math
   const h = p.h;
   const f = p.facing;
   const torsoH = h*0.32;
@@ -1775,8 +2243,7 @@ function getSaberTipWorld(p){
   const tipX = hiltEndX + Math.cos(p.saberAngle)*bladeLen;
   const tipY = hiltEndY + Math.sin(p.saberAngle)*bladeLen;
   return {
-    x: p.x + tipX,
-    y: p.y + tipY,
+    x: p.x + tipX, y: p.y + tipY,
     midX: p.x + hiltEndX + Math.cos(p.saberAngle)*bladeLen*0.5,
     midY: p.y + hiltEndY + Math.sin(p.saberAngle)*bladeLen*0.5
   };
@@ -1786,7 +2253,6 @@ function trackSaberTrail(dt){
   const p = G.player;
   if(!p.saberOn || p.dead) return;
   const tip = getSaberTipWorld(p);
-  // Always track but add intensity for fast movement / attacks
   let intensity = 0.5;
   if(p.attacking) intensity = 1.0;
   else if(p.whirl > 0) intensity = 1.0;
@@ -1795,10 +2261,8 @@ function trackSaberTrail(dt){
     x: tip.x, y: tip.y,
     midX: tip.midX, midY: tip.midY,
     life: 0.18, max: 0.18,
-    intensity,
-    color: p.jedi.color
+    intensity, color: p.jedi.color
   });
-  // Cap trail length
   if(G.saberTrail.length > 20) G.saberTrail.shift();
 }
 
@@ -1814,8 +2278,9 @@ function triggerSpecial(){
   switch(p.jedi.special){
     case 'push':
       G.forceWave = {x:p.x, y:p.y-p.h*0.5, r:0, maxR: G.W*0.7, life:0.6};
-      cameraShake(12, 0.4);
+      cameraShake(14, 0.4);
       Audio.forceBoom();
+      G.slowMo = 0.5; G.slowMoT = 0.25; // brief slow-mo for drama
       break;
     case 'lightning':
       castLightning();
@@ -1824,13 +2289,9 @@ function triggerSpecial(){
       if(!G.saberThrow){
         G.saberThrow = {
           x:p.x, y:p.y-p.h*0.55,
-          vx: p.facing*G.W*0.9,
-          vy: 0,
-          rot:0,
-          phase:'out',
-          maxDist: G.W*0.6,
-          startX: p.x,
-          hits: new Set()
+          vx: p.facing*G.W*0.9, vy: 0, rot:0,
+          phase:'out', maxDist: G.W*0.6,
+          startX: p.x, hits: new Set()
         };
         p.saberOn=false;
         Audio.saberOn();
@@ -1838,10 +2299,10 @@ function triggerSpecial(){
       break;
     case 'whirl':
       p.whirl = 3.0;
-      p.invuln = 3.0;
+      p.invuln = TUNE.whirlInvuln;   // vulnerable tail: whirl outlasts the shield
       Audio.saberOn();
       Audio.saberSwing();
-      cameraShake(4, 0.2);
+      cameraShake(5, 0.2);
       break;
   }
 }
@@ -1849,10 +2310,7 @@ function triggerSpecial(){
 function castLightning(){
   const p = G.player;
   const targets = G.enemies.filter(e=>!e.dead && Math.abs(e.x-p.x)<G.W*0.7).slice(0,6);
-  if(targets.length===0){
-    Audio.zap();
-    return;
-  }
+  if(targets.length===0){ Audio.zap(); return; }
   const chain = [{x:p.x, y:p.y-p.h*0.7}];
   for(const t of targets){
     chain.push({x:t.x, y:t.y-t.h*0.5});
@@ -1860,7 +2318,7 @@ function castLightning(){
   }
   G.lightning.push({chain, life:0.5});
   Audio.zap(); Audio.zap();
-  cameraShake(6,0.2);
+  cameraShake(7,0.22);
 }
 
 function updateForceWave(dt){
@@ -1896,9 +2354,7 @@ function updateSaberThrow(dt){
     }
   }
   if(s.phase==='out'){
-    if(Math.abs(s.x - s.startX) > s.maxDist){
-      s.phase='back';
-    }
+    if(Math.abs(s.x - s.startX) > s.maxDist) s.phase='back';
   } else {
     const dx = p.x - s.x;
     const dy = (p.y-p.h*0.55) - s.y;
@@ -1920,9 +2376,6 @@ function updateLightning(dt){
   }
 }
 
-/* ============================================================
-   PARTICLES & BODIES
-   ============================================================ */
 function spawnSparks(x,y,color,count){
   for(let i=0;i<count;i++){
     const a = Math.random()*Math.PI*2;
@@ -1948,18 +2401,13 @@ function updateParticles(dt){
     const p=G.particles[i];
     p.x += p.vx*dt; p.y += p.vy*dt;
     if(p.type==='puff'){
-      p.vy += -30*dt;
-      p.vx *= 0.92;
-      p.size += dt*15;
+      p.vy += -30*dt; p.vx *= 0.92; p.size += dt*15;
     } else if(p.type==='debris'){
-      p.vy += 1200*dt;
-      p.vx *= 0.98;
+      p.vy += 1200*dt; p.vx *= 0.98;
     } else if(p.type==='smoke'){
-      p.vy += -50*dt;
-      p.vx *= 0.95;
+      p.vy += -50*dt; p.vx *= 0.95;
     } else {
-      p.vy += 600*dt;
-      p.vx *= 0.95;
+      p.vy += 600*dt; p.vx *= 0.95;
     }
     p.life -= dt;
     if(p.life<=0) G.particles.splice(i,1);
@@ -2204,13 +2652,9 @@ function drawGround(ctx){
     const sx = p.x - G.scrollX;
     if(sx > G.W+50 || sx+p.w < -50) continue;
     const grad = ctx.createLinearGradient(0,p.y,0,G.H);
-    if(L.key==='temple'){
-      grad.addColorStop(0,'#3a2010'); grad.addColorStop(1,'#1a0a05');
-    } else if(L.key==='kashyyyk'){
-      grad.addColorStop(0,'#3a4020'); grad.addColorStop(1,'#1a2010');
-    } else {
-      grad.addColorStop(0,'#4a5a78'); grad.addColorStop(1,'#1a2535');
-    }
+    if(L.key==='temple'){ grad.addColorStop(0,'#3a2010'); grad.addColorStop(1,'#1a0a05'); }
+    else if(L.key==='kashyyyk'){ grad.addColorStop(0,'#3a4020'); grad.addColorStop(1,'#1a2010'); }
+    else { grad.addColorStop(0,'#4a5a78'); grad.addColorStop(1,'#1a2535'); }
     ctx.fillStyle = grad;
     ctx.fillRect(sx, p.y, p.w, G.H-p.y);
     ctx.fillStyle = L.accent;
@@ -2223,8 +2667,6 @@ function drawGround(ctx){
     ctx.moveTo(sx, p.y);
     ctx.lineTo(sx+p.w, p.y);
     ctx.stroke();
-
-    // Side edges for elevated platforms
     if(p.type === 'upper' || p.type === 'platform' || p.type === 'stair'){
       ctx.fillStyle = '#000';
       ctx.fillRect(sx, p.y, 3, G.H-p.y);
@@ -2239,13 +2681,11 @@ function drawObstacles(ctx){
     const sx = o.x - G.scrollX;
     if(sx > G.W+50 || sx+o.w < -50) continue;
     if(o.type === 'log'){
-      // Wroshyr log
       ctx.fillStyle = '#3a2818';
       ctx.beginPath();
       ctx.ellipse(sx + o.w/2, o.y - o.h/2, o.w/2, o.h/2, 0, 0, Math.PI*2);
       ctx.fill();
       ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.stroke();
-      // Bark texture
       ctx.strokeStyle='#1a0e08'; ctx.lineWidth=1.5;
       for(let i=0;i<3;i++){
         ctx.beginPath();
@@ -2253,32 +2693,26 @@ function drawObstacles(ctx){
         ctx.lineTo(sx + 12 + i*o.w/3, o.y - o.h*0.2);
         ctx.stroke();
       }
-      // End cap (rings)
       ctx.fillStyle = '#5a3818';
       ctx.beginPath();
       ctx.ellipse(sx + 5, o.y - o.h/2, o.h*0.3, o.h/2, 0, 0, Math.PI*2);
       ctx.fill();
       ctx.strokeStyle='#1a0e08'; ctx.stroke();
-      // Rings
       ctx.beginPath();
       ctx.ellipse(sx + 5, o.y - o.h/2, o.h*0.2, o.h*0.35, 0, 0, Math.PI*2);
       ctx.stroke();
     } else {
-      // Crate / debris
       ctx.fillStyle = L.key==='temple' ? '#4a2818' : '#5a6878';
       ctx.fillRect(sx, o.y - o.h, o.w, o.h);
       ctx.strokeStyle='#000'; ctx.lineWidth=2;
       ctx.strokeRect(sx, o.y - o.h, o.w, o.h);
-      // Detail lines
-      ctx.strokeStyle='rgba(0,0,0,0.4)';
-      ctx.lineWidth=1.5;
+      ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.lineWidth=1.5;
       ctx.beginPath();
       ctx.moveTo(sx, o.y - o.h*0.5);
       ctx.lineTo(sx+o.w, o.y - o.h*0.5);
       ctx.moveTo(sx + o.w/2, o.y - o.h);
       ctx.lineTo(sx + o.w/2, o.y);
       ctx.stroke();
-      // Highlight
       ctx.fillStyle = 'rgba(255,255,255,0.15)';
       ctx.fillRect(sx, o.y - o.h, o.w, 3);
     }
@@ -2286,13 +2720,13 @@ function drawObstacles(ctx){
 }
 
 /* ============================================================
-   JEDI - Tartakovsky angular style, BIGGER
+   JEDI DRAWING
    ============================================================ */
 function drawJediPortrait(ctx, jedi){
-  ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,200,120);
+  ctx.fillStyle='#0a0a0a'; ctx.fillRect(0,0,200,130);
   ctx.save();
-  ctx.translate(100, 110);
-  drawJediBody(ctx, jedi, 90, 1, 0, false, 0, true);
+  ctx.translate(100, 120);
+  drawJediBody(ctx, jedi, 100, 1, 0, false, 0, true, false, 0);
   ctx.restore();
 }
 
@@ -2303,32 +2737,49 @@ function drawJedi(ctx, p){
   ctx.save();
   if(blink) ctx.globalAlpha = 0.5;
 
-  // Stab thrust: translate body forward briefly
   let stabOffset = 0;
-  if(p.attacking && p.attackCombo === 2 && p._stabT){
-    // Body lunges forward during thrust portion (t > 0.3)
+  if(p.attacking && p._stabT){
     const t = p._stabT;
     if(t > 0.3 && t < 0.7){
-      stabOffset = ((t - 0.3) / 0.4) * p.h * 0.18 * p.facing;
+      stabOffset = ((t - 0.3) / 0.4) * p.h * 0.20 * p.facing;
     } else if(t >= 0.7){
-      // Pull back
-      stabOffset = ((1 - t) / 0.3) * p.h * 0.18 * p.facing;
+      stabOffset = ((1 - t) / 0.3) * p.h * 0.20 * p.facing;
     }
   }
 
   ctx.translate(sx + stabOffset, sy);
 
-  // Whirlwind trail
+  // aggressive forward lean at speed (Tartakovsky run)
+  if(p.onGround && !p.attacking && !p.blocking){
+    ctx.rotate(U_clamp(p.vx / (G.W*0.72), -1, 1) * 0.10);
+  }
+
+  // whirly strikes leave ghost afterimages
+  const spinning = p.attacking && (p.attackStyle === 'spin' || p.attackStyle === 'airspin');
+  if(spinning){
+    for(let i=1;i<=2;i++){
+      ctx.save();
+      ctx.globalAlpha = 0.22 - i*0.08;
+      drawJediBody(ctx, p.jedi, p.h, p.facing, p.saberAngle - i*0.7*p.facing, p.dead, p.runT, p.saberOn, false, p.onGround?0:1);
+      ctx.restore();
+    }
+  }
+
+  // Land-squash: vertical squish + horizontal stretch
+  if(p.landSquash > 0){
+    const s = p.landSquash;
+    ctx.scale(1 + s*0.18, 1 - s*0.22);
+  }
+
   if(p.whirl > 0){
     ctx.save();
     for(let i=0;i<3;i++){
       ctx.globalAlpha = 0.3 - i*0.08;
-      drawJediBody(ctx, p.jedi, p.h, p.facing, p.saberAngle - i*0.5, p.dead, p.runT, p.saberOn);
+      drawJediBody(ctx, p.jedi, p.h, p.facing, p.saberAngle - i*0.5, p.dead, p.runT, p.saberOn, false, 0);
     }
     ctx.restore();
   }
 
-  // Speed lines
   if(Math.abs(p.vx) > G.W*0.2 && p.onGround){
     ctx.strokeStyle='rgba(255,255,255,0.4)';
     ctx.lineWidth=2;
@@ -2342,16 +2793,15 @@ function drawJedi(ctx, p){
     }
   }
 
-  drawJediBody(ctx, p.jedi, p.h, p.facing, p.saberAngle, p.dead, p.runT, p.saberOn, p.blocking);
+  drawJediBody(ctx, p.jedi, p.h, p.facing, p.saberAngle, p.dead, p.runT, p.saberOn, p.blocking, p.onGround?0:1);
   ctx.restore();
 }
 
-function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, blocking){
+function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, blocking, airborne){
   const skinC = jedi.skin.skin;
   const robeC = jedi.skin.robe;
   const robeDark = shadeColor(robeC, -25);
   const tunicC = '#d4b890';
-  const tunicShade = '#a08868';
   const hiltC = jedi.skin.hilt;
   const black = '#000';
   const headR = h*0.13;
@@ -2368,28 +2818,21 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   }
 
   const f = facing;
-
-  // === RUNNING ANIMATION ===
-  // 4-phase running: phase 0=front leg up, 1=passing, 2=back leg up, 3=passing
-  // Use sin/cos for smooth interpolation
   const runPhase = runT;
-  const isRunning = !dead && Math.abs(runT) > 0.01 && (Math.sin(runT*1000) || true); // we increment runT externally
   const legAmp = h*0.18;
-  const armAmp = 0.5;
 
-  // Front leg cycles forward/back
-  const frontLegLift = Math.max(0, Math.sin(runPhase)) * legAmp;
-  const frontLegFwd = Math.sin(runPhase) * h*0.10;
-  // Back leg opposite phase
-  const backLegLift = Math.max(0, Math.sin(runPhase + Math.PI)) * legAmp;
-  const backLegFwd = Math.sin(runPhase + Math.PI) * h*0.10;
+  // In air = tuck legs slightly
+  const airTuck = airborne ? h*0.05 : 0;
 
-  // Body bob (up when both feet pass)
-  const bodyBob = Math.abs(Math.sin(runPhase*2)) * h*0.025;
+  const frontLegLift = airborne ? h*0.08 : Math.max(0, Math.sin(runPhase)) * legAmp;
+  const frontLegFwd = airborne ? h*0.04 : Math.sin(runPhase) * h*0.10;
+  const backLegLift = airborne ? h*0.04 : Math.max(0, Math.sin(runPhase + Math.PI)) * legAmp;
+  const backLegFwd = airborne ? -h*0.04 : Math.sin(runPhase + Math.PI) * h*0.10;
 
-  ctx.translate(0, -bodyBob);
+  const bodyBob = airborne ? 0 : Math.abs(Math.sin(runPhase*2)) * h*0.025;
+  ctx.translate(0, -bodyBob - airTuck);
 
-  // === BACK LEG (drawn first - behind) ===
+  // === BACK LEG ===
   ctx.lineWidth = h*0.10;
   ctx.strokeStyle = robeDark;
   const backHipX = -h*0.05*f;
@@ -2398,28 +2841,25 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   const backKneeX = (backHipX + backFootX) / 2 - f*h*0.03;
   const backKneeY = -legLen*0.5 - backLegLift*0.3;
 
-  // Outline
   ctx.lineWidth = h*0.10 + 4;
   ctx.strokeStyle = '#000';
   ctx.beginPath();
   ctx.moveTo(backHipX, -legLen);
   ctx.quadraticCurveTo(backKneeX, backKneeY, backFootX, backFootY);
   ctx.stroke();
-  // Pant color
   ctx.lineWidth = h*0.10;
   ctx.strokeStyle = robeDark;
   ctx.beginPath();
   ctx.moveTo(backHipX, -legLen);
   ctx.quadraticCurveTo(backKneeX, backKneeY, backFootX, backFootY);
   ctx.stroke();
-  // Boot
   ctx.fillStyle = '#2a1810';
   ctx.beginPath();
   ctx.ellipse(backFootX + f*h*0.03, backFootY + h*0.01, h*0.08, h*0.035, 0, 0, Math.PI*2);
   ctx.fill();
   ctx.strokeStyle=black; ctx.lineWidth=2; ctx.stroke();
 
-  // === ROBE skirt (between legs) ===
+  // === ROBE SKIRT ===
   ctx.fillStyle = robeC;
   ctx.beginPath();
   ctx.moveTo(-h*0.18, -legLen + h*0.05);
@@ -2429,7 +2869,6 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = black; ctx.lineWidth = 2; ctx.stroke();
-  // Robe fold lines
   ctx.beginPath();
   ctx.moveTo(-h*0.08, -legLen + h*0.07);
   ctx.lineTo(-h*0.10, -h*0.05);
@@ -2456,15 +2895,13 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   ctx.moveTo(frontHipX, -legLen);
   ctx.quadraticCurveTo(frontKneeX, frontKneeY, frontFootX, frontFootY);
   ctx.stroke();
-  // Front boot
   ctx.fillStyle = '#2a1810';
   ctx.beginPath();
   ctx.ellipse(frontFootX + f*h*0.03, frontFootY + h*0.01, h*0.08, h*0.035, 0, 0, Math.PI*2);
   ctx.fill();
   ctx.strokeStyle=black; ctx.lineWidth=2; ctx.stroke();
 
-  // === TORSO - tunic ===
-  const torsoY = -legLen - torsoH*0.5;
+  // === TORSO ===
   ctx.fillStyle = tunicC;
   ctx.beginPath();
   ctx.moveTo(-h*0.16, -legLen + h*0.05);
@@ -2474,14 +2911,12 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = black; ctx.lineWidth = 2; ctx.stroke();
-  // Belt
   ctx.fillStyle = '#2a1810';
   ctx.fillRect(-h*0.18, -legLen - h*0.02, h*0.36, h*0.05);
   ctx.strokeRect(-h*0.18, -legLen - h*0.02, h*0.36, h*0.05);
   ctx.fillStyle = '#aaaa44';
   ctx.fillRect(-h*0.03, -legLen - h*0.005, h*0.06, h*0.04);
 
-  // Robe shoulders
   ctx.fillStyle = robeC;
   ctx.beginPath();
   ctx.moveTo(-h*0.20, -legLen - torsoH*0.65);
@@ -2492,9 +2927,8 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   ctx.fill();
   ctx.stroke();
 
-  // Cape behind
+  // Cape
   ctx.fillStyle = robeDark;
-  // Cape sways with movement
   const capeSway = Math.sin(runPhase*2) * h*0.05;
   ctx.beginPath();
   ctx.moveTo(-h*0.20*f, -legLen - torsoH*0.65);
@@ -2506,9 +2940,8 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   ctx.fill();
   ctx.strokeStyle = black; ctx.lineWidth = 2; ctx.stroke();
 
-  // === BACK ARM (no saber) - swings opposite to back leg ===
-  // Arm swings opposite to its same-side leg
-  const backArmAng = -Math.cos(runPhase) * armAmp;
+  // === BACK ARM ===
+  const backArmAng = -Math.cos(runPhase) * 0.5;
   const backShoulderX = -h*0.15*f;
   const backShoulderY = -legLen - torsoH*0.5;
   const backElbowX = backShoulderX + Math.sin(backArmAng)*h*0.12*f;
@@ -2516,7 +2949,6 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   const backHandX = backShoulderX + Math.sin(backArmAng)*h*0.22*f;
   const backHandY = backShoulderY + h*0.30 + Math.cos(backArmAng)*h*0.10;
 
-  // Outline
   ctx.lineWidth = h*0.07 + 4;
   ctx.strokeStyle = black;
   ctx.beginPath();
@@ -2524,21 +2956,18 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   ctx.lineTo(backElbowX, backElbowY);
   ctx.lineTo(backHandX, backHandY);
   ctx.stroke();
-  // Tunic sleeve
   ctx.lineWidth = h*0.05;
   ctx.strokeStyle = robeC;
   ctx.beginPath();
   ctx.moveTo(backShoulderX, backShoulderY);
   ctx.lineTo(backElbowX, backElbowY);
   ctx.stroke();
-  // Forearm (skin)
   ctx.lineWidth = h*0.06;
   ctx.strokeStyle = tunicC;
   ctx.beginPath();
   ctx.moveTo(backElbowX, backElbowY);
   ctx.lineTo(backHandX, backHandY);
   ctx.stroke();
-  // Hand
   ctx.fillStyle = skinC;
   ctx.beginPath();
   ctx.arc(backHandX, backHandY, h*0.025, 0, Math.PI*2);
@@ -2554,7 +2983,6 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   const headY = -legLen - torsoH*0.55 - neckLen - headR;
   ctx.save();
   ctx.translate(0, headY);
-  // Head bob slight tilt with run
   ctx.rotate(Math.sin(runPhase*2) * 0.04);
   ctx.fillStyle = skinC;
   ctx.beginPath();
@@ -2662,7 +3090,7 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   }
   ctx.restore();
 
-  // === FRONT ARM with SABER ===
+  // === FRONT ARM WITH SABER ===
   const shoulderX = h*0.15*f;
   const shoulderY = -legLen - torsoH*0.55;
   const isDouble = jedi.special === 'whirl';
@@ -2673,7 +3101,6 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   const elbowX = shoulderX + Math.cos(saberAng - 0.6*f)*armLen*0.45;
   const elbowY = shoulderY + Math.sin(saberAng - 0.6*f)*armLen*0.45 + h*0.04;
 
-  // Outline
   ctx.lineWidth = h*0.07 + 4;
   ctx.strokeStyle = black;
   ctx.beginPath();
@@ -2681,7 +3108,6 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
   ctx.lineTo(elbowX, elbowY);
   ctx.lineTo(handX, handY);
   ctx.stroke();
-  // Tunic sleeve
   ctx.lineWidth = h*0.07;
   ctx.strokeStyle = tunicC;
   ctx.beginPath();
@@ -2707,7 +3133,6 @@ function drawJediBody(ctx, jedi, h, facing, saberAng, dead, runT, saberOn, block
 }
 
 function drawSaber(ctx, hx, hy, ang, h, color, hiltC, isBackBlade){
-  // LONGER saber - h*1.0 instead of 0.85
   const bladeLen = h*1.0;
   const hiltLen = h*0.14;
   const startX = hx;
@@ -2718,7 +3143,6 @@ function drawSaber(ctx, hx, hy, ang, h, color, hiltC, isBackBlade){
   const bladeEndY = hiltEndY + Math.sin(ang)*bladeLen;
 
   if(!isBackBlade){
-    // Hilt - chunky metal handle
     ctx.strokeStyle = hiltC;
     ctx.lineWidth = h*0.035;
     ctx.beginPath();
@@ -2727,7 +3151,6 @@ function drawSaber(ctx, hx, hy, ang, h, color, hiltC, isBackBlade){
     ctx.stroke();
     ctx.strokeStyle='#000'; ctx.lineWidth=1;
     ctx.stroke();
-    // Hilt details (emitter)
     const px = hiltEndX - Math.cos(ang)*h*0.02;
     const py = hiltEndY - Math.sin(ang)*h*0.02;
     ctx.fillStyle='#444';
@@ -2737,7 +3160,6 @@ function drawSaber(ctx, hx, hy, ang, h, color, hiltC, isBackBlade){
     ctx.strokeStyle='#000'; ctx.stroke();
   }
 
-  // Blade glow (outer)
   ctx.strokeStyle = color;
   ctx.globalAlpha = 0.25;
   ctx.lineWidth = h*0.09;
@@ -2749,7 +3171,6 @@ function drawSaber(ctx, hx, hy, ang, h, color, hiltC, isBackBlade){
   ctx.lineWidth = h*0.055;
   ctx.stroke();
   ctx.globalAlpha = 1;
-  // Core white-hot
   ctx.strokeStyle = '#fff';
   ctx.lineWidth = h*0.022;
   ctx.stroke();
@@ -2766,7 +3187,6 @@ function drawSaberTrail(ctx){
     const bF = b.life / b.max;
     const avgF = (aF + bF) / 2;
     const intensity = (a.intensity + b.intensity) / 2;
-    // Outer glow
     ctx.strokeStyle = a.color;
     ctx.globalAlpha = avgF * 0.18 * intensity;
     ctx.lineWidth = 28 * avgF;
@@ -2775,11 +3195,9 @@ function drawSaberTrail(ctx){
     ctx.moveTo(a.x - G.scrollX, a.y);
     ctx.lineTo(b.x - G.scrollX, b.y);
     ctx.stroke();
-    // Mid
     ctx.globalAlpha = avgF * 0.35 * intensity;
     ctx.lineWidth = 14 * avgF;
     ctx.stroke();
-    // Core white-hot
     ctx.strokeStyle = '#ffffff';
     ctx.globalAlpha = avgF * 0.5 * intensity;
     ctx.lineWidth = 4 * avgF;
@@ -2790,21 +3208,17 @@ function drawSaberTrail(ctx){
 }
 
 /* ============================================================
-   CLONE - Phase 1 trooper, can crouch, raise rifle
+   CLONE TROOPERS / B2 DROIDS
    ============================================================ */
 function drawClone(ctx, e){
-  if(e.type === 'droid'){
-    drawB2Droid(ctx, e);
-    return;
-  }
+  if(e.type === 'droid'){ drawB2Droid(ctx, e); return; }
   const sx = e.x - G.scrollX;
   const sy = e.y;
   const h = e.h;
   const f = e.facing;
   const isCmd = e.type==='commander';
-  const armorWhite = '#f4f4f4';
+  const armorWhite = e.hitFlash > 0 ? '#ffaaaa' : '#f4f4f4';
   const armorShade = '#9a9a9a';
-  const armorDark = '#555';
   const accent = isCmd ? '#cc1f1f' : '#3a3a3a';
 
   ctx.save();
@@ -2814,20 +3228,16 @@ function drawClone(ctx, e){
   const heightMul = crouch ? 0.78 : 1.0;
   const legLen = h * 0.42 * heightMul;
 
-  // === LEGS - chunky armor ===
-  // Back leg
   ctx.fillStyle = armorWhite;
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 2;
   if(crouch){
-    // Bent thigh
     ctx.beginPath();
     ctx.moveTo(-h*0.05*f - h*0.05, -legLen);
     ctx.lineTo(-h*0.05*f + h*0.05, -legLen);
     ctx.lineTo(-h*0.18*f + h*0.05, -legLen*0.5);
     ctx.lineTo(-h*0.18*f - h*0.05, -legLen*0.5);
     ctx.closePath(); ctx.fill(); ctx.stroke();
-    // Shin
     ctx.beginPath();
     ctx.moveTo(-h*0.18*f - h*0.05, -legLen*0.5);
     ctx.lineTo(-h*0.18*f + h*0.05, -legLen*0.5);
@@ -2835,24 +3245,20 @@ function drawClone(ctx, e){
     ctx.lineTo(-h*0.06*f - h*0.06, 0);
     ctx.closePath(); ctx.fill(); ctx.stroke();
   } else {
-    // Straight thigh + shin
     ctx.beginPath();
     ctx.moveTo(-h*0.06*f - h*0.05, -legLen);
     ctx.lineTo(-h*0.06*f + h*0.05, -legLen);
     ctx.lineTo(-h*0.06*f + h*0.06, 0);
     ctx.lineTo(-h*0.06*f - h*0.06, 0);
     ctx.closePath(); ctx.fill(); ctx.stroke();
-    // Knee plate
     ctx.fillStyle = armorShade;
     ctx.fillRect(-h*0.06*f - h*0.05, -legLen*0.55 - h*0.02, h*0.10, h*0.05);
     ctx.strokeRect(-h*0.06*f - h*0.05, -legLen*0.55 - h*0.02, h*0.10, h*0.05);
   }
-  // Back boot
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(-h*0.06*f - h*0.07, -h*0.04, h*0.16, h*0.05);
   ctx.strokeRect(-h*0.06*f - h*0.07, -h*0.04, h*0.16, h*0.05);
 
-  // Front leg (foreground, slightly forward)
   ctx.fillStyle = armorWhite;
   if(crouch){
     ctx.beginPath();
@@ -2882,7 +3288,6 @@ function drawClone(ctx, e){
   ctx.fillRect(h*0.08*f - h*0.07, -h*0.04, h*0.16, h*0.05);
   ctx.strokeRect(h*0.08*f - h*0.07, -h*0.04, h*0.16, h*0.05);
 
-  // === PELVIS / BELT ===
   const beltY = -legLen;
   ctx.fillStyle = armorWhite;
   ctx.beginPath();
@@ -2892,19 +3297,15 @@ function drawClone(ctx, e){
   ctx.lineTo(-h*0.20, beltY+h*0.06);
   ctx.closePath();
   ctx.fill(); ctx.stroke();
-  // Belt buckle area (darker)
   ctx.fillStyle = armorShade;
   ctx.fillRect(-h*0.07, beltY+h*0.0, h*0.14, h*0.06);
   ctx.strokeRect(-h*0.07, beltY+h*0.0, h*0.14, h*0.06);
 
-  // === TORSO - rounded chestplate, Phase 1 ===
   const torsoH = h*0.32;
   const torsoY = beltY - torsoH;
-  // Main chest shape (wider at top, tapered to belt)
   ctx.fillStyle = armorWhite;
   ctx.beginPath();
   ctx.moveTo(-h*0.22, torsoY+h*0.04);
-  // Curved top to neck
   ctx.lineTo(-h*0.18, torsoY-h*0.01);
   ctx.lineTo(-h*0.06, torsoY-h*0.04);
   ctx.lineTo(h*0.06, torsoY-h*0.04);
@@ -2915,27 +3316,22 @@ function drawClone(ctx, e){
   ctx.closePath();
   ctx.fill(); ctx.stroke();
 
-  // Chest plate divisions (Tartakovsky style - clear lines)
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 1.5;
-  // Center line
   ctx.beginPath();
   ctx.moveTo(0, torsoY+h*0.04);
   ctx.lineTo(0, torsoY+h*0.20);
   ctx.stroke();
-  // Pectoral curves
   ctx.beginPath();
   ctx.moveTo(-h*0.16, torsoY+h*0.04);
   ctx.quadraticCurveTo(-h*0.10, torsoY+h*0.12, 0, torsoY+h*0.16);
   ctx.moveTo(h*0.16, torsoY+h*0.04);
   ctx.quadraticCurveTo(h*0.10, torsoY+h*0.12, 0, torsoY+h*0.16);
   ctx.stroke();
-  // Lower abdomen line
   ctx.beginPath();
   ctx.moveTo(-h*0.16, torsoY+h*0.22);
   ctx.lineTo(h*0.16, torsoY+h*0.22);
   ctx.stroke();
-  // Rib lines on sides
   ctx.beginPath();
   ctx.moveTo(-h*0.20, torsoY+h*0.10);
   ctx.lineTo(-h*0.16, torsoY+h*0.16);
@@ -2943,10 +3339,8 @@ function drawClone(ctx, e){
   ctx.lineTo(h*0.16, torsoY+h*0.16);
   ctx.stroke();
 
-  // Commander markings
   if(isCmd){
     ctx.fillStyle = accent;
-    // Top stripe across chest
     ctx.beginPath();
     ctx.moveTo(-h*0.18, torsoY-h*0.01);
     ctx.lineTo(h*0.18, torsoY-h*0.01);
@@ -2955,7 +3349,6 @@ function drawClone(ctx, e){
     ctx.closePath();
     ctx.fill();
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
-    // Pauldron (shoulder armor) on back
     ctx.fillStyle = accent;
     ctx.beginPath();
     ctx.moveTo(-h*0.24*f, torsoY-h*0.02);
@@ -2966,7 +3359,6 @@ function drawClone(ctx, e){
     ctx.fill(); ctx.stroke();
   }
 
-  // === RIFLE & ARMS - exact alignment with bolt spawn position ===
   let rifleAngle = 0;
   if(e.state === 'wait'){ rifleAngle = 0.6; }
   else if(e.state === 'raise'){
@@ -2975,26 +3367,16 @@ function drawClone(ctx, e){
   } else if(e.state === 'shoot'){ rifleAngle = 0; }
 
   const recoilOffset = e.armRecoil * h * 0.04 * (-f);
-
   const shoulderFrontX = h*0.18*f;
   const shoulderY = torsoY + h*0.04;
-
-  // Hand position - SAME math as fireBolt muzzle calculation
   const handX = shoulderFrontX + Math.cos(0)*h*0.28*1.1*f + recoilOffset;
   const handY = shoulderY + Math.sin(rifleAngle)*h*0.28 + h*0.05;
 
-  // Back arm
   ctx.lineWidth = h*0.085;
   ctx.strokeStyle = armorWhite;
   if(e.state === 'shoot' || e.state === 'raise'){
     const supportX = handX - h*0.14*f;
     const supportY = handY + h*0.02;
-    ctx.beginPath();
-    ctx.moveTo(-h*0.18*f, shoulderY);
-    ctx.lineTo(supportX - h*0.04*f, supportY - h*0.05);
-    ctx.lineTo(supportX, supportY);
-    ctx.stroke();
-    // Outline
     ctx.lineWidth = h*0.085 + 4;
     ctx.strokeStyle = '#000';
     ctx.beginPath();
@@ -3009,14 +3391,12 @@ function drawClone(ctx, e){
     ctx.lineTo(supportX - h*0.04*f, supportY - h*0.05);
     ctx.lineTo(supportX, supportY);
     ctx.stroke();
-    // Glove on support hand
     ctx.fillStyle = '#1a1a1a';
     ctx.beginPath();
     ctx.arc(supportX, supportY, h*0.028, 0, Math.PI*2);
     ctx.fill();
     ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
   } else {
-    // Relaxed back arm
     ctx.beginPath();
     ctx.moveTo(-h*0.18*f, shoulderY);
     ctx.lineTo(-h*0.14*f, shoulderY + h*0.18);
@@ -3024,7 +3404,6 @@ function drawClone(ctx, e){
     ctx.stroke();
   }
 
-  // Front arm
   ctx.lineWidth = h*0.085 + 4;
   ctx.strokeStyle = '#000';
   ctx.beginPath();
@@ -3039,41 +3418,30 @@ function drawClone(ctx, e){
   ctx.lineTo(shoulderFrontX + h*0.10*f + recoilOffset*0.5, shoulderY + h*0.06);
   ctx.lineTo(handX, handY);
   ctx.stroke();
-  // Glove
   ctx.fillStyle = '#1a1a1a';
   ctx.beginPath();
   ctx.arc(handX, handY, h*0.030, 0, Math.PI*2);
   ctx.fill();
   ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
 
-  // === RIFLE - DC-15 carbine style ===
   const rifleEndX = handX + Math.cos(rifleAngle*f)*h*0.50*f;
   const rifleEndY = handY + Math.sin(rifleAngle)*h*0.50;
-  // Stock
   ctx.fillStyle = '#2a2a2a';
   ctx.fillRect(handX - h*0.12*f - (f<0?0:h*0.04), handY - h*0.04, h*0.16*f, h*0.08);
   ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
   ctx.strokeRect(handX - h*0.12*f - (f<0?0:h*0.04), handY - h*0.04, h*0.16*f, h*0.08);
-  // Barrel
-  ctx.strokeStyle = '#1a1a1a';
-  ctx.lineWidth = h*0.05;
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = h*0.05;
   ctx.beginPath();
-  ctx.moveTo(handX, handY);
-  ctx.lineTo(rifleEndX, rifleEndY);
+  ctx.moveTo(handX, handY); ctx.lineTo(rifleEndX, rifleEndY);
   ctx.stroke();
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = h*0.057;
+  ctx.strokeStyle = '#000'; ctx.lineWidth = h*0.057;
   ctx.beginPath();
-  ctx.moveTo(handX, handY);
-  ctx.lineTo(rifleEndX, rifleEndY);
+  ctx.moveTo(handX, handY); ctx.lineTo(rifleEndX, rifleEndY);
   ctx.stroke();
-  ctx.strokeStyle = '#444';
-  ctx.lineWidth = h*0.038;
+  ctx.strokeStyle = '#444'; ctx.lineWidth = h*0.038;
   ctx.beginPath();
-  ctx.moveTo(handX, handY);
-  ctx.lineTo(rifleEndX, rifleEndY);
+  ctx.moveTo(handX, handY); ctx.lineTo(rifleEndX, rifleEndY);
   ctx.stroke();
-  // Sight on top
   ctx.fillStyle = '#222';
   const sightX = handX + Math.cos(rifleAngle*f)*h*0.18*f - Math.sin(rifleAngle)*h*0.04;
   const sightY = handY + Math.sin(rifleAngle)*h*0.18 - Math.cos(rifleAngle)*h*0.04;
@@ -3082,17 +3450,22 @@ function drawClone(ctx, e){
   ctx.fill();
   ctx.strokeStyle='#000'; ctx.stroke();
 
-  // Charge indicator while raising
   if(e.state === 'raise'){
-    const t = e.raiseT;
-    const flash = (t > 0.7 && Math.floor(t*15)%2===0) ? '#ff4444' : '#ff8800';
+    const t = e.raiseT / TUNE.raiseTrooper;   // normalized: warn from 40%
+    const flash = (t > 0.4 && Math.floor(e.raiseT*18)%2===0) ? '#ff4444' : '#ff8800';
     ctx.fillStyle = flash;
     ctx.beginPath();
-    ctx.arc(rifleEndX, rifleEndY, h*0.025 * (0.5 + t*0.5), 0, Math.PI*2);
+    ctx.arc(rifleEndX, rifleEndY, h*0.035 * (0.5 + t*0.8), 0, Math.PI*2);
     ctx.fill();
+    // expanding warning ring in the last stretch
+    if(t > 0.4){
+      ctx.strokeStyle = `rgba(255,80,60,${(1-t)*0.9})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(rifleEndX, rifleEndY, h*0.05 + t*h*0.1, 0, Math.PI*2);
+      ctx.stroke();
+    }
   }
-
-  // Muzzle flash if shooting
   if(e.state==='shoot' && e.burstDelay > 0.27){
     const grad = ctx.createRadialGradient(rifleEndX, rifleEndY, 0, rifleEndX, rifleEndY, h*0.10);
     grad.addColorStop(0, '#ffffff');
@@ -3104,30 +3477,27 @@ function drawClone(ctx, e){
     ctx.fill();
   }
 
-  // === HELMET - Phase 1 ===
   const helmY = torsoY - h*0.02;
   ctx.save();
   ctx.translate(0, helmY);
   if(crouch) ctx.translate(0, h*0.02);
 
-  // Helmet body
   ctx.fillStyle = armorWhite;
   ctx.beginPath();
-  ctx.moveTo(-h*0.14, h*0.02);          // bottom left
-  ctx.lineTo(-h*0.13, -h*0.10);          // upper left side
-  ctx.lineTo(-h*0.10, -h*0.20);          // top-left curve
-  ctx.lineTo(-h*0.04, -h*0.24);          // top-left peak
-  ctx.lineTo(h*0.04, -h*0.24);           // top-right peak
-  ctx.lineTo(h*0.10, -h*0.20);           // top-right curve
-  ctx.lineTo(h*0.13, -h*0.10);           // upper right side
-  ctx.lineTo(h*0.14, h*0.02);            // bottom right
-  ctx.lineTo(h*0.10, h*0.06);            // chin right
-  ctx.lineTo(-h*0.10, h*0.06);           // chin left
+  ctx.moveTo(-h*0.14, h*0.02);
+  ctx.lineTo(-h*0.13, -h*0.10);
+  ctx.lineTo(-h*0.10, -h*0.20);
+  ctx.lineTo(-h*0.04, -h*0.24);
+  ctx.lineTo(h*0.04, -h*0.24);
+  ctx.lineTo(h*0.10, -h*0.20);
+  ctx.lineTo(h*0.13, -h*0.10);
+  ctx.lineTo(h*0.14, h*0.02);
+  ctx.lineTo(h*0.10, h*0.06);
+  ctx.lineTo(-h*0.10, h*0.06);
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.stroke();
 
-  // Pointed crest (Phase 1 distinctive)
   ctx.fillStyle = isCmd? accent : armorWhite;
   ctx.beginPath();
   ctx.moveTo(-h*0.04, -h*0.24);
@@ -3137,15 +3507,12 @@ function drawClone(ctx, e){
   ctx.fill();
   ctx.strokeStyle='#000'; ctx.stroke();
 
-  // T-visor (Phase 1 - large angular T)
   ctx.fillStyle = '#1a1a1a';
   ctx.beginPath();
-  // Top of T (horizontal bar)
   ctx.moveTo(-h*0.09, -h*0.10);
   ctx.lineTo(h*0.09, -h*0.10);
   ctx.lineTo(h*0.07, -h*0.04);
   ctx.lineTo(h*0.025, -h*0.04);
-  // Vertical of T
   ctx.lineTo(h*0.025, h*0.04);
   ctx.lineTo(-h*0.025, h*0.04);
   ctx.lineTo(-h*0.025, -h*0.04);
@@ -3154,7 +3521,6 @@ function drawClone(ctx, e){
   ctx.fill();
   ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
 
-  // Cheek vents (small dark rectangles)
   ctx.fillStyle='#444';
   ctx.fillRect(-h*0.115, -h*0.06, h*0.025, h*0.05);
   ctx.fillRect(h*0.090, -h*0.06, h*0.025, h*0.05);
@@ -3162,7 +3528,6 @@ function drawClone(ctx, e){
   ctx.strokeRect(-h*0.115, -h*0.06, h*0.025, h*0.05);
   ctx.strokeRect(h*0.090, -h*0.06, h*0.025, h*0.05);
 
-  // Side detail line
   ctx.beginPath();
   ctx.moveTo(-h*0.12, -h*0.02);
   ctx.lineTo(-h*0.07, -h*0.02);
@@ -3170,17 +3535,13 @@ function drawClone(ctx, e){
   ctx.lineTo(h*0.12, -h*0.02);
   ctx.stroke();
 
-  // Commander stripes on helmet
   if(isCmd){
     ctx.strokeStyle = accent;
     ctx.lineWidth = 2.5;
     ctx.beginPath();
-    ctx.moveTo(-h*0.04, -h*0.22);
-    ctx.lineTo(-h*0.04, -h*0.32);
-    ctx.moveTo(h*0.04, -h*0.22);
-    ctx.lineTo(h*0.04, -h*0.32);
+    ctx.moveTo(-h*0.04, -h*0.22); ctx.lineTo(-h*0.04, -h*0.32);
+    ctx.moveTo(h*0.04, -h*0.22); ctx.lineTo(h*0.04, -h*0.32);
     ctx.stroke();
-    // Side circle
     ctx.fillStyle = accent;
     ctx.beginPath();
     ctx.arc(-h*0.10*f, -h*0.13, h*0.018, 0, Math.PI*2);
@@ -3192,15 +3553,12 @@ function drawClone(ctx, e){
   ctx.restore();
 }
 
-/* ============================================================
-   B2 SUPER BATTLE DROID
-   ============================================================ */
 function drawB2Droid(ctx, e){
   const sx = e.x - G.scrollX;
   const sy = e.y;
   const h = e.h;
   const f = e.facing;
-  const metalC = '#5a6878';
+  const metalC = e.hitFlash > 0 ? '#aa5555' : '#5a6878';
   const metalShade = '#3a4858';
   const metalHl = '#7a8898';
   const dark = '#1a2028';
@@ -3210,38 +3568,30 @@ function drawB2Droid(ctx, e){
 
   const recoilOffset = e.armRecoil * h * 0.05 * (-f);
   const walkBob = e.state === 'wait' ? 0 : Math.sin(e.walkT)*h*0.015;
-
-  // === LEGS - thick mechanical ===
   const legLen = h * 0.42;
-  // Back leg
   ctx.fillStyle = metalShade;
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 2;
-  // Thigh
   ctx.beginPath();
   ctx.moveTo(-h*0.07*f - h*0.07, -legLen);
   ctx.lineTo(-h*0.07*f + h*0.07, -legLen);
   ctx.lineTo(-h*0.08*f + h*0.07, -legLen*0.45);
   ctx.lineTo(-h*0.08*f - h*0.07, -legLen*0.45);
   ctx.closePath(); ctx.fill(); ctx.stroke();
-  // Shin
   ctx.beginPath();
   ctx.moveTo(-h*0.08*f - h*0.06, -legLen*0.45);
   ctx.lineTo(-h*0.08*f + h*0.06, -legLen*0.45);
   ctx.lineTo(-h*0.06*f + h*0.07, 0);
   ctx.lineTo(-h*0.06*f - h*0.07, 0);
   ctx.closePath(); ctx.fill(); ctx.stroke();
-  // Knee joint (round)
   ctx.fillStyle = dark;
   ctx.beginPath();
   ctx.arc(-h*0.08*f, -legLen*0.45, h*0.05, 0, Math.PI*2);
   ctx.fill(); ctx.stroke();
-  // Foot
   ctx.fillStyle = metalShade;
   ctx.fillRect(-h*0.06*f - h*0.10, -h*0.04, h*0.20, h*0.05);
   ctx.strokeRect(-h*0.06*f - h*0.10, -h*0.04, h*0.20, h*0.05);
 
-  // Front leg
   ctx.fillStyle = metalC;
   ctx.beginPath();
   ctx.moveTo(h*0.07*f - h*0.08, -legLen);
@@ -3263,48 +3613,40 @@ function drawB2Droid(ctx, e){
   ctx.fillRect(h*0.06*f - h*0.10, -h*0.04, h*0.22, h*0.05);
   ctx.strokeRect(h*0.06*f - h*0.10, -h*0.04, h*0.22, h*0.05);
 
-  // === MASSIVE TORSO - B2 signature bulky shape ===
   const torsoTop = -legLen - h*0.50 + walkBob;
   const torsoBot = -legLen + h*0.05;
-  // Body silhouette - hourglass with broad shoulders
   ctx.fillStyle = metalC;
   ctx.beginPath();
-  ctx.moveTo(-h*0.30, torsoTop + h*0.10);   // wide shoulder L
-  ctx.lineTo(-h*0.34, torsoTop + h*0.20);   // outer shoulder L
-  ctx.lineTo(-h*0.28, torsoTop + h*0.40);   // mid body L
-  ctx.lineTo(-h*0.20, torsoBot);            // narrow waist L
-  ctx.lineTo(h*0.20, torsoBot);             // narrow waist R
-  ctx.lineTo(h*0.28, torsoTop + h*0.40);    // mid body R
-  ctx.lineTo(h*0.34, torsoTop + h*0.20);    // outer shoulder R
-  ctx.lineTo(h*0.30, torsoTop + h*0.10);    // wide shoulder R
-  ctx.lineTo(h*0.18, torsoTop + h*0.06);    // neck join R
-  ctx.lineTo(h*0.10, torsoTop);             // top R
-  ctx.lineTo(-h*0.10, torsoTop);            // top L
-  ctx.lineTo(-h*0.18, torsoTop + h*0.06);   // neck join L
+  ctx.moveTo(-h*0.30, torsoTop + h*0.10);
+  ctx.lineTo(-h*0.34, torsoTop + h*0.20);
+  ctx.lineTo(-h*0.28, torsoTop + h*0.40);
+  ctx.lineTo(-h*0.20, torsoBot);
+  ctx.lineTo(h*0.20, torsoBot);
+  ctx.lineTo(h*0.28, torsoTop + h*0.40);
+  ctx.lineTo(h*0.34, torsoTop + h*0.20);
+  ctx.lineTo(h*0.30, torsoTop + h*0.10);
+  ctx.lineTo(h*0.18, torsoTop + h*0.06);
+  ctx.lineTo(h*0.10, torsoTop);
+  ctx.lineTo(-h*0.10, torsoTop);
+  ctx.lineTo(-h*0.18, torsoTop + h*0.06);
   ctx.closePath();
   ctx.fill(); ctx.stroke();
 
-  // Center chest detail (vertical seam + plates)
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(0, torsoTop + h*0.05);
   ctx.lineTo(0, torsoBot - h*0.02);
   ctx.stroke();
-  // Horizontal chest line
   ctx.beginPath();
   ctx.moveTo(-h*0.20, torsoTop + h*0.18);
   ctx.lineTo(h*0.20, torsoTop + h*0.18);
   ctx.stroke();
-  // Side panels (lighter highlights)
   ctx.fillStyle = metalHl;
   ctx.fillRect(-h*0.26, torsoTop + h*0.22, h*0.04, h*0.16);
   ctx.fillRect(h*0.22, torsoTop + h*0.22, h*0.04, h*0.16);
   ctx.strokeStyle='#000'; ctx.lineWidth=1;
   ctx.strokeRect(-h*0.26, torsoTop + h*0.22, h*0.04, h*0.16);
   ctx.strokeRect(h*0.22, torsoTop + h*0.22, h*0.04, h*0.16);
-
-  // Chest "collar bone" plates
   ctx.fillStyle = metalShade;
   ctx.beginPath();
   ctx.moveTo(-h*0.16, torsoTop + h*0.06);
@@ -3321,11 +3663,9 @@ function drawB2Droid(ctx, e){
   ctx.closePath();
   ctx.fill(); ctx.stroke();
 
-  // === BACK ARM (no weapon) - hangs at side ===
-  const armOriginX_back = -h*0.30*f;
   const armOriginY = torsoTop + h*0.20;
+  const armOriginX_back = -h*0.30*f;
   ctx.fillStyle = metalShade;
-  // Upper arm
   ctx.beginPath();
   ctx.moveTo(armOriginX_back - h*0.05, armOriginY);
   ctx.lineTo(armOriginX_back + h*0.05, armOriginY);
@@ -3333,7 +3673,6 @@ function drawB2Droid(ctx, e){
   ctx.lineTo(armOriginX_back - h*0.05*f - h*0.05, armOriginY + h*0.20);
   ctx.closePath();
   ctx.fill(); ctx.stroke();
-  // Forearm
   ctx.fillStyle = metalC;
   ctx.beginPath();
   ctx.moveTo(armOriginX_back - h*0.05*f - h*0.05, armOriginY + h*0.20);
@@ -3342,34 +3681,28 @@ function drawB2Droid(ctx, e){
   ctx.lineTo(armOriginX_back - h*0.10*f - h*0.06, armOriginY + h*0.40);
   ctx.closePath();
   ctx.fill(); ctx.stroke();
-  // Elbow joint
   ctx.fillStyle = dark;
   ctx.beginPath();
   ctx.arc(armOriginX_back - h*0.05*f, armOriginY + h*0.20, h*0.05, 0, Math.PI*2);
   ctx.fill(); ctx.stroke();
-  // Hand fist
   ctx.fillStyle = metalShade;
   ctx.beginPath();
   ctx.arc(armOriginX_back - h*0.10*f, armOriginY + h*0.42, h*0.045, 0, Math.PI*2);
   ctx.fill(); ctx.stroke();
 
-  // === FRONT ARM with WRIST BLASTER ===
   const armOriginX = h*0.30*f;
-  let frontArmAngle = 0; // 0 = horizontal, positive = down
+  let frontArmAngle = 0;
   if(e.state === 'wait'){ frontArmAngle = 0.7; }
   else if(e.state === 'raise'){
     const t = e.raiseT / 0.7;
     frontArmAngle = 0.7 - t * 0.7;
   } else if(e.state === 'shoot'){ frontArmAngle = 0; }
 
-  // Upper arm direction
   const upperArmLen = h*0.22;
   const elbowX = armOriginX + Math.cos(frontArmAngle*f)*upperArmLen*f * 0.8 + recoilOffset*0.5;
   const elbowY = armOriginY + Math.sin(frontArmAngle)*upperArmLen + h*0.08;
 
-  // Upper arm (shoulder to elbow)
   ctx.fillStyle = metalShade;
-  // Calculate perpendicular for arm width
   const dxA = elbowX - armOriginX;
   const dyA = elbowY - armOriginY;
   const lenA = Math.hypot(dxA, dyA) || 1;
@@ -3383,11 +3716,9 @@ function drawB2Droid(ctx, e){
   ctx.closePath();
   ctx.fill(); ctx.stroke();
 
-  // Forearm (extends straight forward when shooting)
   const forearmLen = h*0.30;
   const wristX = elbowX + Math.cos(frontArmAngle*f)*forearmLen*f + recoilOffset;
   const wristY = elbowY + Math.sin(frontArmAngle)*forearmLen;
-
   ctx.fillStyle = metalC;
   const dxF = wristX - elbowX;
   const dyF = wristY - elbowY;
@@ -3402,13 +3733,11 @@ function drawB2Droid(ctx, e){
   ctx.closePath();
   ctx.fill(); ctx.stroke();
 
-  // Elbow joint
   ctx.fillStyle = dark;
   ctx.beginPath();
   ctx.arc(elbowX, elbowY, h*0.06, 0, Math.PI*2);
   ctx.fill(); ctx.stroke();
 
-  // Wrist blaster muzzle (built into forearm tip)
   const muzzleX = wristX + Math.cos(frontArmAngle*f)*h*0.05*f;
   const muzzleY = wristY + Math.sin(frontArmAngle)*h*0.05;
   ctx.fillStyle = '#1a1a1a';
@@ -3416,22 +3745,26 @@ function drawB2Droid(ctx, e){
   ctx.arc(muzzleX, muzzleY, h*0.045, 0, Math.PI*2);
   ctx.fill();
   ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.stroke();
-  // Inner muzzle
   ctx.fillStyle = '#000';
   ctx.beginPath();
   ctx.arc(muzzleX, muzzleY, h*0.025, 0, Math.PI*2);
   ctx.fill();
 
-  // Charge glow when raising
   if(e.state === 'raise'){
-    const t = e.raiseT / 0.7;
-    const flash = (t > 0.6 && Math.floor(t*15)%2===0) ? '#ff4444' : '#ff9933';
+    const t = e.raiseT / TUNE.raiseDroid;
+    const flash = (t > 0.4 && Math.floor(e.raiseT*18)%2===0) ? '#ff4444' : '#ff9933';
     ctx.fillStyle = flash;
     ctx.beginPath();
-    ctx.arc(muzzleX, muzzleY, h*0.025 * (0.5 + t*0.6), 0, Math.PI*2);
+    ctx.arc(muzzleX, muzzleY, h*0.035 * (0.5 + t*0.8), 0, Math.PI*2);
     ctx.fill();
+    if(t > 0.4){
+      ctx.strokeStyle = `rgba(255,80,60,${(1-t)*0.9})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(muzzleX, muzzleY, h*0.05 + t*h*0.1, 0, Math.PI*2);
+      ctx.stroke();
+    }
   }
-  // Muzzle flash
   if(e.state==='shoot' && e.burstDelay > 0.17){
     const grad = ctx.createRadialGradient(muzzleX, muzzleY, 0, muzzleX, muzzleY, h*0.12);
     grad.addColorStop(0, '#ffffff');
@@ -3443,11 +3776,9 @@ function drawB2Droid(ctx, e){
     ctx.fill();
   }
 
-  // === HEAD - small dome with sensor strip ===
   const headY = torsoTop - h*0.04;
   ctx.save();
   ctx.translate(0, headY);
-  // Head body (squat angular)
   ctx.fillStyle = metalC;
   ctx.beginPath();
   ctx.moveTo(-h*0.10, h*0.02);
@@ -3460,20 +3791,16 @@ function drawB2Droid(ctx, e){
   ctx.fill();
   ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.stroke();
 
-  // Photoreceptor strip (red sensor)
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(-h*0.08, -h*0.06, h*0.16, h*0.04);
   ctx.strokeRect(-h*0.08, -h*0.06, h*0.16, h*0.04);
-  // Glowing eye
   ctx.fillStyle = '#ff3322';
   ctx.fillRect(-h*0.06, -h*0.05, h*0.12, h*0.02);
-  // Glow
   ctx.fillStyle = 'rgba(255,80,40,0.4)';
   ctx.fillRect(-h*0.08, -h*0.07, h*0.16, h*0.06);
   ctx.fillStyle = '#ff5544';
   ctx.fillRect(-h*0.06, -h*0.05, h*0.12, h*0.015);
 
-  // Mouth grille (vents)
   ctx.fillStyle = dark;
   ctx.fillRect(-h*0.04, -h*0.005, h*0.08, h*0.018);
   ctx.strokeStyle='#000';
@@ -3486,7 +3813,7 @@ function drawB2Droid(ctx, e){
 function drawBody(ctx, b){
   const sx = b.x - G.scrollX;
   const sy = b.y;
-  const h = G.player ? G.player.h : G.H*0.16;
+  const h = G.player ? G.player.h : G.H*0.20;
   ctx.save();
   ctx.translate(sx, sy);
   ctx.rotate(b.rot);
@@ -3597,13 +3924,11 @@ function renderFx(sx,sy){
       ctx.arc(p.x - G.scrollX, p.y, p.size, 0, Math.PI*2);
       ctx.fill();
     } else if(p.type==='puff'){
-      // Tartakovsky puff explosion: flat colored circles
       ctx.fillStyle = p.color;
       ctx.globalAlpha = a * 0.9;
       ctx.beginPath();
       ctx.arc(p.x - G.scrollX, p.y, p.size, 0, Math.PI*2);
       ctx.fill();
-      // Black outline like Tartakovsky
       ctx.strokeStyle = '#000';
       ctx.globalAlpha = a * 0.5;
       ctx.lineWidth = 1.5;
@@ -3616,11 +3941,9 @@ function renderFx(sx,sy){
   }
   ctx.globalAlpha=1;
 
-  // Tartakovsky-style explosion ring
   for(const ex of G.explosions){
     const a = ex.life / ex.max;
     const cx = ex.x - G.scrollX;
-    // Bright center flash
     if(a > 0.7){
       const flashA = (a - 0.7) / 0.3;
       const grad = ctx.createRadialGradient(cx, ex.y, 0, cx, ex.y, ex.r * 0.8);
@@ -3632,7 +3955,6 @@ function renderFx(sx,sy){
       ctx.arc(cx, ex.y, ex.r*0.8, 0, Math.PI*2);
       ctx.fill();
     }
-    // Outer red puff body
     ctx.fillStyle = `rgba(170,40,30,${a*0.5})`;
     ctx.beginPath();
     ctx.arc(cx, ex.y, ex.r * 0.6, 0, Math.PI*2);
@@ -3692,8 +4014,25 @@ function renderFx(sx,sy){
     ctx.globalAlpha=1;
   }
 
+  drawFloaters(ctx);
+
   if(G.flashT>0){
-    ctx.fillStyle = `rgba(255,0,0,${G.flashT/0.15 * 0.4})`;
+    ctx.fillStyle = `rgba(255,0,0,${Math.min(1, G.flashT/0.15) * 0.4})`;
+    ctx.fillRect(0,0,G.W,G.H);
+  }
+  // perfect parry: bright screen-edge pulse
+  if(G.parryFlashT>0){
+    const a = G.parryFlashT/0.12;
+    const pg = ctx.createRadialGradient(G.W/2, G.H/2, G.H*0.3, G.W/2, G.H/2, G.H*0.8);
+    pg.addColorStop(0, 'rgba(255,238,136,0)');
+    pg.addColorStop(1, `rgba(255,238,136,${a*0.45})`);
+    ctx.fillStyle = pg;
+    ctx.fillRect(0,0,G.W,G.H);
+  }
+
+  // Slow-mo tint
+  if(G.slowMoT > 0){
+    ctx.fillStyle = `rgba(120,60,180,${G.slowMoT/0.25 * 0.18})`;
     ctx.fillRect(0,0,G.W,G.H);
   }
 
@@ -3761,6 +4100,10 @@ window.addEventListener('load', setup);
 document.addEventListener('touchstart', ()=>Audio.resume(), {passive:true});
 document.addEventListener('mousedown', ()=>Audio.resume());
 document.addEventListener('keydown', ()=>Audio.resume());
+// instant retry from the game-over screen
+window.addEventListener('keydown', e=>{
+  if(G.state==='dead' && e.key==='Enter') startGame();
+});
 </script>
 </body>
 </html>

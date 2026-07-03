@@ -319,6 +319,28 @@ const GP = {
   }
 };
 
+// long, diffuse impulse response for a dark cathedral/organ-hall reverb tail
+function makeImpulseBuffer(ctx, seconds, decay){
+  const len = Math.floor(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(2, len, ctx.sampleRate);
+  for(let ch=0; ch<2; ch++){
+    const d = buf.getChannelData(ch);
+    for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, decay);
+  }
+  return buf;
+}
+// soft-clip curve: adds low-end grit/weight to the score without harsh distortion
+function makeSoftClipCurve(amount){
+  const n = 44100;
+  const curve = new Float32Array(n);
+  const norm = Math.tanh(amount) || 1;
+  for(let i=0;i<n;i++){
+    const x = i*2/n - 1;
+    curve[i] = Math.tanh(x*amount) / norm;
+  }
+  return curve;
+}
+
 /* ============================================================
    AUDIO ENGINE
    ============================================================ */
@@ -334,6 +356,15 @@ const Audio = {
       comp.threshold.value = -10; comp.ratio.value = 4;
       G.audio.master.connect(comp);
       comp.connect(G.audio.ctx.destination);
+
+      // shared score processing: long cathedral/organ-hall reverb + soft saturation for weight
+      const conv = G.audio.ctx.createConvolver();
+      conv.buffer = makeImpulseBuffer(G.audio.ctx, 3.4, 2.1);
+      G.audio.reverbConv = conv;
+      const shaper = G.audio.ctx.createWaveShaper();
+      shaper.curve = makeSoftClipCurve(2.2);
+      shaper.oversample = '2x';
+      G.audio.musicSat = shaper;
     }catch(e){}
   },
   resume(){ if(G.audio.ctx && G.audio.ctx.state==='suspended') G.audio.ctx.resume(); },
@@ -577,6 +608,7 @@ const Audio = {
     o.start(t); o.stop(t+0.5);
   },
 
+  // bass: darkened with a lowpass to strip buzz off the sawtooth, heavier weight
   playNote(freq, t, dur, vel, type, gain){
     const ctx = G.audio.ctx;
     const o = ctx.createOscillator();
@@ -585,28 +617,44 @@ const Audio = {
     o.frequency.setValueAtTime(freq, t);
     const peak = vel * 0.16;
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(peak, t + 0.04);
-    g.gain.linearRampToValueAtTime(peak*0.6, t + dur*0.5);
+    g.gain.linearRampToValueAtTime(peak, t + 0.045);
+    g.gain.linearRampToValueAtTime(peak*0.65, t + dur*0.55);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g); g.connect(gain);
+    if(type !== 'sine'){
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass'; lp.frequency.value = 1050; lp.Q.value = 0.6;
+      o.connect(lp); lp.connect(g);
+    } else {
+      o.connect(g);
+    }
+    g.connect(gain);
     o.start(t); o.stop(t + dur + 0.05);
     G.audio.musicNodes.push(o);
     return o;
   },
 
-  playChoirNote(freq, t, dur, vel, gain){
+  // dark drawbar organ pad: harmonic stack (sub, fundamental, octave, 12th, 2 octaves)
+  // with a near-instant attack and a flat sustain, like a held pipe/Hammond chord
+  playOrganPad(freq, t, dur, vel, gain){
     const ctx = G.audio.ctx;
-    const detunes = [-7, 0, 5];
-    for(const d of detunes){
+    const drawbars = [
+      {mult:0.5, amp:0.55, type:'sine'},     // 16' sub — the weight/darkness
+      {mult:1,   amp:1.0,  type:'triangle'}, // 8' fundamental
+      {mult:2,   amp:0.42, type:'sine'},     // 4' octave
+      {mult:3,   amp:0.24, type:'sine'},     // 2 2/3' twelfth
+      {mult:4,   amp:0.14, type:'sine'},     // 2' double octave
+    ];
+    const peak = vel * 0.075;
+    const attack = 0.03, release = Math.max(dur*0.22, 0.2);
+    for(const db of drawbars){
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-      o.type = 'sine';
-      o.frequency.value = freq;
-      o.detune.value = d;
-      const peak = vel * 0.05;
+      o.type = db.type;
+      o.frequency.value = freq * db.mult;
+      const p = peak * db.amp;
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(peak, t + 0.3);
-      g.gain.linearRampToValueAtTime(peak * 0.7, t + dur * 0.7);
+      g.gain.linearRampToValueAtTime(p, t + attack);
+      g.gain.setValueAtTime(p, Math.max(t + attack, t + dur - release));
       g.gain.exponentialRampToValueAtTime(0.001, t + dur);
       o.connect(g); g.connect(gain);
       o.start(t); o.stop(t + dur + 0.05);
@@ -614,41 +662,60 @@ const Audio = {
     }
   },
 
-  playBrass(freq, t, dur, vel, gain){
+  // dark reed-organ solo line: sawtooth + sub-octave sine through a duller, lower filter
+  playReedLead(freq, t, dur, vel, gain){
     const ctx = G.audio.ctx;
     const o = ctx.createOscillator();
+    const sub = ctx.createOscillator();
     const g = ctx.createGain();
-    const bp = ctx.createBiquadFilter();
+    const gs = ctx.createGain();
+    const lp = ctx.createBiquadFilter();
     o.type = 'sawtooth';
     o.frequency.setValueAtTime(freq, t);
-    bp.type = 'lowpass';
-    bp.frequency.setValueAtTime(800, t);
-    bp.frequency.linearRampToValueAtTime(2000, t + 0.1);
-    bp.frequency.linearRampToValueAtTime(1200, t + dur);
-    bp.Q.value = 3;
-    const peak = vel * 0.13;
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(freq*0.5, t);
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(480, t);
+    lp.frequency.linearRampToValueAtTime(820, t + 0.12);
+    lp.frequency.linearRampToValueAtTime(400, t + dur);
+    lp.Q.value = 2.2;
+    const peak = vel * 0.1;
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(peak, t + 0.05);
-    g.gain.linearRampToValueAtTime(peak*0.7, t + dur*0.7);
+    g.gain.linearRampToValueAtTime(peak, t + 0.09);
+    g.gain.linearRampToValueAtTime(peak*0.75, t + dur*0.7);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(bp); bp.connect(g); g.connect(gain);
+    gs.gain.value = 0.4;
+    o.connect(lp); lp.connect(g); g.connect(gain);
+    sub.connect(gs); gs.connect(g);
     o.start(t); o.stop(t + dur + 0.05);
+    sub.start(t); sub.stop(t + dur + 0.05);
     G.audio.musicNodes.push(o);
+    G.audio.musicNodes.push(sub);
   },
 
+  // deep pedal-tone thump with a soft mallet transient — heavier, longer tail
   playPerc(t, vel, gain){
     const ctx = G.audio.ctx;
     const o = ctx.createOscillator();
     const g = ctx.createGain();
     o.type = 'sine';
-    o.frequency.setValueAtTime(80, t);
-    o.frequency.exponentialRampToValueAtTime(40, t + 0.3);
-    const peak = vel * 0.4;
+    o.frequency.setValueAtTime(62, t);
+    o.frequency.exponentialRampToValueAtTime(28, t + 0.55);
+    const peak = vel * 0.45;
     g.gain.setValueAtTime(peak, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
     o.connect(g); g.connect(gain);
-    o.start(t); o.stop(t + 0.42);
+    o.start(t); o.stop(t + 0.62);
     G.audio.musicNodes.push(o);
+    const len = Math.floor(ctx.sampleRate*0.05);
+    const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/len, 3);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const lp = ctx.createBiquadFilter(); lp.type='lowpass'; lp.frequency.value = 500;
+    const ng = ctx.createGain(); ng.gain.value = peak*0.5;
+    src.connect(lp); lp.connect(ng); ng.connect(gain);
+    src.start(t);
   },
 
   startMusic(track){
@@ -657,16 +724,15 @@ const Audio = {
     G.currentMusic = track;
     const ctx = G.audio.ctx;
     const musicGain = ctx.createGain();
-    musicGain.gain.value = 0.7;
-    musicGain.connect(G.audio.master);
+    musicGain.gain.value = 0.6;   // slightly lower — the organ drawbar stack sums louder than the old choir
+    if(G.audio.musicSat){ musicGain.connect(G.audio.musicSat); G.audio.musicSat.connect(G.audio.master); }
+    else musicGain.connect(G.audio.master);
     G.audio.musicGain = musicGain;
-    const delay = ctx.createDelay();
-    delay.delayTime.value = 0.18;
-    const fb = ctx.createGain();
-    fb.gain.value = 0.25;
-    delay.connect(fb); fb.connect(delay);
-    delay.connect(musicGain);
-    G.audio.musicReverb = delay;
+    // wet send -> shared long cathedral/organ-hall reverb -> music bus
+    const wet = ctx.createGain();
+    wet.gain.value = 1.0;
+    if(G.audio.reverbConv){ wet.connect(G.audio.reverbConv); G.audio.reverbConv.connect(musicGain); }
+    G.audio.musicReverb = wet;
     G.audio.musicTrack = track;
     G.audio.musicNextBeat = ctx.currentTime + 0.1;
     G.audio.musicBar = 0;
@@ -677,7 +743,7 @@ const Audio = {
     if(!G.audio.musicTrack) return;
     const ctx = G.audio.ctx;
     const lookahead = 0.5;
-    const beatLen = 0.5;
+    const beatLen = 0.58;   // slower, heavier march than the old 0.5s
     while(G.audio.musicNextBeat < ctx.currentTime + lookahead){
       this._scheduleBeat(G.audio.musicBar, G.audio.musicNextBeat, beatLen);
       G.audio.musicNextBeat += beatLen;
@@ -693,6 +759,7 @@ const Audio = {
     const D = 73.42, E = 82.41, F = 87.31, G_ = 98.00, A = 110.00, Bb = 116.54, C = 130.81;
     const D2 = 146.83, E2 = 164.81, F2 = 174.61, G2 = 196.00, A2 = 220.00, Bb2 = 233.08, C2 = 261.63;
     const C3 = 261.63;
+    const Eb2 = 155.56; // for a diminished stab — extra menace on the last game harmony
 
     if(track === 'menu'){
       const p = beatIdx % 32;
@@ -700,18 +767,19 @@ const Audio = {
       const bassPattern = [D, D, D, D, F, F, E, E, D, D, D, D, A, A, G_, G_,
                             D, D, D, D, F, F, E, E, D, D, A, A, Bb, Bb, A, A];
       this.playNote(bassPattern[p], t, beatLen*0.9, 0.7, 'sawtooth', g);
+      this.playNote(bassPattern[p]/2, t, beatLen*0.9, 0.45, 'sine', g); // sub-octave weight
       if(p % 2 === 0){
         const melodyPattern = [A2, F2, D2, F2, A2, C3, A2, F2, A2, F2, D2, F2, G2, A2, G2, F2];
         const idx = Math.floor(p/2);
-        if(idx < melodyPattern.length) this.playBrass(melodyPattern[idx], t, beatLen*1.8, 0.6, rev);
+        if(idx < melodyPattern.length) this.playReedLead(melodyPattern[idx], t, beatLen*1.8, 0.6, rev);
       }
       if(p === 0 || p === 16){
-        this.playChoirNote(D2, t, beatLen*4, 0.9, rev);
-        this.playChoirNote(A2, t, beatLen*4, 0.7, rev);
+        this.playOrganPad(D2, t, beatLen*4, 0.9, rev);
+        this.playOrganPad(A2, t, beatLen*4, 0.7, rev);
       }
       if(p === 8 || p === 24){
-        this.playChoirNote(F2, t, beatLen*4, 0.8, rev);
-        this.playChoirNote(C3, t, beatLen*4, 0.6, rev);
+        this.playOrganPad(F2, t, beatLen*4, 0.8, rev);
+        this.playOrganPad(C3, t, beatLen*4, 0.6, rev);
       }
     } else if(track === 'game') {
       const p = beatIdx % 32;
@@ -725,12 +793,12 @@ const Audio = {
       if(p % 4 === 0){
         const melody = [A2, F2, E2, D2, F2, G2, A2, F2, A2, Bb2, A2, F2, E2, D2, E2, F2];
         const idx = Math.floor(p/4) % melody.length;
-        this.playBrass(melody[idx], t, beatLen*3.5, 0.5, rev);
+        this.playReedLead(melody[idx], t, beatLen*3.5, 0.5, rev);
       }
       if(p % 8 === 0){
-        const harmonies = [[D2, F2, A2],[D2, F2, A2],[Bb, D2, F2],[A, C2, E2]];
+        const harmonies = [[D2, F2, A2],[D2, F2, A2],[Bb, D2, F2],[A, C2, Eb2]]; // last chord now a dark diminished stab
         const idx = Math.floor(p/8) % harmonies.length;
-        for(const note of harmonies[idx]) this.playChoirNote(note, t, beatLen*7.5, 0.6, rev);
+        for(const note of harmonies[idx]) this.playOrganPad(note, t, beatLen*7.5, 0.6, rev);
       }
     }
   },
@@ -742,6 +810,7 @@ const Audio = {
     if(G.audio.musicGain){
       try{ G.audio.musicGain.gain.linearRampToValueAtTime(0, G.audio.ctx.currentTime + 0.5); }catch(e){}
     }
+    if(G.audio.reverbConv){ try{ G.audio.reverbConv.disconnect(); }catch(e){} }
     setTimeout(()=>{
       for(const n of G.audio.musicNodes){ try{ n.stop(); }catch(e){} }
       G.audio.musicNodes=[];
@@ -1262,6 +1331,22 @@ function startGame(){
   setTimeout(()=>{ if(G.player){ G.player.saberOn=true; Audio.saberHumStart(); } }, 200);
 }
 
+// The minimum height a jump is guaranteed to reach on a screen of height H —
+// mirrors the jump physics below (vy0=H*1.1, gravity=2400, jumpMinT=0.16s).
+// Since jump velocity scales with screen height but gravity is a flat constant,
+// jump height does NOT scale linearly with H — a fixed-pixel obstacle height
+// that's easy to clear on a tall desktop screen can become unclimbable on a
+// short mobile-landscape viewport. Obstacles are sized off this instead of a
+// fixed pixel range so they stay clearable at any screen size.
+function guaranteedJumpHeight(H){
+  const vy0 = H*1.1, g = 2400, minT = 0.16;
+  const apexT = vy0/g;
+  if(apexT <= minT) return (vy0*vy0)/(2*g); // full apex already reached within the guaranteed window
+  const h1 = vy0*minT - 0.5*g*minT*minT;
+  const vAfterCut = (vy0 - g*minT) * 0.5;
+  return h1 + (vAfterCut*vAfterCut)/(2*g);
+}
+
 /* ============================================================
    PROCEDURAL TERRAIN
    ============================================================ */
@@ -1297,8 +1382,11 @@ function generateAhead(){
       const y = lastPlatformY();
       G.platforms.push({x:G.worldGenX, y:y, w:w, h:G.H, ground:true, type:'flat'});
       const obsX = G.worldGenX + w*0.4 + Math.random()*w*0.2;
-      const obsW = 60 + Math.random()*40;
-      const obsH = 50 + Math.random()*30;
+      const obsW = G.H * (0.0833 + Math.random()*0.0556);   // was 60-100px at G.H=720, scales with screen
+      // height is a fraction of the GUARANTEED jump height at this screen size
+      // (not a fixed pixel range) so every obstacle is always clearable, on any device
+      const maxJump = guaranteedJumpHeight(G.H);
+      const obsH = maxJump*0.45 + Math.random()*maxJump*0.25;
       G.obstacles.push({x:obsX, y:y, w:obsW, h:obsH, type: G.level.key==='kashyyyk'?'log':'crate'});
       G.worldGenX += w;
     } else if(featType === 'twolayer' && diff > 0.3){

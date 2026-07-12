@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Typing Speed Test</title>
+<style>
+  :root {
+    --desk: #e8dfca;          /* Schreibtisch hinter der Seite */
+    --paper: #faf6ec;         /* Buchseite */
+    --ink: #2b2620;           /* Text-Tinte */
+    --ink-soft: #6b6250;      /* Nebentexte */
+    --faint: #a99b7f;         /* noch nicht Getipptes, "Bleistift" */
+    --rule: #d9cdb2;          /* Linien im Heft */
+    --red: #b23a2f;           /* Rotstift des Lektorats */
+    --red-soft: rgba(178, 58, 47, 0.08);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--desk);
+    background-image: radial-gradient(ellipse at 50% 0%, rgba(255,252,240,0.55), transparent 60%);
+    color: var(--ink);
+    font-family: Georgia, "Palatino Linotype", "Book Antiqua", "Times New Roman", serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 36px 16px 48px;
+  }
+  header {
+    text-align: center; margin-bottom: 22px;
+    width: 100%; max-width: 860px;
+    border-bottom: 3px double var(--faint);
+    padding-bottom: 16px;
+  }
+  header h1 {
+    font-size: 1.9rem;
+    font-weight: 700;
+    letter-spacing: 0.4px;
+  }
+  header p { color: var(--ink-soft); margin-top: 8px; font-size: 1rem; font-style: italic; }
+
+  .langbar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 24px; }
+  .langbar button {
+    background: var(--paper);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 7px 16px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(80, 65, 40, 0.15);
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  .langbar button:hover { border-color: var(--red); }
+  .langbar button.sel {
+    background: var(--red-soft);
+    border-color: var(--red);
+    color: var(--red);
+    font-weight: 700;
+  }
+
+  .stage { width: 100%; max-width: 860px; }
+
+  .statbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 12px;
+    padding: 0 4px;
+  }
+  .statbar .timer {
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .statbar .timer.idle { color: var(--faint); }
+  .statbar .live { display: flex; gap: 28px; }
+  .statbar .live div { text-align: right; }
+  .statbar .live .v { font-size: 1.4rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .statbar .live .k { font-size: 0.78rem; color: var(--ink-soft); font-variant: small-caps; letter-spacing: 1.5px; }
+
+  #textbox {
+    background: var(--paper);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    box-shadow: 0 1px 3px rgba(70, 55, 30, 0.2), 0 14px 30px rgba(70, 55, 30, 0.14);
+    padding: 24px 36px 24px 66px;
+    font-family: inherit;
+    font-size: 21px;
+    line-height: 44px;
+    height: 268px; /* 24px padding + genau 5 Heftzeilen à 44px + 24px */
+    overflow: hidden;
+    position: relative;
+    cursor: text;
+    user-select: none;
+  }
+  /* rote Randlinie wie im Schulheft */
+  #textbox::before {
+    content: "";
+    position: absolute;
+    left: 46px; top: 0; bottom: 0;
+    width: 1.5px;
+    background: rgba(178, 58, 47, 0.4);
+    z-index: 2;
+  }
+  /* Papiermaske: verdeckt die angeschnittene Zeile im unteren Innenrand */
+  #textbox::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0; bottom: 0; height: 26px;
+    background: var(--paper);
+    z-index: 1;
+  }
+  #textinner {
+    transition: transform 0.15s ease-out;
+    /* Heftlinien wandern mit dem Text mit */
+    background-image: repeating-linear-gradient(to bottom,
+      transparent 0, transparent 43px, var(--rule) 43px, var(--rule) 44px);
+  }
+  .word { display: inline-block; }
+  .char { white-space: pre; color: var(--faint); border-radius: 2px; }
+  .char.ok { color: var(--ink); }
+  .char.bad {
+    color: var(--red);
+    background: var(--red-soft);
+    text-decoration: underline wavy;
+    text-decoration-color: var(--red);
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 7px;
+  }
+  .char.cur { box-shadow: inset 2px 0 0 var(--red); animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { box-shadow: inset 2px 0 0 transparent; } }
+
+  .hintline { text-align: center; color: var(--ink-soft); margin-top: 16px; font-size: 0.92rem; font-style: italic; }
+  .hintline kbd {
+    background: var(--paper); border: 1px solid var(--rule); border-bottom-width: 2.5px; border-radius: 4px;
+    padding: 2px 8px; font-size: 0.8rem; font-family: inherit; font-style: normal;
+  }
+
+  /* results — der Korrekturbogen */
+  #results { display: none; }
+  #results.show { display: block; animation: pop 0.25s ease-out; }
+  @keyframes pop { from { opacity: 0; transform: translateY(10px); } }
+  .bigwpm { text-align: center; margin: 14px 0 26px; }
+  .bigwpm .circle {
+    width: 170px; height: 170px; margin: 0 auto;
+    border: 3px solid var(--red);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    transform: rotate(-4deg);
+    background: var(--paper);
+    box-shadow: 0 2px 8px rgba(70, 55, 30, 0.15);
+  }
+  .bigwpm .n { font-size: 4.2rem; font-weight: 700; color: var(--red); line-height: 1; font-variant-numeric: tabular-nums; transform: rotate(4deg); }
+  .bigwpm .l { color: var(--ink-soft); margin-top: 12px; font-size: 1rem; font-style: italic; }
+  .newbest {
+    display: none; margin: 0 auto 20px; width: fit-content;
+    color: var(--red); border: 2px dashed var(--red);
+    border-radius: 4px; padding: 5px 18px; font-weight: 700; font-size: 0.9rem;
+    letter-spacing: 1.5px; text-transform: uppercase;
+    transform: rotate(-2deg);
+    background: var(--paper);
+  }
+  .newbest.show { display: block; }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; margin-bottom: 20px;
+  }
+  .cell {
+    background: var(--paper); border: 1px solid var(--rule); border-radius: 3px;
+    border-top: 3px double var(--faint);
+    padding: 16px; text-align: center;
+    box-shadow: 0 1px 2px rgba(80, 65, 40, 0.12);
+  }
+  .cell .v { font-size: 1.7rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cell .k { color: var(--ink-soft); font-size: 0.8rem; margin-top: 5px; font-variant: small-caps; letter-spacing: 1.2px; }
+  .graphcard {
+    background: var(--paper); border: 1px solid var(--rule); border-radius: 3px;
+    border-top: 3px double var(--faint);
+    padding: 16px 16px 8px; margin-bottom: 24px;
+    box-shadow: 0 1px 2px rgba(80, 65, 40, 0.12);
+  }
+  .graphcard .k { color: var(--ink-soft); font-size: 0.8rem; font-variant: small-caps; letter-spacing: 1.2px; margin-bottom: 8px; }
+  #graph { width: 100%; height: 130px; display: block; }
+  .again { text-align: center; }
+  .again button {
+    background: var(--red); color: var(--paper); border: 1px solid #8e2e25; border-radius: 4px;
+    padding: 12px 34px; font-size: 1.05rem; font-weight: 700; font-family: inherit; cursor: pointer;
+    box-shadow: 0 2px 4px rgba(70, 55, 30, 0.25);
+  }
+  .again button:hover { filter: brightness(1.08); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>✏️ <span id="t-title">Tippgeschwindigkeitstest</span></h1>
+  <p id="t-sub">Tippe einfach los – der Timer startet mit dem ersten Zeichen.</p>
+</header>
+
+<nav class="langbar" id="langbar">
+  <button data-lang="de">🇩🇪 Deutsch</button>
+  <button data-lang="en-US">🇺🇸 English (US)</button>
+  <button data-lang="en-GB">🇬🇧 English (UK)</button>
+  <button data-lang="fr">🇫🇷 Français</button>
+</nav>
+
+<main class="stage">
+  <section id="test">
+    <div class="statbar">
+      <div class="timer idle" id="timer">1:00</div>
+      <div class="live">
+        <div><div class="v" id="livewpm">0</div><div class="k" id="t-wpm">WPM</div></div>
+        <div><div class="v" id="liveacc">100%</div><div class="k" id="t-acc">Genauigkeit</div></div>
+      </div>
+    </div>
+    <div id="textbox"><div id="textinner"></div></div>
+    <p class="hintline"><kbd>Tab</kbd> <span id="t-restart">= neuer Text</span></p>
+  </section>
+
+  <section id="results">
+    <div class="bigwpm">
+      <div class="circle"><span class="n" id="r-wpm">0</span></div>
+      <div class="l" id="t-netwpm">Wörter pro Minute (netto)</div>
+    </div>
+    <div class="newbest" id="r-newbest">🏆 Neuer Bestwert!</div>
+    <div class="grid">
+      <div class="cell"><div class="v" id="r-gross">0</div><div class="k" id="t-gross">Brutto-WPM</div></div>
+      <div class="cell"><div class="v" id="r-acc">0%</div><div class="k" id="t-acc2">Genauigkeit</div></div>
+      <div class="cell"><div class="v" id="r-chars">0 / 0</div><div class="k" id="t-chars">Zeichen richtig / falsch</div></div>
+      <div class="cell"><div class="v" id="r-err">0</div><div class="k" id="t-err">Fehler</div></div>
+      <div class="cell"><div class="v" id="r-best">–</div><div class="k" id="t-best">Bestwert</div></div>
+    </div>
+    <div class="graphcard">
+      <div class="k" id="t-graph">WPM-Verlauf</div>
+      <svg id="graph" viewBox="0 0 600 130" preserveAspectRatio="none"></svg>
+    </div>
+    <div class="again"><button id="btn-again">Nochmal (Tab)</button></div>
+  </section>
+</main>
+
+<script>
+"use strict";
+
+/* ---------------- helpers ---------------- */
+function rnd(n) { return Math.floor(Math.random() * n); }
+function pick(arr, not) {
+  let x = arr[rnd(arr.length)];
+  if (not !== undefined && arr.length > 1) {
+    while (x === not) x = arr[rnd(arr.length)];
+  }
+  return x;
+}
+function low(s) { return s.charAt(0).toLowerCase() + s.slice(1); }
+
+/* shuffle-bag sampler: cycles through shuffled copies of arr, so nothing
+   repeats until (almost) everything else was used once — keeps text varied */
+function bag(arr) {
+  let pool = [], last;
+  return () => {
+    if (!pool.length) {
+      pool = arr.slice();
+      for (let i = pool.length - 1; i > 0; i--) { const j = rnd(i + 1); [pool[i], pool[j]] = [pool[j], pool[i]]; }
+      if (pool.length > 1 && pool[pool.length - 1] === last) [pool[0], pool[pool.length - 1]] = [pool[pool.length - 1], pool[0]];
+    }
+    last = pool.pop();
+    return last;
+  };
+}
+function distinct(sampler, not) { let x = sampler(); if (x === not) x = sampler(); return x; }
+function three(sampler) {
+  const out = [];
+  while (out.length < 3) { const x = sampler(); if (!out.includes(x)) out.push(x); }
+  return out;
+}
+
+/* ---------------- language packs ----------------
+   Each pack generates one natural sentence including punctuation:
+   periods, commas (subordinate clauses, enumerations), question
+   marks, exclamation marks, colons — French with the required
+   space before ? ! : per French typography. */
+
+const PACKS = {};
+
+/* ---- German ---- */
+PACKS["de"] = (function () {
+  const S = ["Der alte Lehrer", "Die junge Ärztin", "Mein Nachbar", "Unsere Katze", "Der müde Student",
+             "Die freundliche Bäckerin", "Der Bürgermeister", "Die Kapitänin", "Ein neugieriger Tourist",
+             "Der Astronaut", "Die Detektivin", "Mein Großvater", "Die Programmiererin", "Der Schiedsrichter",
+             "Eine berühmte Autorin", "Der Leuchtturmwärter", "Die Pianistin", "Der Gärtner",
+             "Meine Schwester", "Die Tierärztin"];
+  const VP = [
+    { v: "liest", o: "einen spannenden Krimi" }, { v: "trinkt", o: "einen starken Kaffee" },
+    { v: "besteigt", o: "den steilen Berg" }, { v: "fotografiert", o: "den Sonnenuntergang" },
+    { v: "programmiert", o: "eine neue App" }, { v: "dirigiert", o: "das Orchester" },
+    { v: "verliert", o: "die Wette" }, { v: "gewinnt", o: "das Turnier" },
+    { v: "übersetzt", o: "einen alten Roman" }, { v: "füttert", o: "die Pinguine" },
+    { v: "startet", o: "die Rakete" }, { v: "löst", o: "das knifflige Rätsel" },
+    { v: "plant", o: "eine lange Reise" }, { v: "erklärt", o: "die Spielregeln" },
+    { v: "backt", o: "eine Erdbeertorte" }, { v: "sammelt", o: "seltene Briefmarken" },
+    { v: "malt", o: "ein riesiges Wandbild" }, { v: "untersucht", o: "den Tatort" },
+    { v: "repariert", o: "den alten Motor" }, { v: "erfindet", o: "eine verrückte Maschine" },
+    { v: "beobachtet", o: "die Sterne" }, { v: "schreibt", o: "ein Theaterstück" },
+    { v: "entdeckt", o: "eine geheime Tür" }, { v: "verpasst", o: "den letzten Zug" },
+    { v: "organisiert", o: "das Straßenfest" }, { v: "zähmt", o: "das wilde Pony" },
+    { v: "mischt", o: "die Karten" }, { v: "pflückt", o: "reife Kirschen" },
+    { v: "sucht", o: "den verlorenen Schlüssel" }, { v: "kocht", o: "eine feurige Suppe" }
+  ];
+  const TIME = ["Am frühen Morgen", "Kurz vor Mitternacht", "Nach dem Konzert", "An regnerischen Tagen",
+                "Mitten in der Nacht", "Jeden zweiten Dienstag", "Am Wochenende", "Gegen Mittag", "Während der Pause"];
+  const CL = ["weil es draußen regnet", "obwohl niemand zuschaut", "während die Stadt schläft",
+              "bevor der Sturm losbricht", "weil die Ferien beginnen", "obwohl der Akku fast leer ist",
+              "da die Zeit drängt", "wenn der Wind dreht"];
+  const PL = ["am Hafen", "auf dem Dachboden", "hinter dem alten Theater", "an der Küste",
+              "im Museum", "auf der Brücke", "in der Bibliothek", "auf dem Marktplatz"];
+  const IT = ["einen Kompass", "eine alte Landkarte", "drei Zitronen", "eine zerkratzte Schallplatte",
+              "einen roten Regenschirm", "frische Feigen", "ein spannendes Buch", "eine Taschenlampe"];
+  const EX = ["Was für eine Überraschung!", "Das hätte niemand gedacht!", "Endlich klappt es!",
+              "Unglaublich, aber wahr!", "Wie aufregend das ist!"];
+  const SCENE = ["Der Regen trommelt aufs Dach.", "Über dem Hafen kreisen die Möwen.",
+                 "Irgendwo klingelt ein Telefon.", "Die Straßenbahn quietscht um die Ecke.",
+                 "Am Himmel funkeln tausend Sterne.", "Der Herbst färbt die Blätter bunt.",
+                 "Im Ofen duftet ein Apfelkuchen.", "Auf dem warmen Dach schnurrt eine Katze."];
+  const QW = ["Warum", "Wann", "Wo", "Wie oft", "Seit wann"];
+  const LISTV = ["kauft", "packt", "findet", "verschenkt"];
+  const sS = bag(S), sVP = bag(VP), sIT = bag(IT);
+
+  return { templates: [
+    () => { const s = sS(), p = sVP(); return `${s} ${p.v} ${p.o} ${pick(PL)}.`; },
+    () => { const s = sS(), p = sVP(); return `${s} ${p.v} ${p.o}, ${pick(CL)}.`; },
+    () => { const s = sS(), p = sVP(); return `${pick(TIME)} ${p.v} ${low(s)} ${p.o}.`; },
+    () => { const [a, b, c] = three(sIT); return `${sS()} ${pick(LISTV)} ${a}, ${b} und ${c}.`; },
+    () => { const s = sS(), p = sVP(); return `${pick(TIME)} ${p.v} ${low(s)} ${p.o}, ${pick(CL)}.`; },
+    () => { const s = sS(), p = sVP(); return `${pick(QW)} ${p.v} ${low(s)} ${p.o}?`; },
+    () => pick(EX),
+    () => pick(SCENE),
+    () => { const s = sS(), p = sVP(); return `${s} ${p.v} ${p.o}.`; },
+    () => { const s = sS(), p = sVP(), s2 = distinct(sS, s), p2 = distinct(sVP, p);
+            return `${s} ${p.v} ${p.o}, aber ${low(s2)} ${p2.v} ${p2.o}.`; },
+    () => { const s = sS(), p = sVP(); return `Eines ist sicher: ${s} ${p.v} ${p.o}.`; },
+    () => { const s = sS(), p = sVP(); return `Niemand weiß, warum ${low(s)} ${p.o} ${p.v}.`; },
+    () => { const s = sS(), p = sVP(); return `Es heißt, dass ${low(s)} ${p.o} ${p.v}.`; },
+    () => { const s = sS(), p = sVP(); return `Vielleicht ${p.v} ${low(s)} ${p.o}, vielleicht auch nicht.`; }
+  ]};
+})();
+
+/* ---- English (shared builder, US vs. UK word banks) ---- */
+function englishPack(us) {
+  const S = ["The old teacher", us ? "My neighbor" : "My neighbour", "Our cat", "The tired student",
+             "A young doctor", "The friendly baker", "The mayor", "The captain", "A curious tourist",
+             "The astronaut", "The detective", "My grandfather", "The programmer", "The referee",
+             "A famous writer", "The lighthouse keeper", "The pianist", "The gardener", "My sister",
+             us ? "Our neighbor from the apartment upstairs" : "Our neighbour from the flat upstairs"];
+  const VP = [
+    { v: "climbs", b: "climb", o: "the steep mountain" }, { v: "photographs", b: "photograph", o: "the sunset" },
+    { v: "codes", b: "code", o: "a new app" }, { v: "conducts", b: "conduct", o: "the orchestra" },
+    { v: "loses", b: "lose", o: "the bet" }, { v: "wins", b: "win", o: "the tournament" },
+    { v: "translates", b: "translate", o: "an old novel" }, { v: "feeds", b: "feed", o: "the penguins" },
+    { v: "launches", b: "launch", o: "the rocket" }, { v: "solves", b: "solve", o: "the tricky riddle" },
+    { v: "plans", b: "plan", o: "a long journey" }, { v: "explains", b: "explain", o: "the rules of the game" },
+    { v: "bakes", b: "bake", o: "a strawberry cake" }, { v: "collects", b: "collect", o: "rare stamps" },
+    { v: "paints", b: "paint", o: "a huge mural" }, { v: "investigates", b: "investigate", o: "the crime scene" },
+    { v: "repairs", b: "repair", o: "the old engine" }, { v: "invents", b: "invent", o: "a crazy machine" },
+    { v: "studies", b: "study", o: "the stars" }, { v: "writes", b: "write", o: "a play" },
+    { v: "discovers", b: "discover", o: "a secret door" }, { v: "misses", b: "miss", o: "the last train" },
+    { v: "tames", b: "tame", o: "the wild pony" }, { v: "shuffles", b: "shuffle", o: "the cards" },
+    { v: "picks", b: "pick", o: "ripe cherries" }, { v: "drinks", b: "drink", o: "a strong coffee" },
+    { v: "looks for", b: "look for", o: "the lost keys" },
+    us ? { v: "organizes", b: "organize", o: "a colorful street party" } : { v: "organises", b: "organise", o: "a colourful street party" },
+    us ? { v: "watches", b: "watch", o: "the soccer game" } : { v: "watches", b: "watch", o: "the football match" },
+    us ? { v: "chooses", b: "choose", o: "a favorite record" } : { v: "chooses", b: "choose", o: "a favourite record" },
+    us ? { v: "takes", b: "take", o: "the subway downtown" } : { v: "takes", b: "take", o: "the underground into town" }
+  ];
+  const TIME = ["In the early morning,", "Just before midnight,", "After the concert,", "On rainy days,",
+                "In the middle of the night,", "Every other Tuesday,",
+                us ? "On the weekend," : "At the weekend,", us ? "During the vacation," : "During the holidays,"];
+  const CL = ["because it is raining outside", "although nobody is watching", "while the city sleeps",
+              "before the storm breaks", "because the holidays are near", "although the battery is almost empty",
+              "when the wind changes"];
+  const PL = [us ? "at the harbor" : "at the harbour", "in the attic",
+              us ? "behind the old theater" : "behind the old theatre", "on the coast", "at the museum",
+              "on the bridge", "in the library", "on the market square"];
+  const IT = ["a compass", "an old map", "three lemons", "a scratched vinyl record", "a red umbrella",
+              "fresh figs", "an exciting book", us ? "a flashlight" : "a torch",
+              us ? "some cookies" : "some biscuits"];
+  const EX = ["What a surprise!", "Nobody saw that coming!", "It finally works!",
+              "Unbelievable, but true!", "How exciting this is!"];
+  const SCENE = ["The rain drums on the roof.", us ? "Seagulls circle above the harbor." : "Seagulls circle above the harbour.",
+                 "Somewhere a phone is ringing.", "The tram squeaks around the corner.",
+                 "A thousand stars glitter in the sky.",
+                 us ? "Fall paints the leaves red and gold." : "Autumn paints the leaves red and gold.",
+                 "The kettle whistles in the kitchen.", "A cat purrs on the warm roof."];
+  const QW = ["Why", "When", "Where", "How often", "Since when"];
+  const LISTV = ["buys", "packs", "finds", "gives away"];
+  // US uses the Oxford comma, UK does not
+  const listJoin = us ? ", and " : " and ";
+  const sS = bag(S), sVP = bag(VP), sIT = bag(IT);
+
+  return { templates: [
+    () => { const s = sS(), p = sVP(); return `${s} ${p.v} ${p.o} ${pick(PL)}.`; },
+    () => { const s = sS(), p = sVP(); return `${s} ${p.v} ${p.o}, ${pick(CL)}.`; },
+    () => { const s = sS(), p = sVP(); return `${pick(TIME)} ${low(s)} ${p.v} ${p.o}.`; },
+    () => { const [a, b, c] = three(sIT); return `${sS()} ${pick(LISTV)} ${a}, ${b}${listJoin}${c}.`; },
+    () => { const s = sS(), p = sVP(); return `${pick(TIME)} ${low(s)} ${p.v} ${p.o}, ${pick(CL)}.`; },
+    () => { const s = sS(), p = sVP(); return `${pick(QW)} does ${low(s)} ${p.b} ${p.o}?`; },
+    () => pick(EX),
+    () => pick(SCENE),
+    () => { const s = sS(), p = sVP(); return `${s} ${p.v} ${p.o}.`; },
+    () => { const s = sS(), p = sVP(), s2 = distinct(sS, s), p2 = distinct(sVP, p);
+            return `${s} ${p.v} ${p.o}, but ${low(s2)} ${p2.v} ${p2.o}.`; },
+    () => { const s = sS(), p = sVP(); return `One thing is certain: ${low(s)} ${p.v} ${p.o}.`; },
+    () => { const s = sS(), p = sVP(); return `Nobody knows why ${low(s)} ${p.v} ${p.o}.`; },
+    () => { const s = sS(), p = sVP(); return `Apparently, ${low(s)} ${p.v} ${p.o}.`; },
+    () => { const s = sS(), p = sVP(); return `Maybe ${low(s)} will ${p.b} ${p.o}, maybe not.`; }
+  ]};
+}
+PACKS["en-US"] = englishPack(true);
+PACKS["en-GB"] = englishPack(false);
+
+/* ---- French (space before ? ! : per French typography) ---- */
+PACKS["fr"] = (function () {
+  const S = ["Le vieux professeur", "Ma voisine", "Notre chat", "L'étudiant fatigué", "Un jeune médecin",
+             "La boulangère", "Le maire", "La capitaine", "Un touriste curieux", "L'astronaute",
+             "La détective", "Mon grand-père", "La programmeuse", "L'arbitre", "Un écrivain célèbre",
+             "Le gardien du phare", "La pianiste", "Le jardinier", "Mon frère", "La vétérinaire"];
+  const VP = [
+    { v: "gravit", o: "la montagne escarpée" }, { v: "photographie", o: "le coucher de soleil" },
+    { v: "code", o: "une nouvelle application" }, { v: "dirige", o: "l'orchestre" },
+    { v: "perd", o: "le pari" }, { v: "gagne", o: "le tournoi" },
+    { v: "traduit", o: "un vieux roman" }, { v: "nourrit", o: "les pingouins" },
+    { v: "lance", o: "la fusée" }, { v: "résout", o: "l'énigme difficile" },
+    { v: "planifie", o: "un long voyage" }, { v: "explique", o: "les règles du jeu" },
+    { v: "prépare", o: "une tarte aux fraises" }, { v: "collectionne", o: "des timbres rares" },
+    { v: "peint", o: "une immense fresque" }, { v: "examine", o: "la scène du crime" },
+    { v: "répare", o: "le vieux moteur" }, { v: "invente", o: "une machine folle" },
+    { v: "observe", o: "les étoiles" }, { v: "écrit", o: "une pièce de théâtre" },
+    { v: "découvre", o: "une porte secrète" }, { v: "rate", o: "le dernier train" },
+    { v: "organise", o: "la fête du quartier" }, { v: "apprivoise", o: "le poney sauvage" },
+    { v: "mélange", o: "les cartes" }, { v: "cueille", o: "des cerises mûres" },
+    { v: "boit", o: "un café bien chaud" }, { v: "cherche", o: "les clés perdues" }
+  ];
+  const TIME = ["Tôt le matin,", "Juste avant minuit,", "Après le concert,", "Les jours de pluie,",
+                "Au milieu de la nuit,", "Un mardi sur deux,", "Le week-end,", "Vers midi,", "Pendant la pause,"];
+  const CL = ["parce qu'il pleut dehors", "bien que personne ne regarde", "pendant que la ville dort",
+              "avant que l'orage éclate", "parce que les vacances approchent",
+              "bien que la batterie soit presque vide", "quand le vent tourne"];
+  const PL = ["au port", "dans le grenier", "derrière le vieux théâtre", "sur la côte",
+              "au musée", "sur le pont", "à la bibliothèque", "sur la place du marché"];
+  const IT = ["une boussole", "une vieille carte", "trois citrons", "un disque vinyle rayé",
+              "un parapluie rouge", "des figues fraîches", "un livre passionnant", "une lampe de poche"];
+  const EX = ["Quelle surprise !", "Personne ne l'aurait cru !", "Enfin, ça marche !",
+              "Incroyable, mais vrai !", "Comme c'est passionnant !"];
+  const SCENE = ["La pluie tambourine sur le toit.", "Des mouettes tournent au-dessus du port.",
+                 "Quelque part, un téléphone sonne.", "Le tramway grince au coin de la rue.",
+                 "Mille étoiles scintillent dans le ciel.", "L'automne colore les feuilles en or.",
+                 "La bouilloire siffle dans la cuisine.", "Un chat ronronne sur le toit chaud."];
+  const LISTV = ["achète", "emporte", "trouve", "offre"];
+  const sS = bag(S), sVP = bag(VP), sIT = bag(IT);
+  // elision: "que" + vowel → "qu'" ("est-ce qu'un touriste", but "est-ce que l'arbitre")
+  const que = (next) => /^[aeiouéèêà]/i.test(next) ? "qu'" : "que ";
+
+  return { templates: [
+    () => { const s = sS(), p = sVP(); return `${s} ${p.v} ${p.o} ${pick(PL)}.`; },
+    () => { const s = sS(), p = sVP(); return `${s} ${p.v} ${p.o}, ${pick(CL)}.`; },
+    () => { const s = sS(), p = sVP(); return `${pick(TIME)} ${low(s)} ${p.v} ${p.o}.`; },
+    () => { const [a, b, c] = three(sIT); return `${sS()} ${pick(LISTV)} ${a}, ${b} et ${c}.`; },
+    () => { const s = sS(), p = sVP(); return `${pick(TIME)} ${low(s)} ${p.v} ${p.o}, ${pick(CL)}.`; },
+    () => { const s = low(sS()), p = sVP(); return `Pourquoi est-ce ${que(s)}${s} ${p.v} ${p.o} ?`; },
+    () => { const s = low(sS()), p = sVP(); return `Est-ce ${que(s)}${s} ${p.v} ${p.o} ?`; },
+    () => pick(EX),
+    () => pick(SCENE),
+    () => { const s = sS(), p = sVP(); return `${s} ${p.v} ${p.o}.`; },
+    () => { const s = sS(), p = sVP(), s2 = distinct(sS, s), p2 = distinct(sVP, p);
+            return `${s} ${p.v} ${p.o}, mais ${low(s2)} ${p2.v} ${p2.o}.`; },
+    () => { const s = sS(), p = sVP(); return `Une chose est sûre : ${low(s)} ${p.v} ${p.o}.`; },
+    () => { const s = sS(), p = sVP(); return `Personne ne sait pourquoi ${low(s)} ${p.v} ${p.o}.`; },
+    () => { const s = low(sS()), p = sVP(); return `Il paraît ${que(s)}${s} ${p.v} ${p.o}.`; },
+    () => { const s = low(sS()), p = sVP(); return `Peut-être ${que(s)}${s} ${p.v} ${p.o}, peut-être pas.`; }
+  ]};
+})();
+
+/* ---------------- UI localization ---------------- */
+const L10N = {
+  "de": { title: "Tippgeschwindigkeitstest", sub: "Tippe einfach los – der Timer startet mit dem ersten Zeichen.",
+          wpm: "WPM", acc: "Genauigkeit", restart: "= neuer Text", netwpm: "Wörter pro Minute (netto)",
+          gross: "Brutto-WPM", chars: "Zeichen richtig / falsch", err: "Fehler", best: "Bestwert",
+          newbest: "🏆 Neuer Bestwert!", again: "Nochmal (Tab)", graph: "WPM-Verlauf" },
+  "en-US": { title: "Typing Speed Test", sub: "Just start typing — the timer starts with your first keystroke.",
+          wpm: "WPM", acc: "Accuracy", restart: "= new text", netwpm: "words per minute (net)",
+          gross: "Gross WPM", chars: "Chars right / wrong", err: "Errors", best: "Personal best",
+          newbest: "🏆 New personal best!", again: "Try again (Tab)", graph: "WPM over time" },
+  "fr": { title: "Test de vitesse de frappe", sub: "Commencez à taper — le chrono démarre au premier caractère.",
+          wpm: "MPM", acc: "Précision", restart: "= nouveau texte", netwpm: "mots par minute (net)",
+          gross: "MPM brut", chars: "Caractères justes / faux", err: "Erreurs", best: "Record personnel",
+          newbest: "🏆 Nouveau record !", again: "Recommencer (Tab)", graph: "MPM au fil du temps" }
+};
+L10N["en-GB"] = L10N["en-US"];
+
+/* ---------------- text generation ---------------- */
+function genSentence(lang, lastRef) {
+  const pack = PACKS[lang];
+  // shuffle-bag over sentence shapes: every shape appears once per cycle,
+  // so no run of same-pattern sentences
+  if (!pack._tbag) pack._tbag = bag(pack.templates);
+  let s = pack._tbag()();
+  // avoid the exact same sentence twice in a row
+  if (lastRef.s && s === lastRef.s) s = pack._tbag()();
+  lastRef.s = s;
+  return s;
+}
+function genText(lang, minChars, lastRef) {
+  let out = "";
+  while (out.length < minChars) out += (out ? " " : "") + genSentence(lang, lastRef);
+  return out;
+}
+
+/* ---------------- test state ---------------- */
+const DURATION = 60;
+let lang = "de";
+let text = "";
+let idx = 0;
+let started = false, finished = false;
+let startTime = 0, tickIv = null;
+let keystrokes = 0, errors = 0;
+let samples = [];
+let lastSentence = { s: "" };
+let charEls = [];
+
+const $ = (id) => document.getElementById(id);
+const inner = $("textinner");
+
+function applyL10n() {
+  const t = L10N[lang];
+  $("t-title").textContent = t.title;
+  $("t-sub").textContent = t.sub;
+  $("t-wpm").textContent = t.wpm;
+  $("t-acc").textContent = t.acc;
+  $("t-restart").textContent = t.restart;
+  $("t-netwpm").textContent = t.netwpm;
+  $("t-gross").textContent = t.gross;
+  $("t-acc2").textContent = t.acc;
+  $("t-chars").textContent = t.chars;
+  $("t-err").textContent = t.err;
+  $("t-best").textContent = t.best;
+  $("t-graph").textContent = t.graph;
+  $("r-newbest").textContent = t.newbest;
+  $("btn-again").textContent = t.again;
+  document.documentElement.lang = lang;
+}
+
+function appendChars(str) {
+  // render word-wise so line wrapping never splits a word
+  const frag = document.createDocumentFragment();
+  const words = str.split(" ");
+  words.forEach((w, i) => {
+    const wEl = document.createElement("span");
+    wEl.className = "word";
+    const chars = (i < words.length - 1 ? w + " " : w).split("");
+    chars.forEach((c) => {
+      const el = document.createElement("span");
+      el.className = "char";
+      el.textContent = c;
+      wEl.appendChild(el);
+      charEls.push(el);
+    });
+    frag.appendChild(wEl);
+  });
+  inner.appendChild(frag);
+}
+
+function extendIfNeeded() {
+  if (text.length - idx < 140) {
+    // leading space joins the new sentences to the existing text; appendChars
+    // renders it as its own single-space "word", keeping text and spans in sync
+    const more = " " + genText(lang, 200, lastSentence);
+    text += more;
+    appendChars(more);
+  }
+}
+
+function setup() {
+  clearInterval(tickIv);
+  started = false; finished = false;
+  idx = 0; keystrokes = 0; errors = 0; samples = [];
+  lastSentence = { s: "" };
+  charEls = [];
+  inner.innerHTML = "";
+  inner.style.transform = "translateY(0)";
+  text = genText(lang, 420, lastSentence);
+  appendChars(text);
+  markCursor();
+  $("timer").textContent = "1:00";
+  $("timer").classList.add("idle");
+  $("livewpm").textContent = "0";
+  $("liveacc").textContent = "100%";
+  $("results").classList.remove("show");
+  $("test").style.display = "";
+  applyL10n();
+}
+
+function markCursor() {
+  charEls.forEach((el) => el.classList.remove("cur"));
+  const el = charEls[idx];
+  if (el) {
+    el.classList.add("cur");
+    // scroll: keep the active line vertically centered inside the box
+    const line = el.offsetTop;
+    const box = $("textbox").clientHeight;
+    const lh = parseFloat(getComputedStyle(inner).lineHeight) || 44;
+    const target = Math.max(0, line - box / 2 + lh);
+    inner.style.transform = `translateY(${-target}px)`;
+  }
+}
+
+function netWpm(elapsedSec) {
+  const correct = idx === 0 ? 0 : charEls.slice(0, idx).filter((e) => e.classList.contains("ok")).length;
+  return elapsedSec > 0 ? (correct / 5) / (elapsedSec / 60) : 0;
+}
+
+function startTimer() {
+  started = true;
+  startTime = performance.now();
+  $("timer").classList.remove("idle");
+  let lastSample = 0;
+  tickIv = setInterval(() => {
+    const elapsed = (performance.now() - startTime) / 1000;
+    const remain = Math.max(0, DURATION - elapsed);
+    const m = Math.floor(remain / 60), s = Math.ceil(remain % 60) % 60;
+    $("timer").textContent = remain > 59.5 ? "1:00" : `0:${String(Math.ceil(remain)).padStart(2, "0")}`;
+    $("livewpm").textContent = String(Math.round(netWpm(elapsed)));
+    $("liveacc").textContent = keystrokes ? Math.round(((keystrokes - errors) / keystrokes) * 100) + "%" : "100%";
+    const sec = Math.floor(elapsed);
+    if (sec > lastSample && sec <= DURATION) {
+      lastSample = sec;
+      samples.push({ t: sec, wpm: netWpm(elapsed) });
+    }
+    if (elapsed >= DURATION) finish();
+  }, 100);
+}
+
+function finish() {
+  clearInterval(tickIv);
+  finished = true;
+  const done = charEls.slice(0, idx);
+  const right = done.filter((e) => e.classList.contains("ok")).length;
+  const wrong = done.filter((e) => e.classList.contains("bad")).length;
+  const net = Math.round((right / 5));            // per exactly 1 minute
+  const gross = Math.round(idx / 5);
+  const acc = keystrokes ? Math.round(((keystrokes - errors) / keystrokes) * 100) : 100;
+
+  $("r-wpm").textContent = String(net);
+  $("r-gross").textContent = String(gross);
+  $("r-acc").textContent = acc + "%";
+  $("r-chars").textContent = `${right} / ${wrong}`;
+  $("r-err").textContent = String(errors);
+
+  let best = 0;
+  try { best = Number(localStorage.getItem("typingspeed-best-" + lang)) || 0; } catch (e) {}
+  const isBest = net > best;
+  if (isBest) {
+    best = net;
+    try { localStorage.setItem("typingspeed-best-" + lang, String(best)); } catch (e) {}
+  }
+  $("r-best").textContent = String(best);
+  $("r-newbest").classList.toggle("show", isBest && net > 0);
+
+  drawGraph();
+  $("test").style.display = "none";
+  $("results").classList.add("show");
+}
+
+function drawGraph() {
+  const svg = $("graph");
+  const W = 600, H = 130, pad = 8;
+  svg.innerHTML = "";
+  if (samples.length < 2) return;
+  const max = Math.max(10, ...samples.map((s) => s.wpm)) * 1.1;
+  const x = (t) => pad + (t / DURATION) * (W - 2 * pad);
+  const y = (w) => H - pad - (w / max) * (H - 2 * pad);
+  const ns = "http://www.w3.org/2000/svg";
+  // grid lines
+  [0.25, 0.5, 0.75].forEach((f) => {
+    const g = document.createElementNS(ns, "line");
+    g.setAttribute("x1", pad); g.setAttribute("x2", W - pad);
+    g.setAttribute("y1", y(max * f)); g.setAttribute("y2", y(max * f));
+    g.setAttribute("stroke", "#ded2b6"); g.setAttribute("stroke-width", "1");
+    svg.appendChild(g);
+  });
+  // area fill
+  const pts = samples.map((s) => `${x(s.t)},${y(s.wpm)}`).join(" ");
+  const area = document.createElementNS(ns, "polygon");
+  area.setAttribute("points", `${x(samples[0].t)},${H - pad} ${pts} ${x(samples[samples.length - 1].t)},${H - pad}`);
+  area.setAttribute("fill", "rgba(178,58,47,0.08)");
+  svg.appendChild(area);
+  const line = document.createElementNS(ns, "polyline");
+  line.setAttribute("points", pts);
+  line.setAttribute("fill", "none");
+  line.setAttribute("stroke", "#b23a2f");
+  line.setAttribute("stroke-width", "2.5");
+  line.setAttribute("stroke-linejoin", "round");
+  svg.appendChild(line);
+}
+
+/* ---------------- input handling ---------------- */
+window.addEventListener("keydown", (e) => {
+  if (e.key === "Tab") { e.preventDefault(); setup(); return; }
+  if (finished) { if (e.key === "Enter") setup(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  if (e.key === "Backspace") {
+    e.preventDefault();
+    if (idx > 0) {
+      idx--;
+      charEls[idx].classList.remove("ok", "bad");
+      markCursor();
+    }
+    return;
+  }
+  if (e.key.length !== 1) return;   // ignore dead keys, F-keys, arrows …
+  e.preventDefault();
+
+  if (!started) startTimer();
+  const expected = text[idx];
+  keystrokes++;
+  if (e.key === expected) {
+    charEls[idx].classList.add("ok");
+  } else {
+    charEls[idx].classList.add("bad");
+    errors++;
+  }
+  idx++;
+  extendIfNeeded();
+  markCursor();
+});
+
+/* ---------------- language selection ---------------- */
+$("langbar").addEventListener("click", (e) => {
+  const btn = e.target.closest("button[data-lang]");
+  if (!btn) return;
+  lang = btn.dataset.lang;
+  try { localStorage.setItem("typingspeed-lang", lang); } catch (err) {}
+  document.querySelectorAll("#langbar button").forEach((b) => b.classList.toggle("sel", b === btn));
+  btn.blur();
+  setup();
+});
+
+$("btn-again").addEventListener("click", (e) => { e.target.blur(); setup(); });
+
+/* ---------------- init ---------------- */
+try {
+  const saved = localStorage.getItem("typingspeed-lang");
+  if (saved && PACKS[saved]) lang = saved;
+} catch (e) {}
+document.querySelectorAll("#langbar button").forEach((b) => b.classList.toggle("sel", b.dataset.lang === lang));
+setup();
+</script>
+</body>
+</html>

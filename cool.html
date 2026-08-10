@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Deal With It — GIF Maker</title>
+<style>
+  :root { --accent:#ffcc00; --bg:#12141c; --panel:#1c1f2b; }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    background: radial-gradient(circle at top, #232838, #0d0f16);
+    color:#eee; min-height:100vh; padding:24px;
+  }
+  h1 { text-align:center; margin:0 0 4px; font-size:2rem; }
+  .sub { text-align:center; color:#9aa; margin:0 0 24px; font-size:.9rem; }
+  .wrap { max-width:760px; margin:0 auto; }
+  .panel {
+    background:var(--panel); border-radius:14px; padding:20px;
+    box-shadow:0 8px 30px rgba(0,0,0,.4); margin-bottom:20px;
+  }
+  .drop {
+    border:2px dashed #444a5f; border-radius:12px; padding:32px; text-align:center;
+    cursor:pointer; transition:.2s; color:#9aa;
+  }
+  .drop:hover, .drop.over { border-color:var(--accent); color:#fff; background:#20242f; }
+  canvas { max-width:100%; height:auto; border-radius:10px; display:block; margin:0 auto;
+    background:#000; touch-action:none; cursor:grab; }
+  canvas:active { cursor:grabbing; }
+  .controls { display:grid; grid-template-columns:1fr 1fr; gap:14px 20px; margin-top:18px; }
+  .controls label { font-size:.85rem; display:flex; flex-direction:column; gap:6px; }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  .row { display:flex; align-items:center; gap:10px; grid-column:1/-1; }
+  input[type=text]{ flex:1; padding:8px 10px; border-radius:8px; border:1px solid #3a3f52;
+    background:#0f1119; color:#fff; }
+  button {
+    background:var(--accent); color:#111; border:none; padding:12px 22px; font-size:1rem;
+    font-weight:700; border-radius:10px; cursor:pointer; transition:.15s;
+  }
+  button:hover { filter:brightness(1.1); }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .center { text-align:center; }
+  .bar { height:8px; background:#333; border-radius:6px; overflow:hidden; margin-top:14px; display:none; }
+  .bar > div { height:100%; width:0; background:var(--accent); transition:.1s; }
+  #result img { max-width:100%; border-radius:10px; margin-top:10px; }
+  .hint { font-size:.8rem; color:#8890a5; margin-top:8px; }
+  a.dl { display:inline-block; margin-top:12px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>😎 Deal With It — GIF Maker</h1>
+  <p class="sub">Upload a photo, place the shades, drop 'em, download the meme.</p>
+
+  <div class="panel" id="uploadPanel">
+    <div class="drop" id="drop">
+      <strong>Click or drop an image here</strong><br>
+      <span style="font-size:.85rem">JPG / PNG / WebP — faces, animals, anything</span>
+    </div>
+    <input type="file" id="file" accept="image/*" class="hidden">
+  </div>
+
+  <div class="panel hidden" id="editPanel">
+    <canvas id="canvas"></canvas>
+    <p class="hint">Drag the sunglasses onto the eyes. Use the sliders to fine-tune.</p>
+    <div class="controls">
+      <label>Size
+        <input type="range" id="size" min="20" max="150" value="60">
+      </label>
+      <label>Rotation
+        <input type="range" id="rot" min="-45" max="45" value="0">
+      </label>
+      <div class="row">
+        <label style="flex-direction:row; align-items:center; gap:8px;">
+          <input type="checkbox" id="useText" checked> Add caption:
+        </label>
+        <input type="text" id="caption" value="DEAL WITH IT">
+      </div>
+      <div class="row" style="justify-content:center; margin-top:6px;">
+        <button id="generate">Generate GIF ⚡</button>
+        <button id="reset" style="background:#3a3f52; color:#fff;">New Image</button>
+      </div>
+    </div>
+    <div class="bar" id="bar"><div id="barFill"></div></div>
+  </div>
+
+  <div class="panel center hidden" id="result">
+    <h3>Your GIF is ready! 🎉</h3>
+    <img id="outImg" alt="result gif">
+    <br>
+    <a class="dl"><button id="download">⬇ Download GIF</button></a>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.js"></script>
+<script>
+// ---- Pixel "Deal With It" sunglasses (17 x 5 grid) ----
+const GLASSES = [
+  "11111111111111111",
+  "11111110001111111",
+  "11111110001111111",
+  "01111100000111110",
+  "00111000000011100"
+];
+const GCOLS = GLASSES[0].length, GROWS = GLASSES.length;
+
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+const uploadPanel = document.getElementById('uploadPanel');
+const editPanel = document.getElementById('editPanel');
+const resultPanel = document.getElementById('result');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const sizeSlider = document.getElementById('size');
+const rotSlider = document.getElementById('rot');
+const useText = document.getElementById('useText');
+const captionInput = document.getElementById('caption');
+const bar = document.getElementById('bar');
+const barFill = document.getElementById('barFill');
+
+let img = null;
+// glasses state (in canvas pixels)
+let gx = 0, gy = 0;          // center of glasses
+let gWidth = 0;              // pixel width
+let gRot = 0;                // radians
+const MAX_DIM = 500;
+
+// ---------- Upload handling ----------
+drop.addEventListener('click', () => fileInput.click());
+['dragover','dragenter'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop', ev => { if(ev.dataTransfer.files[0]) loadFile(ev.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if(fileInput.files[0]) loadFile(fileInput.files[0]); });
+
+function loadFile(file){
+  const reader = new FileReader();
+  reader.onload = e => {
+    const im = new Image();
+    im.onload = () => { setupImage(im); };
+    im.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function setupImage(im){
+  // scale down to max dimension
+  let w = im.width, h = im.height;
+  const scale = Math.min(1, MAX_DIM / Math.max(w, h));
+  w = Math.round(w*scale); h = Math.round(h*scale);
+  canvas.width = w; canvas.height = h;
+  img = im;
+  // default glasses placement
+  gWidth = w * 0.55;
+  gx = w/2;
+  gy = h * 0.4;
+  gRot = 0;
+  sizeSlider.value = 60;
+  rotSlider.value = 0;
+  uploadPanel.classList.add('hidden');
+  editPanel.classList.remove('hidden');
+  resultPanel.classList.add('hidden');
+  drawPreview();
+}
+
+// ---------- Drawing ----------
+function glassesHeight(){ return gWidth * (GROWS / GCOLS); }
+
+function drawGlasses(c, cx, cy, width, rot){
+  const px = width / GCOLS;
+  const gh = px * GROWS;
+  c.save();
+  c.translate(cx, cy);
+  c.rotate(rot);
+  c.fillStyle = '#000';
+  for(let r=0;r<GROWS;r++){
+    for(let col=0;col<GCOLS;col++){
+      if(GLASSES[r][col]==='1'){
+        c.fillRect(-width/2 + col*px, -gh/2 + r*px, px+0.6, px+0.6);
+      }
+    }
+  }
+  c.restore();
+}
+
+function drawCaption(c, text){
+  if(!text) return;
+  const fs = Math.max(20, canvas.width*0.11);
+  c.font = `bold ${fs}px Impact, "Arial Black", sans-serif`;
+  c.textAlign = 'center';
+  c.textBaseline = 'bottom';
+  c.lineWidth = fs*0.14;
+  c.lineJoin = 'round';
+  c.strokeStyle = '#000';
+  c.fillStyle = '#fff';
+  const y = canvas.height - canvas.height*0.03;
+  c.strokeText(text, canvas.width/2, y);
+  c.fillText(text, canvas.width/2, y);
+}
+
+function renderFrame(c, glassesCenterY, showText){
+  c.clearRect(0,0,canvas.width,canvas.height);
+  c.drawImage(img, 0,0, canvas.width, canvas.height);
+  drawGlasses(c, gx, glassesCenterY, gWidth, gRot);
+  if(showText) drawCaption(c, captionInput.value);
+}
+
+function drawPreview(){
+  renderFrame(ctx, gy, useText.checked);
+}
+
+// ---------- Controls ----------
+sizeSlider.addEventListener('input', () => {
+  gWidth = canvas.width * (sizeSlider.value/100);
+  drawPreview();
+});
+rotSlider.addEventListener('input', () => {
+  gRot = rotSlider.value * Math.PI/180;
+  drawPreview();
+});
+useText.addEventListener('change', drawPreview);
+captionInput.addEventListener('input', drawPreview);
+document.getElementById('reset').addEventListener('click', () => {
+  img=null; fileInput.value='';
+  editPanel.classList.add('hidden');
+  resultPanel.classList.add('hidden');
+  uploadPanel.classList.remove('hidden');
+});
+
+// ---------- Dragging ----------
+let dragging=false, dragOff={x:0,y:0};
+function canvasPos(e){
+  const rect = canvas.getBoundingClientRect();
+  const sx = canvas.width/rect.width, sy = canvas.height/rect.height;
+  const p = e.touches ? e.touches[0] : e;
+  return { x:(p.clientX-rect.left)*sx, y:(p.clientY-rect.top)*sy };
+}
+function hit(pos){
+  const hw = gWidth/2, hh = glassesHeight()/2 + 10;
+  return Math.abs(pos.x-gx)<hw && Math.abs(pos.y-gy)<hh;
+}
+function startDrag(e){
+  const pos = canvasPos(e);
+  if(hit(pos)){ dragging=true; dragOff.x=gx-pos.x; dragOff.y=gy-pos.y; e.preventDefault(); }
+}
+function moveDrag(e){
+  if(!dragging) return;
+  const pos = canvasPos(e);
+  gx = pos.x + dragOff.x;
+  gy = pos.y + dragOff.y;
+  drawPreview(); e.preventDefault();
+}
+function endDrag(){ dragging=false; }
+canvas.addEventListener('mousedown', startDrag);
+window.addEventListener('mousemove', moveDrag);
+window.addEventListener('mouseup', endDrag);
+canvas.addEventListener('touchstart', startDrag, {passive:false});
+window.addEventListener('touchmove', moveDrag, {passive:false});
+window.addEventListener('touchend', endDrag);
+
+// ---------- GIF generation ----------
+let workerBlobURL = null;
+async function getWorkerURL(){
+  if(workerBlobURL) return workerBlobURL;
+  const resp = await fetch('https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/gif.worker.js');
+  const text = await resp.text();
+  workerBlobURL = URL.createObjectURL(new Blob([text], {type:'application/javascript'}));
+  return workerBlobURL;
+}
+
+document.getElementById('generate').addEventListener('click', generateGIF);
+
+async function generateGIF(){
+  const genBtn = document.getElementById('generate');
+  genBtn.disabled = true; genBtn.textContent = 'Working…';
+  bar.style.display='block'; barFill.style.width='0%';
+
+  const workerURL = await getWorkerURL();
+
+  // offscreen render canvas
+  const rc = document.createElement('canvas');
+  rc.width = canvas.width; rc.height = canvas.height;
+  const rctx = rc.getContext('2d');
+
+  const gif = new GIF({
+    workers: 2, quality: 10,
+    width: rc.width, height: rc.height,
+    workerScript: workerURL,
+    background: '#000'
+  });
+
+  const startY = -glassesHeight()/2;          // above the frame
+  const targetY = gy;
+  const dropFrames = 18;
+
+  // dropping (accelerating, like gravity)
+  for(let i=0;i<dropFrames;i++){
+    const t = i/(dropFrames-1);
+    const ease = t*t;
+    const y = startY + (targetY-startY)*ease;
+    renderTo(rctx, y, false);
+    gif.addFrame(rc, {copy:true, delay:45});
+  }
+  // small bounce
+  const bounce = glassesHeight()*0.12;
+  renderTo(rctx, targetY - bounce, false); gif.addFrame(rc,{copy:true,delay:45});
+  renderTo(rctx, targetY, false);          gif.addFrame(rc,{copy:true,delay:60});
+  // hold with caption
+  renderTo(rctx, targetY, useText.checked); gif.addFrame(rc,{copy:true,delay:2500});
+
+  gif.on('progress', p => { barFill.style.width = Math.round(p*100)+'%'; });
+  gif.on('finished', blob => {
+    const url = URL.createObjectURL(blob);
+    document.getElementById('outImg').src = url;
+    const link = document.querySelector('#result a.dl');
+    link.href = url; link.download = 'deal-with-it.gif';
+    resultPanel.classList.remove('hidden');
+    bar.style.display='none';
+    genBtn.disabled=false; genBtn.textContent='Generate GIF ⚡';
+    resultPanel.scrollIntoView({behavior:'smooth'});
+  });
+  gif.render();
+
+  function renderTo(c, glassesY, showText){
+    c.clearRect(0,0,rc.width,rc.height);
+    c.drawImage(img,0,0,rc.width,rc.height);
+    drawGlasses(c, gx, glassesY, gWidth, gRot);
+    if(showText) drawCaption2(c, captionInput.value);
+  }
+  function drawCaption2(c, text){
+    if(!text) return;
+    const fs = Math.max(20, rc.width*0.11);
+    c.font = `bold ${fs}px Impact, "Arial Black", sans-serif`;
+    c.textAlign='center'; c.textBaseline='bottom';
+    c.lineWidth=fs*0.14; c.lineJoin='round';
+    c.strokeStyle='#000'; c.fillStyle='#fff';
+    const y = rc.height - rc.height*0.03;
+    c.strokeText(text, rc.width/2, y);
+    c.fillText(text, rc.width/2, y);
+  }
+}
+</script>
+</body>
+</html>

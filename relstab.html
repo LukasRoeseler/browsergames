@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reliability and Stability</title>
+<style>
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    margin: 0;
+    color: #333;
+    background: #fff;
+  }
+  h1 {
+    font-size: 28px;
+    font-weight: 500;
+    padding: 15px 20px;
+    margin: 0;
+  }
+  .container {
+    display: flex;
+    gap: 20px;
+    padding: 0 20px 20px;
+    flex-wrap: wrap;
+  }
+  .sidebar {
+    flex: 0 0 300px;
+    background: #f5f5f5;
+    padding: 20px;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  .main {
+    flex: 1 1 600px;
+    min-width: 500px;
+  }
+  .control { margin-bottom: 22px; }
+  .control label { display: block; margin-bottom: 6px; font-weight: 500; }
+  .control input[type=range] { width: 100%; }
+  .control input[type=number] { width: 100%; padding: 5px; box-sizing: border-box; }
+  .val { font-weight: bold; color: #337ab7; }
+  canvas { border: 0; }
+  .plots { display: flex; gap: 10px; flex-wrap: wrap; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 20px;
+    font-size: 14px;
+  }
+  th, td {
+    border-bottom: 1px solid #ddd;
+    padding: 8px 10px;
+    text-align: left;
+  }
+  th { border-bottom: 2px solid #aaa; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .footer { margin-top: 20px; color: #777; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<h1>Reliability and Stability</h1>
+
+<div class="container">
+  <div class="sidebar">
+    <div class="control">
+      <label>Stability of the construct: <span class="val" id="stabilityVal">0.90</span></label>
+      <input type="range" id="stability" min="0" max="1" step="0.01" value="0.9">
+    </div>
+    <div class="control">
+      <label>Reliability of the measure: <span class="val" id="reliabilityVal">0.70</span></label>
+      <input type="range" id="reliability" min="0" max="1" step="0.01" value="0.7">
+    </div>
+    <div class="control">
+      <label>Sample size</label>
+      <input type="number" id="samplesize" min="0" max="1000000" step="100" value="1000">
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="plots">
+      <canvas id="plot1" width="380" height="380"></canvas>
+      <canvas id="plot2" width="380" height="380"></canvas>
+    </div>
+
+    <table id="observedTable">
+      <thead><tr><th>Index</th><th>Observed</th><th>Formula</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <table id="indexTable">
+      <thead><tr><th>Index</th><th>Value</th><th>Formula</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="footer">Version 181220b: Code, citation, and preprint: osf.io/jvrn5</div>
+  </div>
+</div>
+
+<script>
+// ---- Seeded RNG (Mulberry32) ----
+function makeRNG(seed) {
+  let a = seed >>> 0;
+  return function() {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Fixed seed to emulate set.seed(seed) with a constant seed per session
+const SEED = Math.floor(Math.random() * 1e9);
+
+// Box-Muller normal generator using a supplied uniform rng
+function makeNormGen(rng) {
+  let spare = null;
+  return function() {
+    if (spare !== null) { const s = spare; spare = null; return s; }
+    let u, v, s;
+    do {
+      u = rng() * 2 - 1;
+      v = rng() * 2 - 1;
+      s = u * u + v * v;
+    } while (s >= 1 || s === 0);
+    const mul = Math.sqrt(-2 * Math.log(s) / s);
+    spare = v * mul;
+    return u * mul;
+  };
+}
+
+function rnormArray(n, gen) {
+  const arr = new Array(n);
+  for (let i = 0; i < n; i++) arr[i] = gen();
+  return arr;
+}
+
+// Pearson correlation
+function cor(x, y) {
+  const n = x.length;
+  let mx = 0, my = 0;
+  for (let i = 0; i < n; i++) { mx += x[i]; my += y[i]; }
+  mx /= n; my /= n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = x[i] - mx, dy = y[i] - my;
+    sxy += dx * dy; sxx += dx * dx; syy += dy * dy;
+  }
+  return sxy / Math.sqrt(sxx * syy);
+}
+
+// ---- Scatter plot ----
+function scatter(canvas, xs, ys, xlab, ylab, title) {
+  const ctx = canvas.getContext("2d");
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = "#000";
+  ctx.font = "13px sans-serif";
+
+  const marginL = 45, marginR = 15, marginT = 30, marginB = 45;
+  const plotW = W - marginL - marginR;
+  const plotH = H - marginT - marginB;
+
+  // title
+  ctx.textAlign = "center";
+  ctx.font = "bold 14px sans-serif";
+  ctx.fillText(title, W / 2, 18);
+  ctx.font = "13px sans-serif";
+
+  if (xs.length === 0) return;
+
+  let xmin = Math.min(...xs), xmax = Math.max(...xs);
+  let ymin = Math.min(...ys), ymax = Math.max(...ys);
+  if (xmin === xmax) { xmin -= 1; xmax += 1; }
+  if (ymin === ymax) { ymin -= 1; ymax += 1; }
+
+  const px = v => marginL + (v - xmin) / (xmax - xmin) * plotW;
+  const py = v => marginT + plotH - (v - ymin) / (ymax - ymin) * plotH;
+
+  // axes (L shape, like bty="L")
+  ctx.strokeStyle = "#000";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(marginL, marginT);
+  ctx.lineTo(marginL, marginT + plotH);
+  ctx.lineTo(marginL + plotW, marginT + plotH);
+  ctx.stroke();
+
+  // ticks
+  ctx.fillStyle = "#000";
+  ctx.textAlign = "center";
+  for (let i = 0; i <= 4; i++) {
+    const xv = xmin + (xmax - xmin) * i / 4;
+    const X = px(xv);
+    ctx.beginPath(); ctx.moveTo(X, marginT + plotH); ctx.lineTo(X, marginT + plotH + 5); ctx.stroke();
+    ctx.fillText(xv.toFixed(1), X, marginT + plotH + 18);
+  }
+  ctx.textAlign = "right";
+  for (let i = 0; i <= 4; i++) {
+    const yv = ymin + (ymax - ymin) * i / 4;
+    const Y = py(yv);
+    ctx.beginPath(); ctx.moveTo(marginL - 5, Y); ctx.lineTo(marginL, Y); ctx.stroke();
+    ctx.fillText(yv.toFixed(1), marginL - 8, Y + 4);
+  }
+
+  // points
+  ctx.fillStyle = "rgba(0,0,0,0.5)";
+  for (let i = 0; i < xs.length; i++) {
+    ctx.beginPath();
+    ctx.arc(px(xs[i]), py(ys[i]), 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // labels
+  ctx.fillStyle = "#000";
+  ctx.textAlign = "center";
+  ctx.fillText(xlab, marginL + plotW / 2, H - 8);
+  ctx.save();
+  ctx.translate(12, marginT + plotH / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText(ylab, 0, 0);
+  ctx.restore();
+}
+
+// ---- Main update ----
+function update() {
+  const stability = parseFloat(document.getElementById("stability").value);
+  const reliability = parseFloat(document.getElementById("reliability").value);
+  let n = parseInt(document.getElementById("samplesize").value, 10);
+  if (isNaN(n) || n < 1) n = 1;
+  if (n > 200000) n = 200000; // safety cap for browser
+
+  document.getElementById("stabilityVal").textContent = stability.toFixed(2);
+  document.getElementById("reliabilityVal").textContent = reliability.toFixed(2);
+
+  // Reset RNG with fixed seed (emulates set.seed)
+  const gen = makeNormGen(makeRNG(SEED));
+
+  const truet1 = rnormArray(n, gen);
+  const truet2 = new Array(n);
+  const test1 = new Array(n);
+  const test2 = new Array(n);
+
+  const e1 = rnormArray(n, gen);
+  for (let i = 0; i < n; i++)
+    truet2[i] = truet1[i] * stability + e1[i] * Math.sqrt(1 - stability * stability);
+
+  const e2 = rnormArray(n, gen);
+  for (let i = 0; i < n; i++)
+    test1[i] = truet1[i] * reliability + e2[i] * Math.sqrt(1 - reliability * reliability);
+
+  const e3 = rnormArray(n, gen);
+  for (let i = 0; i < n; i++)
+    test2[i] = truet2[i] * reliability + e3[i] * Math.sqrt(1 - reliability * reliability);
+
+  // Plots
+  scatter(document.getElementById("plot1"), truet1, truet2,
+          "true score at t1", "true score at t2", "Stability of the construct");
+  scatter(document.getElementById("plot2"), test1, test2,
+          "measured score at t1", "measured score at t2", "Observed retest reliability");
+
+  // Correlations
+  const obsStability = cor(truet1, truet2);
+  const relT1 = cor(truet1, test1);
+  const relT2 = cor(truet2, test2);
+  const retestRel = cor(test1, test2);
+
+  // Observed table
+  const obsData = [
+    ["Observed stability", obsStability, "Correlation of true values at t1 and t2"],
+    ["Reliability at t1", relT1, "Correlation of true and measured value at t1"],
+    ["Reliability at t2", relT2, "Correlation of true and measured value at t2"],
+    ["Observed retest reliability", retestRel, "Correlation of measured values of t1 and t2"]
+  ];
+  fillTable("observedTable", obsData);
+
+  // Index table
+  // Note: R's mean(a, b) returns just 'a' (b is treated as trim), so meanRel = relT1
+  const meanRel = relT1;
+  const actualStabIdx = reliability / stability;
+  const estStability = retestRel / (meanRel * meanRel);
+  const estStabIdx = meanRel / (retestRel / (meanRel * meanRel));
+  const expRetestRel = reliability * reliability * stability;
+
+  const idxData = [
+    ["Actual stability index", actualStabIdx, "Reliability divided by stability"],
+    ["Estimated stability index", estStabIdx, "'Observed' reliability divided by estimated stability"],
+    ["Estimated stability", estStability, "Observed retest reliability divided by 'observed' squared reliability"],
+    ["Expected retest reliability", expRetestRel, "Squared reliability divided by stability"]
+  ];
+  fillTable("indexTable", idxData);
+}
+
+function fillTable(id, rows) {
+  const tbody = document.querySelector("#" + id + " tbody");
+  tbody.innerHTML = "";
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    const val = (typeof r[1] === "number" && isFinite(r[1])) ? r[1].toFixed(7) : String(r[1]);
+    tr.innerHTML =
+      "<td>" + r[0] + "</td>" +
+      "<td class='num'>" + val + "</td>" +
+      "<td>" + r[2] + "</td>";
+    tbody.appendChild(tr);
+  }
+}
+
+// Event listeners
+["stability", "reliability", "samplesize"].forEach(id => {
+  document.getElementById(id).addEventListener("input", update);
+});
+
+update();
+</script>
+
+</body>
+</html>

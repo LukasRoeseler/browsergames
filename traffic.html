@@ -18,13 +18,14 @@ canvas{width:100%;height:90px;display:block;border-radius:6px;background:#0b0e12
 .legend{display:flex;gap:12px;align-items:center;font-size:11px;color:#94a1ad;margin-top:4px;justify-content:center}
 .lg{width:14px;height:3px;border-radius:2px;background:var(--c);display:inline-block;margin-right:4px}
 .panel{margin-top:8px;display:flex;flex-direction:column;gap:9px}
-.seg{display:flex;gap:6px}
-.seg button{flex:1;padding:9px 4px;font-size:12px;border-radius:8px;border:1px solid #2b333c;background:#12171d;color:#9fb0bf}
+.seg{display:flex;gap:5px}
+.seg button{flex:1;padding:9px 2px;font-size:11px;border-radius:8px;border:1px solid #2b333c;background:#12171d;color:#9fb0bf}
 .seg button.on{background:#1d4f6b;border-color:#3d87b5;color:#eaf6ff}
 .row{display:flex;align-items:center;gap:10px;font-size:12px;color:#a9b6c2}
 .row span{width:74px;flex:none}
 .row b{width:46px;text-align:right;font-variant-numeric:tabular-nums;color:#dfe8f0;font-weight:600}
 input[type=range]{flex:1;accent-color:#4aa3d8;height:22px}
+.row.dim{opacity:.45}
 .checks{display:flex;flex-direction:column;gap:8px;font-size:12px;color:#c3ced8}
 .checks label{display:flex;align-items:center;gap:8px}
 input[type=checkbox]{width:17px;height:17px;accent-color:#4aa3d8}
@@ -72,12 +73,14 @@ input[type=checkbox]{width:17px;height:17px;accent-color:#4aa3d8}
   <div class="seg" id="trackSel">
     <button data-t="circle">Kreis</button>
     <button data-t="square" class="on">Quadrat</button>
-    <button data-t="star">Zackenring</button>
+    <button data-t="eineck">Eineck</button>
+    <button data-t="star">Zacken</button>
   </div>
   <label class="row"><span>Autos</span><input type="range" id="num" min="1" max="50" value="10"><b id="numV">10</b></label>
   <label class="row"><span>Tempo</span><input type="range" id="spd" min="20" max="180" value="130"><b id="spdV">130</b></label>
   <label class="row"><span>Kurven</span><input type="range" id="crn" min="15" max="140" value="50"><b id="crnV">50</b></label>
   <label class="row"><span>Varianz</span><input type="range" id="varr" min="0" max="50" value="8"><b id="varV">8%</b></label>
+  <label class="row" id="rowOver"><span>Aufholen</span><input type="range" id="over" min="0" max="80" value="30"><b id="overV">+30%</b></label>
   <div class="checks">
     <label><input type="checkbox" id="mark" checked> Erstes / Letztes markieren + Diagramm</label>
     <label><input type="checkbox" id="catchup" checked> Hintere holen auf (Abstand halten)</label>
@@ -93,38 +96,48 @@ input[type=checkbox]{width:17px;height:17px;accent-color:#4aa3d8}
 
 <script>
 const PXM=8;                 // Pixel pro Meter
-const A_MAX=1.6, B_COMF=2.2, B_MAX=9.0;
+const A_MAX=1.7, B_COMF=2.2, B_MAX=9.0;
 const S0=2.0, T_GAP=1.3, CAR_LEN=4.4;
 
-const svg=document.getElementById('svg');
 const layer=document.getElementById('carLayer');
 const roadP=document.getElementById('road'), roadB=document.getElementById('roadBase');
 const chart=document.getElementById('chart'), chartBox=document.getElementById('chartBox');
 const el=id=>document.getElementById(id);
 
 let track=null, cars=[], paused=false, hist=[], histT=0;
-let baseKmh=130, variance=.08, cornerKmh=50, catchup=true, markMode=true;
+let baseKmh=130, variance=.08, cornerKmh=50, overPct=30, catchup=true, markMode=true;
 let firstIdx=0, lastIdx=0;
 
 /* ---------- Streckengeometrie ---------- */
 function rawPoints(type){
-  const c=500,p=[];
+  const c=500,p=[],P=Math.PI;
+  const line=(x1,y1,x2,y2)=>{const n=Math.max(2,Math.round(Math.hypot(x2-x1,y2-y1)/3));
+    for(let i=0;i<n;i++)p.push([x1+(x2-x1)*i/n,y1+(y2-y1)*i/n]);};
+  const arc=(ox,oy,r,a0,a1)=>{const n=Math.max(10,Math.round(Math.abs(a1-a0)*r/3));
+    for(let i=0;i<n;i++){const a=a0+(a1-a0)*i/n;p.push([ox+r*Math.cos(a),oy+r*Math.sin(a)]);}};
+
   if(type==='circle'){
-    const R=380;
-    for(let i=0;i<1440;i++){const t=i/1440*Math.PI*2;p.push([c+R*Math.cos(t),c+R*Math.sin(t)]);}
+    arc(c,c,380,0,2*P);
   }else if(type==='square'){
     const h=355,cr=85;
-    const line=(x1,y1,x2,y2)=>{const n=Math.max(2,Math.round(Math.hypot(x2-x1,y2-y1)/3));
-      for(let i=0;i<n;i++)p.push([x1+(x2-x1)*i/n,y1+(y2-y1)*i/n]);};
-    const arc=(cx,cy,r,a0,a1)=>{const n=36;for(let i=0;i<n;i++){const a=a0+(a1-a0)*i/n;p.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}};
-    const P=Math.PI;
     line(c-h+cr,c-h,c+h-cr,c-h); arc(c+h-cr,c-h+cr,cr,-P/2,0);
     line(c+h,c-h+cr,c+h,c+h-cr); arc(c+h-cr,c+h-cr,cr,0,P/2);
     line(c+h-cr,c+h,c-h+cr,c+h); arc(c-h+cr,c+h-cr,cr,P/2,P);
     line(c-h,c+h-cr,c-h,c-h+cr); arc(c-h+cr,c-h+cr,cr,P,1.5*P);
+  }else if(type==='eineck'){
+    /* 270°-Bogen + eine 90°-Ecke */
+    const R=310,cx=445,cy=500,cr=55,S=Math.SQRT1_2,P4=P/4;
+    const Ax=cx+R*S,Ay=cy+R*S, Bx=cx+R*S,By=cy-R*S;
+    const Px=cx+Math.SQRT2*R,Py=cy;
+    const Ex=Px-cr*S,Ey=Py-cr*S, Xx=Px-cr*S,Xy=Py+cr*S;
+    const Ox=Px-Math.SQRT2*cr,Oy=Py;
+    arc(cx,cy,R,P4,P4+1.5*P);
+    line(Bx,By,Ex,Ey);
+    arc(Ox,Oy,cr,-P4,P4);
+    line(Xx,Xy,Ax,Ay);
   }else{
     const R0=308,A=44,k=6;
-    for(let i=0;i<2400;i++){const t=i/2400*Math.PI*2,r=R0+A*Math.cos(k*t);
+    for(let i=0;i<2400;i++){const t=i/2400*2*P,r=R0+A*Math.cos(k*t);
       p.push([c+r*Math.cos(t),c+r*Math.sin(t)]);}
   }
   return p;
@@ -158,14 +171,14 @@ function buildTrack(type){
   applyVlim();
 }
 
-/* Kurvenlimit: schärfste Kurve der Strecke = eingestelltes Kurventempo */
+/* schärfste Kurve der Strecke = eingestelltes Kurventempo */
 function applyVlim(){
   const t=track,M=t.M,ds=t.ds;
   let kmax=1e-9;
   for(let k=0;k<M;k++)kmax=Math.max(kmax,t.kap[k]);
   const vc=cornerKmh/3.6, aLat=vc*vc*kmax;
   for(let k=0;k<M;k++)
-    t.vlim[k]=Math.min(60,Math.max(3,Math.sqrt(aLat/Math.max(t.kap[k],1e-7))));
+    t.vlim[k]=Math.min(95,Math.max(3,Math.sqrt(aLat/Math.max(t.kap[k],1e-7))));
   for(let pass=0;pass<3;pass++)
     for(let k=M-1;k>=0;k--)
       t.vlim[k]=Math.min(t.vlim[k],Math.sqrt(t.vlim[(k+1)%M]*t.vlim[(k+1)%M]+2*B_COMF*ds));
@@ -202,26 +215,31 @@ function initCars(platoon){
     cars[firstIdx].el.classList.add('role');cars[firstIdx].ring.setAttribute('stroke','#4ade80');
     cars[lastIdx].el.classList.add('role');cars[lastIdx].ring.setAttribute('stroke','#f87171');
   }
-  hist=[];
+  hist=[];render();
   if(markMode)drawChart();
 }
 function setV0(c){c.v0=Math.max(4,baseKmh/3.6*(1+c.rnd*variance));}
 
 /* ---------- Simulation ---------- */
 function step(dt){
-  const n=cars.length,L=track.L;
+  const n=cars.length,L=track.L,OVER=1+overPct/100;
   for(let i=0;i<n;i++){
     const c=cars[i],lead=cars[(i+1)%n];
-    let gap=1000;
-    if(n>1){gap=((lead.s-c.s-CAR_LEN)%L+L)%L;}
+    const gap=n>1?((lead.s-c.s-CAR_LEN)%L+L)%L:1e4;
     const vl=Math.min(vlimAt(c.s),vlimAt(c.s+2.5+0.4*c.v));
-    let des=c.v0;
+
+    /* Wunschtempo: beim Aufholen darf über das eigene Reisetempo
+       hinaus beschleunigt werden (bis Faktor OVER), begrenzt nur
+       durch das physikalische Kurvenlimit vl. */
+    let vDes=c.v0;
     if(catchup&&n>1){
       const want=S0+T_GAP*c.v+CAR_LEN;
-      if(gap>want)des=c.v0*(1+Math.min(0.55,0.3*(gap/Math.max(want,3)-1)));
+      const err=gap-want;
+      if(err>0) vDes=Math.min(c.v0*OVER, Math.max(c.v0, lead.v+0.55*err));
     }
-    const v0=Math.max(2,Math.min(des,vl));
-    let acc=A_MAX*(1-Math.pow(c.v/v0,4));
+    const vT=Math.max(2,Math.min(vDes,vl));
+
+    let acc=A_MAX*(1-Math.pow(c.v/vT,4));
     if(n>1){
       const dv=c.v-lead.v;
       const sStar=S0+Math.max(0,c.v*T_GAP+c.v*dv/(2*Math.sqrt(A_MAX*B_COMF)));
@@ -241,7 +259,6 @@ function render(){
     c.el.setAttribute('transform',`translate(${p[0].toFixed(2)} ${p[1].toFixed(2)}) rotate(${(p[2]*57.2958).toFixed(1)})`);
   }
 }
-
 function sample(){
   if(cars.length<2)return;
   hist.push([cars[firstIdx].v*3.6,cars[lastIdx].v*3.6]);
@@ -257,18 +274,25 @@ function resizeChart(){
 function drawChart(){
   const ctx=chart.getContext('2d'),w=chart.clientWidth,h=90;
   ctx.clearRect(0,0,w,h);ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,w,h);
-  const maxY=Math.max(40,Math.ceil(baseKmh*1.25/20)*20);
+  const top=catchup?baseKmh*(1+overPct/100):baseKmh;
+  const maxY=Math.max(40,Math.ceil(top*1.12/20)*20);
   ctx.lineWidth=1;ctx.font='9px system-ui';
   for(let y=0;y<=maxY;y+=20){
     const py=h-y/maxY*h;
     ctx.strokeStyle='#1c2229';ctx.beginPath();ctx.moveTo(0,py+.5);ctx.lineTo(w,py+.5);ctx.stroke();
     if(y>0&&y%40===0){ctx.fillStyle='#4c5762';ctx.fillText(y,2,py+9);}
   }
-  const pb=h-baseKmh/maxY*h;
-  ctx.strokeStyle='#2f4a5e';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(0,pb);ctx.lineTo(w,pb);ctx.stroke();
-  const pc=h-cornerKmh/maxY*h;
-  ctx.strokeStyle='#4a3a2f';ctx.beginPath();ctx.moveTo(0,pc);ctx.lineTo(w,pc);ctx.stroke();ctx.setLineDash([]);
-  const N=400,step=w/(N-1);
+  ctx.setLineDash([4,4]);
+  ctx.strokeStyle='#2f4a5e';const pb=h-baseKmh/maxY*h;
+  ctx.beginPath();ctx.moveTo(0,pb);ctx.lineTo(w,pb);ctx.stroke();
+  ctx.strokeStyle='#4a3a2f';const pc=h-cornerKmh/maxY*h;
+  ctx.beginPath();ctx.moveTo(0,pc);ctx.lineTo(w,pc);ctx.stroke();
+  if(catchup&&overPct>0){
+    ctx.strokeStyle='#3a4a33';const po=h-top/maxY*h;
+    ctx.beginPath();ctx.moveTo(0,po);ctx.lineTo(w,po);ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  const step=w/399;
   const line=(k,col)=>{
     ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.beginPath();
     for(let i=0;i<hist.length;i++){
@@ -296,8 +320,8 @@ function frame(now){
     }
     if(statT>0.25){
       statT=0;
-      let s=0,mn=999;for(const c of cars){s+=c.v;mn=Math.min(mn,c.v);}
-      el('stats').textContent=cars.length?`Ø ${(s/cars.length*3.6).toFixed(0)} km/h · langsamstes ${(mn*3.6).toFixed(0)} km/h · Runde ${track.L.toFixed(0)} m`:'';
+      let s=0,mn=999,mx=0;for(const c of cars){s+=c.v;mn=Math.min(mn,c.v);mx=Math.max(mx,c.v);}
+      el('stats').textContent=cars.length?`Ø ${(s/cars.length*3.6).toFixed(0)} · min ${(mn*3.6).toFixed(0)} · max ${(mx*3.6).toFixed(0)} km/h · Runde ${track.L.toFixed(0)} m`:'';
     }
   }
   render();
@@ -324,21 +348,22 @@ el('num').addEventListener('input',e=>{el('numV').textContent=e.target.value;ini
 el('spd').addEventListener('input',e=>{baseKmh=+e.target.value;el('spdV').textContent=baseKmh;cars.forEach(setV0);});
 el('crn').addEventListener('input',e=>{cornerKmh=+e.target.value;el('crnV').textContent=cornerKmh;applyVlim();});
 el('varr').addEventListener('input',e=>{variance=+e.target.value/100;el('varV').textContent=e.target.value+'%';cars.forEach(setV0);});
+el('over').addEventListener('input',e=>{overPct=+e.target.value;el('overV').textContent='+'+overPct+'%';});
 el('mark').addEventListener('change',e=>{
   markMode=e.target.checked;chartBox.hidden=!markMode;hist=[];
   layer.classList.toggle('showmark',markMode);
   if(markMode){resizeChart();drawChart();}
 });
-el('catchup').addEventListener('change',e=>catchup=e.target.checked);
+el('catchup').addEventListener('change',e=>{catchup=e.target.checked;el('rowOver').classList.toggle('dim',!catchup);});
 el('btnReset').onclick=()=>initCars(false);
 el('btnPlatoon').onclick=()=>initCars(true);
 el('btnFF').onclick=()=>fastForward(120);
 el('btnPause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Weiter':'Pause';};
 window.addEventListener('resize',()=>{if(markMode){resizeChart();drawChart();}});
 
-baseKmh=+el('spd').value;variance=+el('varr').value/100;cornerKmh=+el('crn').value;
+baseKmh=+el('spd').value;variance=+el('varr').value/100;cornerKmh=+el('crn').value;overPct=+el('over').value;
 markMode=el('mark').checked;catchup=el('catchup').checked;
-chartBox.hidden=!markMode;layer.classList.toggle('showmark',markMode);
+chartBox.hidden=!markMode;layer.classList.toggle('showmark',markMode);el('rowOver').classList.toggle('dim',!catchup);
 buildTrack('square');initCars(false);resizeChart();drawChart();
 requestAnimationFrame(frame);
 </script>

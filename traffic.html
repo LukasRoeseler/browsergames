@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Stau-Simulation</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:#000;color:#e6eaee;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+body{padding:6px 8px 18px;max-width:720px;margin:0 auto}
+h1{font-size:14px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;text-align:center;color:#8fb6d9;margin:6px 0 8px}
+#stage{width:100%;aspect-ratio:1/1;max-height:52vh;margin:0 auto}
+svg{width:100%;height:100%;display:block}
+.ring{display:none}
+.car.marked .ring{display:block}
+#chartBox{margin:8px 0 4px}
+canvas{width:100%;height:90px;display:block;border-radius:6px;background:#0b0e12}
+.legend{display:flex;gap:12px;align-items:center;font-size:11px;color:#94a1ad;margin-top:4px;justify-content:center}
+.lg{width:14px;height:3px;border-radius:2px;background:var(--c);display:inline-block;margin-right:4px}
+.panel{margin-top:8px;display:flex;flex-direction:column;gap:9px}
+.seg{display:flex;gap:6px}
+.seg button{flex:1;padding:9px 4px;font-size:12px;border-radius:8px;border:1px solid #2b333c;background:#12171d;color:#9fb0bf}
+.seg button.on{background:#1d4f6b;border-color:#3d87b5;color:#eaf6ff}
+.row{display:flex;align-items:center;gap:10px;font-size:12px;color:#a9b6c2}
+.row span{width:74px;flex:none}
+.row b{width:46px;text-align:right;font-variant-numeric:tabular-nums;color:#dfe8f0;font-weight:600}
+input[type=range]{flex:1;accent-color:#4aa3d8;height:22px}
+.checks{display:flex;flex-direction:column;gap:8px;font-size:12px;color:#c3ced8}
+.checks label{display:flex;align-items:center;gap:8px}
+input[type=checkbox]{width:17px;height:17px;accent-color:#4aa3d8}
+.btns{display:flex;gap:6px}
+.btns button{flex:1;padding:9px 4px;font-size:12px;border-radius:8px;border:1px solid #2b333c;background:#12171d;color:#9fb0bf}
+.btns button:active{background:#1d2027}
+.stats{font-size:11px;color:#6f7d8a;text-align:center;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<h1>Stau-Simulation</h1>
+
+<div id="stage">
+<svg id="svg" viewBox="0 0 1000 1000">
+  <defs>
+    <g id="carSym">
+      <rect x="-17.5" y="-7.5" width="35" height="15" rx="4.5" fill="currentColor"/>
+      <rect x="1" y="-9.2" width="3.5" height="2.2" rx="1" fill="currentColor"/>
+      <rect x="1" y="7" width="3.5" height="2.2" rx="1" fill="currentColor"/>
+      <path d="M5.5 -6.2 L11.5 -3.5 L11.5 3.5 L5.5 6.2 Z" fill="#0c151d" opacity=".9"/>
+      <rect x="-10" y="-5.6" width="4.4" height="11.2" rx="2" fill="#0c151d" opacity=".9"/>
+      <rect x="-5" y="-6.6" width="10" height="13.2" rx="3" fill="#000" opacity=".16"/>
+      <rect x="14.6" y="-6.4" width="2.8" height="3" rx="1.2" fill="#fff6cc"/>
+      <rect x="14.6" y="3.4" width="2.8" height="3" rx="1.2" fill="#fff6cc"/>
+      <rect x="-17.4" y="-6.4" width="2.6" height="3" rx="1.2" fill="#ff5a4a"/>
+      <rect x="-17.4" y="3.4" width="2.6" height="3" rx="1.2" fill="#ff5a4a"/>
+    </g>
+  </defs>
+  <path id="roadBase" fill="none" stroke="#5c6167" stroke-width="34" stroke-linejoin="round"/>
+  <path id="road" fill="none" stroke="#c4c8cc" stroke-width="29" stroke-linejoin="round"/>
+  <g id="carLayer"></g>
+</svg>
+</div>
+
+<div id="chartBox" hidden>
+  <canvas id="chart"></canvas>
+  <div class="legend">
+    <span><i class="lg" style="--c:#4ade80"></i>Erstes <b id="vF">–</b></span>
+    <span><i class="lg" style="--c:#f87171"></i>Letztes <b id="vL">–</b></span>
+    <span style="color:#556">km/h · 40 s</span>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="seg" id="trackSel">
+    <button data-t="circle" class="on">Kreis</button>
+    <button data-t="square">Quadrat</button>
+    <button data-t="star">Zackenring</button>
+  </div>
+  <label class="row"><span>Autos</span><input type="range" id="num" min="1" max="50" value="16"><b id="numV">16</b></label>
+  <label class="row"><span>Tempo</span><input type="range" id="spd" min="20" max="130" value="70"><b id="spdV">70</b></label>
+  <label class="row"><span>Varianz</span><input type="range" id="varr" min="0" max="50" value="8"><b id="varV">8%</b></label>
+  <div class="checks">
+    <label><input type="checkbox" id="mark"> Erstes / Letztes markieren + Diagramm</label>
+    <label><input type="checkbox" id="catchup"> Hintere holen auf (Abstand halten)</label>
+  </div>
+  <div class="btns">
+    <button id="btnReset">Neu verteilen</button>
+    <button id="btnPlatoon">Kolonne</button>
+    <button id="btnPause">Pause</button>
+  </div>
+  <div class="stats" id="stats"></div>
+</div>
+
+<script>
+const PXM=8;                 // Pixel pro Meter
+const A_LAT=4.0, A_MAX=1.6, B_COMF=2.2, B_MAX=9.0;
+const S0=2.0, T_GAP=1.3, CAR_LEN=4.4;
+
+const svg=document.getElementById('svg');
+const layer=document.getElementById('carLayer');
+const roadP=document.getElementById('road'), roadB=document.getElementById('roadBase');
+const chart=document.getElementById('chart'), chartBox=document.getElementById('chartBox');
+const el=id=>document.getElementById(id);
+
+let track=null, cars=[], paused=false, hist=[], histT=0;
+let baseKmh=70, variance=.08, catchup=false, markMode=false;
+
+/* ---------- Streckengeometrie ---------- */
+function rawPoints(type){
+  const c=500,p=[];
+  if(type==='circle'){
+    const R=380;
+    for(let i=0;i<1440;i++){const t=i/1440*Math.PI*2;p.push([c+R*Math.cos(t),c+R*Math.sin(t)]);}
+  }else if(type==='square'){
+    const h=355,cr=85;
+    const line=(x1,y1,x2,y2)=>{const n=Math.max(2,Math.round(Math.hypot(x2-x1,y2-y1)/3));
+      for(let i=0;i<n;i++)p.push([x1+(x2-x1)*i/n,y1+(y2-y1)*i/n]);};
+    const arc=(cx,cy,r,a0,a1)=>{const n=36;for(let i=0;i<n;i++){const a=a0+(a1-a0)*i/n;p.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}};
+    const P=Math.PI;
+    line(c-h+cr,c-h,c+h-cr,c-h); arc(c+h-cr,c-h+cr,cr,-P/2,0);
+    line(c+h,c-h+cr,c+h,c+h-cr); arc(c+h-cr,c+h-cr,cr,0,P/2);
+    line(c+h-cr,c+h,c-h+cr,c+h); arc(c-h+cr,c+h-cr,cr,P/2,P);
+    line(c-h,c+h-cr,c-h,c-h+cr); arc(c-h+cr,c-h+cr,cr,P,1.5*P);
+  }else{
+    const R0=308,A=44,k=6;
+    for(let i=0;i<2400;i++){const t=i/2400*Math.PI*2,r=R0+A*Math.cos(k*t);
+      p.push([c+r*Math.cos(t),c+r*Math.sin(t)]);}
+  }
+  return p;
+}
+
+function buildTrack(type){
+  const raw=rawPoints(type),n=raw.length,cum=[0];
+  for(let i=1;i<=n;i++){const a=raw[i-1],b=raw[i%n];cum.push(cum[i-1]+Math.hypot(b[0]-a[0],b[1]-a[1])/PXM);}
+  const L=cum[n],M=1600,ds=L/M,pts=new Array(M);
+  let j=0;
+  for(let k=0;k<M;k++){
+    const s=k*ds;
+    while(j<n-1&&cum[j+1]<s)j++;
+    const t=(s-cum[j])/Math.max(1e-9,cum[j+1]-cum[j]),a=raw[j],b=raw[(j+1)%n];
+    pts[k]=[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+  }
+  const ang=new Float64Array(M),kap=new Float64Array(M),vlim=new Float64Array(M);
+  for(let k=0;k<M;k++){const a=pts[(k-1+M)%M],b=pts[(k+1)%M];ang[k]=Math.atan2(b[1]-a[1],b[0]-a[0]);}
+  for(let k=0;k<M;k++){
+    let d=ang[(k+1)%M]-ang[(k-1+M)%M];
+    while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI;
+    kap[k]=Math.abs(d)/(2*ds);
+  }
+  const sm=new Float64Array(M),W=6;
+  for(let k=0;k<M;k++){let s=0;for(let o=-W;o<=W;o++)s+=kap[(k+o+M)%M];sm[k]=s/(2*W+1);}
+  for(let k=0;k<M;k++)vlim[k]=Math.min(75,Math.max(3.2,Math.sqrt(A_LAT/Math.max(sm[k],1e-6))));
+  for(let pass=0;pass<3;pass++)
+    for(let k=M-1;k>=0;k--)
+      vlim[k]=Math.min(vlim[k],Math.sqrt(vlim[(k+1)%M]*vlim[(k+1)%M]+2*B_COMF*ds));
+  let d='M';
+  for(let k=0;k<M;k+=3)d+=(k?'L':'')+pts[k][0].toFixed(1)+' '+pts[k][1].toFixed(1);
+  d+='Z';
+  roadP.setAttribute('d',d); roadB.setAttribute('d',d);
+  track={L,ds,M,pts,ang,vlim};
+}
+
+const vlimAt=s=>{const t=track;let i=Math.floor((((s%t.L)+t.L)%t.L)/t.ds);return t.vlim[i%t.M];};
+function poseAt(s){const t=track;let x=(((s%t.L)+t.L)%t.L)/t.ds,i=Math.floor(x)%t.M,f=x-Math.floor(x),
+  a=t.pts[i],b=t.pts[(i+1)%t.M];
+  return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,t.ang[i]];}
+
+/* ---------- Autos ---------- */
+const PAL=['#dfe6ee','#9fb3c8','#e0a458','#7fb7d9','#c39bd3','#8bd3a5','#d98880','#f2d492','#a3b18a'];
+function initCars(platoon){
+  const n=+el('num').value;
+  cars=[];layer.innerHTML='';
+  const gapP=CAR_LEN+3.5;
+  for(let i=0;i<n;i++){
+    const g=document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.setAttribute('class','car');
+    const u=document.createElementNS('http://www.w3.org/2000/svg','use');
+    u.setAttribute('href','#carSym');
+    const r=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    r.setAttribute('class','ring');r.setAttribute('r','15');r.setAttribute('fill','none');
+    r.setAttribute('stroke','currentColor');r.setAttribute('stroke-width','2.4');
+    g.appendChild(u);g.appendChild(r);layer.appendChild(g);
+    const s=platoon?(i*gapP)%track.L:i*track.L/n;
+    const c={s,v:0,acc:0,rnd:Math.random()*2-1,color:PAL[i%PAL.length],el:g,v0:10,shown:''};
+    setV0(c);c.v=Math.min(c.v0,vlimAt(s));
+    cars.push(c);
+  }
+  hist=[];
+}
+function setV0(c){c.v0=Math.max(4,baseKmh/3.6*(1+c.rnd*variance));}
+
+/* ---------- Simulation ---------- */
+function step(dt){
+  const n=cars.length,L=track.L;
+  for(let i=0;i<n;i++){
+    const c=cars[i],lead=cars[(i+1)%n];
+    let gap=1000;
+    if(n>1){gap=((lead.s-c.s-CAR_LEN)%L+L)%L;}
+    const vl=Math.min(vlimAt(c.s),vlimAt(c.s+2.5+0.4*c.v));
+    let des=c.v0;
+    if(catchup&&n>1){
+      const want=S0+T_GAP*c.v+CAR_LEN;
+      if(gap>want)des=c.v0*(1+Math.min(0.55,0.3*(gap/Math.max(want,3)-1)));
+    }
+    const v0=Math.max(2,Math.min(des,vl));
+    let acc=A_MAX*(1-Math.pow(c.v/v0,4));
+    if(n>1){
+      const dv=c.v-lead.v;
+      const sStar=S0+Math.max(0,c.v*T_GAP+c.v*dv/(2*Math.sqrt(A_MAX*B_COMF)));
+      acc-=A_MAX*Math.pow(sStar/Math.max(gap,0.25),2);
+    }
+    acc=Math.max(-B_MAX,Math.min(A_MAX,acc));
+    c.acc=acc;
+  }
+  for(const c of cars){
+    c.v=Math.max(0,c.v+c.acc*dt);
+    c.s=(c.s+c.v*dt)%L;
+  }
+}
+
+function roles(){
+  const n=cars.length;if(n<2)return[0,0];
+  let best=-1,idx=0;
+  for(let i=0;i<n;i++){
+    const g=((cars[(i+1)%n].s-cars[i].s)%track.L+track.L)%track.L;
+    if(g>best){best=g;idx=i;}
+  }
+  return[idx,(idx+1)%n];
+}
+
+function render(){
+  const [fi,li]=roles();
+  for(let i=0;i<cars.length;i++){
+    const c=cars[i],p=poseAt(c.s);
+    c.el.setAttribute('transform',`translate(${p[0].toFixed(2)} ${p[1].toFixed(2)}) rotate(${(p[2]*57.2958).toFixed(1)})`);
+    let col=c.color,mk=false;
+    if(markMode&&cars.length>1){
+      if(i===fi){col='#4ade80';mk=true;}
+      else if(i===li){col='#f87171';mk=true;}
+    }
+    const key=col+mk;
+    if(c.shown!==key){c.shown=key;c.el.style.color=col;c.el.classList.toggle('marked',mk);}
+  }
+  return[fi,li];
+}
+
+/* ---------- Diagramm ---------- */
+function resizeChart(){
+  const dpr=window.devicePixelRatio||1,w=chart.clientWidth||300;
+  chart.width=w*dpr;chart.height=90*dpr;
+  chart.getContext('2d').setTransform(dpr,0,0,dpr,0,0);
+}
+function drawChart(){
+  const ctx=chart.getContext('2d'),w=chart.clientWidth,h=90;
+  ctx.clearRect(0,0,w,h);ctx.fillStyle='#0b0e12';ctx.fillRect(0,0,w,h);
+  const maxY=Math.max(40,Math.ceil(baseKmh*1.3/20)*20);
+  ctx.lineWidth=1;ctx.font='9px system-ui';
+  for(let y=0;y<=maxY;y+=20){
+    const py=h-y/maxY*h;
+    ctx.strokeStyle='#1c2229';ctx.beginPath();ctx.moveTo(0,py+.5);ctx.lineTo(w,py+.5);ctx.stroke();
+    if(y>0){ctx.fillStyle='#4c5762';ctx.fillText(y,2,py+9);}
+  }
+  const pb=h-baseKmh/maxY*h;
+  ctx.strokeStyle='#2f4a5e';ctx.setLineDash([4,4]);ctx.beginPath();ctx.moveTo(0,pb);ctx.lineTo(w,pb);ctx.stroke();ctx.setLineDash([]);
+  const N=400,step=w/(N-1);
+  const line=(k,col)=>{
+    ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.beginPath();
+    for(let i=0;i<hist.length;i++){
+      const x=w-(hist.length-1-i)*step,y=h-Math.min(hist[i][k],maxY)/maxY*h;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.stroke();
+  };
+  line(0,'#4ade80');line(1,'#f87171');
+}
+
+/* ---------- Loop ---------- */
+let last=performance.now(),acc=0,statT=0;
+function frame(now){
+  let dt=(now-last)/1000;last=now;
+  if(dt>0.25)dt=0.25;
+  if(!paused){
+    acc+=dt;
+    while(acc>0.02){step(0.02);acc-=0.02;}
+  }
+  const [fi,li]=render();
+  if(!paused){
+    histT+=dt;statT+=dt;
+    if(markMode&&cars.length>1&&histT>0.1){
+      histT=0;
+      hist.push([cars[fi].v*3.6,cars[li].v*3.6]);
+      if(hist.length>400)hist.shift();
+      drawChart();
+      el('vF').textContent=(cars[fi].v*3.6).toFixed(0);
+      el('vL').textContent=(cars[li].v*3.6).toFixed(0);
+    }
+    if(statT>0.25){
+      statT=0;
+      let s=0,mn=999;for(const c of cars){s+=c.v;mn=Math.min(mn,c.v);}
+      el('stats').textContent=cars.length?`Ø ${(s/cars.length*3.6).toFixed(0)} km/h · langsamstes ${(mn*3.6).toFixed(0)} km/h · Runde ${(track.L).toFixed(0)} m`:'';
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---------- UI ---------- */
+el('trackSel').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  [...el('trackSel').children].forEach(x=>x.classList.toggle('on',x===b));
+  buildTrack(b.dataset.t);initCars(false);
+});
+el('num').addEventListener('input',e=>{el('numV').textContent=e.target.value;initCars(false);});
+el('spd').addEventListener('input',e=>{baseKmh=+e.target.value;el('spdV').textContent=baseKmh;cars.forEach(setV0);});
+el('varr').addEventListener('input',e=>{variance=+e.target.value/100;el('varV').textContent=e.target.value+'%';cars.forEach(setV0);});
+el('mark').addEventListener('change',e=>{
+  markMode=e.target.checked;chartBox.hidden=!markMode;hist=[];
+  cars.forEach(c=>c.shown='');
+  if(markMode){resizeChart();drawChart();}
+});
+el('catchup').addEventListener('change',e=>catchup=e.target.checked);
+el('btnReset').onclick=()=>initCars(false);
+el('btnPlatoon').onclick=()=>initCars(true);
+el('btnPause').onclick=e=>{paused=!paused;e.target.textContent=paused?'Weiter':'Pause';};
+window.addEventListener('resize',()=>{if(markMode){resizeChart();drawChart();}});
+
+baseKmh=+el('spd').value;variance=+el('varr').value/100;
+buildTrack('circle');initCars(false);resizeChart();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

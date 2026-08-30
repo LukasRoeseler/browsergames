@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Bruch-Visualisierer</title>
+  
+  <link rel="manifest" id="manifest-placeholder">
+  
+  <style>
+    :root {
+      --primary: #2563eb;
+      --primary-light: #dbeafe;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --gray-empty: #e2e8f0;
+      --border: #cbd5e1;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    header {
+      text-align: center;
+      padding: 10px 0;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    .controls {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #64748b;
+    }
+
+    select, input {
+      width: 100%;
+      padding: 12px;
+      font-size: 1rem;
+      border: 2px solid var(--border);
+      border-radius: 10px;
+      outline: none;
+      background: #fff;
+      transition: border-color 0.2s;
+    }
+
+    select:focus, input:focus {
+      border-color: var(--primary);
+    }
+
+    .fraction-inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .result-box {
+      text-align: center;
+      padding: 16px;
+      background: var(--primary-light);
+      border-radius: 12px;
+      margin-top: 8px;
+    }
+
+    .fraction-display {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .percentage-display {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: #1e40af;
+      margin-top: 4px;
+    }
+
+    .visualizer-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 260px;
+      padding: 20px;
+    }
+
+    svg {
+      max-width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+
+    .slice {
+      transition: fill 0.3s ease, transform 0.2s ease;
+      stroke: #ffffff;
+      stroke-width: 2px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <header>
+      <h1>Bruch-Visualisierer</h1>
+    </header>
+
+    <div class="card controls">
+      <div class="form-group">
+        <label for="shape">Darstellungsform</label>
+        <select id="shape">
+          <option value="circle">Kreis</option>
+          <option value="bar">Rechteck (Balken)</option>
+          <option value="grid">Raster (Quadrat)</option>
+        </select>
+      </div>
+
+      <div class="fraction-inputs">
+        <div class="form-group">
+          <label for="numerator">Zähler (oben)</label>
+          <input type="number" id="numerator" value="1" min="0" step="1">
+        </div>
+        <div class="form-group">
+          <label for="denominator">Nenner (unten)</label>
+          <input type="number" id="denominator" value="2" min="1" step="1">
+        </div>
+      </div>
+
+      <div class="result-box">
+        <div class="fraction-display" id="text-fraction">1 / 2</div>
+        <div class="percentage-display" id="text-percent">50 %</div>
+      </div>
+    </div>
+
+    <div class="card visualizer-container">
+      <svg id="svg-output" viewBox="0 0 300 300" width="260" height="260"></svg>
+    </div>
+  </div>
+
+  <script>
+    const shapeSelect = document.getElementById('shape');
+    const numeratorInput = document.getElementById('numerator');
+    const denominatorInput = document.getElementById('denominator');
+    const svg = document.getElementById('svg-output');
+    const textFraction = document.getElementById('text-fraction');
+    const textPercent = document.getElementById('text-percent');
+
+    function updateVisualization() {
+      let num = parseInt(numeratorInput.value) || 0;
+      let den = parseInt(denominatorInput.value) || 1;
+
+      // Validiere Mindestwerte
+      if (den < 1) { den = 1; denominatorInput.value = 1; }
+      if (num < 0) { num = 0; numeratorInput.value = 0; }
+
+      const shape = shapeSelect.value;
+      const percentage = ((num / den) * 100).toFixed(1).replace('.0', '');
+
+      textFraction.textContent = `${num} / ${den}`;
+      textPercent.textContent = `${percentage} %`;
+
+      svg.innerHTML = '';
+
+      if (shape === 'circle') {
+        drawCircle(num, den);
+      } else if (shape === 'bar') {
+        drawBar(num, den);
+      } else if (shape === 'grid') {
+        drawGrid(num, den);
+      }
+    }
+
+    function drawCircle(num, den) {
+      const cx = 150, cy = 150, r = 130;
+
+      if (den === 1) {
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", cx);
+        circle.setAttribute("cy", cy);
+        circle.setAttribute("r", r);
+        circle.setAttribute("fill", num >= 1 ? "#2563eb" : "#e2e8f0");
+        svg.appendChild(circle);
+        return;
+      }
+
+      const angleStep = 360 / den;
+
+      for (let i = 0; i < den; i++) {
+        const startAngle = i * angleStep - 90;
+        const endAngle = (i + 1) * angleStep - 90;
+
+        const x1 = cx + r * Math.cos(Math.PI * startAngle / 180);
+        const y1 = cy + r * Math.sin(Math.PI * startAngle / 180);
+        const x2 = cx + r * Math.cos(Math.PI * endAngle / 180);
+        const y2 = cy + r * Math.sin(Math.PI * endAngle / 180);
+
+        const largeArc = angleStep > 180 ? 1 : 0;
+        const pathData = `M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", pathData);
+        path.setAttribute("class", "slice");
+        path.setAttribute("fill", i < num ? "#2563eb" : "#e2e8f0");
+        svg.appendChild(path);
+      }
+    }
+
+    function drawBar(num, den) {
+      const width = 280, height = 100, x = 10, y = 100;
+      const stepWidth = width / den;
+
+      for (let i = 0; i < den; i++) {
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", x + i * stepWidth);
+        rect.setAttribute("y", y);
+        rect.setAttribute("width", stepWidth);
+        rect.setAttribute("height", height);
+        rect.setAttribute("class", "slice");
+        rect.setAttribute("fill", i < num ? "#2563eb" : "#e2e8f0");
+        rect.setAttribute("rx", "2");
+        svg.appendChild(rect);
+      }
+    }
+
+    function drawGrid(num, den) {
+      const cols = Math.ceil(Math.sqrt(den));
+      const rows = Math.ceil(den / cols);
+      
+      const padding = 10;
+      const totalWidth = 280;
+      const totalHeight = 280;
+      const cellWidth = (totalWidth - (cols - 1) * 4) / cols;
+      const cellHeight = (totalHeight - (rows - 1) * 4) / rows;
+
+      for (let i = 0; i < den; i++) {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", padding + col * (cellWidth + 4));
+        rect.setAttribute("y", padding + row * (cellHeight + 4));
+        rect.setAttribute("width", cellWidth);
+        rect.setAttribute("height", cellHeight);
+        rect.setAttribute("rx", "6");
+        rect.setAttribute("class", "slice");
+        rect.setAttribute("fill", i < num ? "#2563eb" : "#e2e8f0");
+        svg.appendChild(rect);
+      }
+    }
+
+    // Dynamic Manifest for PWA Support
+    const manifestData = {
+      name: "Bruch-Visualisierer",
+      short_name: "Brüche",
+      start_url: ".",
+      display: "standalone",
+      background_color: "#f8fafc",
+      theme_color: "#2563eb"
+    };
+    const blob = new Blob([JSON.stringify(manifestData)], { type: 'application/json' });
+    document.getElementById('manifest-placeholder').setAttribute('href', URL.createObjectURL(blob));
+
+    // Event Listeners
+    shapeSelect.addEventListener('change', updateVisualization);
+    numeratorInput.addEventListener('input', updateVisualization);
+    denominatorInput.addEventListener('input', updateVisualization);
+
+    // Initial Rendering
+    updateVisualization();
+  </script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Kopfrechen-Trainer 2000</title>
+  <meta name="theme-color" content="#c0c0c0">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <style>
+    :root {
+      --calc-bg: #c3c7cb;
+      --lcd-bg: #8ba484;
+      --lcd-text: #142410;
+      --btn-bg: #d4d0c8;
+      --btn-shadow: #808080;
+    }
+
+    * { box-sizing: border-box; user-select: none; margin: 0; padding: 0; font-family: "Courier New", monospace, sans-serif; }
+    body { background-color: #2b303c; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 10px; }
+
+    .calculator {
+      background: var(--calc-bg);
+      border: 4px solid #ffffff;
+      border-right-color: #404040;
+      border-bottom-color: #404040;
+      box-shadow: 6px 6px 15px rgba(0,0,0,0.6);
+      border-radius: 8px;
+      width: 100%;
+      max-width: 380px;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .brand {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      font-size: 12px;
+      color: #404040;
+      border-bottom: 2px solid #999;
+      padding-bottom: 4px;
+    }
+
+    .lcd-screen {
+      background-color: var(--lcd-bg);
+      color: var(--lcd-text);
+      border: 3px inset #555;
+      border-radius: 4px;
+      padding: 10px;
+      min-height: 110px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: inset 2px 2px 6px rgba(0,0,0,0.4);
+      font-weight: bold;
+    }
+
+    .lcd-header { display: flex; justify-content: space-between; font-size: 13px; }
+    .lcd-main { font-size: 26px; text-align: right; letter-spacing: 2px; margin: 8px 0; min-height: 32px; }
+    .lcd-sub { font-size: 14px; text-align: left; opacity: 0.9; }
+
+    .controls-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+
+    button {
+      background: var(--btn-bg);
+      border: 2px solid #ffffff;
+      border-right-color: var(--btn-shadow);
+      border-bottom-color: var(--btn-shadow);
+      padding: 12px 0;
+      font-size: 16px;
+      font-weight: bold;
+      color: #000;
+      cursor: pointer;
+      border-radius: 3px;
+      box-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+    }
+
+    button:active {
+      border: 2px solid var(--btn-shadow);
+      border-right-color: #ffffff;
+      border-bottom-color: #ffffff;
+      padding: 13px 0 11px 0;
+    }
+
+    .btn-op { background: #b5c5d5; }
+    .btn-action { background: #d99b9b; }
+    .btn-start { background: #9bd99b; grid-column: span 2; }
+    .btn-wide { grid-column: span 2; }
+
+    /* Stats View */
+    .chart-container {
+      display: flex;
+      align-items: flex-end;
+      gap: 4px;
+      height: 90px;
+      border-bottom: 2px solid var(--lcd-text);
+      padding-bottom: 2px;
+      margin-top: 5px;
+      overflow-x: auto;
+    }
+
+    .bar {
+      flex: 1;
+      min-width: 8px;
+      background-color: #2e7d32;
+      border: 1px solid #142410;
+    }
+    .bar.wrong { background-color: #c62828; }
+
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<div class="calculator">
+  <div class="brand">
+    <span>MATH-TRONIC 2000</span>
+    <span>PWA-EDITION</span>
+  </div>
+
+  <div class="lcd-screen">
+    <div class="lcd-header">
+      <span id="display-mode">MODE: ADD</span>
+      <span id="display-lives">❤️❤️❤️</span>
+    </div>
+    <div class="lcd-main" id="display-main">READY</div>
+    <div class="lcd-sub" id="display-sub">STUFE: 1 | ZEIT: 0.0s</div>
+  </div>
+
+  <div id="setup-panel" class="controls-grid">
+    <button onclick="setMode('+')" class="btn-op">ADD (+)</button>
+    <button onclick="setMode('-')" class="btn-op">SUB (-)</button>
+    <button onclick="setMode('*')" class="btn-op">MUL (×)</button>
+    <button onclick="setMode('/')" class="btn-op">DIV (÷)</button>
+    
+    <button onclick="setLevel(1)">L1</button>
+    <button onclick="setLevel(2)">L2</button>
+    <button onclick="setLevel(3)">L3</button>
+    <button onclick="setLevel(4)">L4</button>
+    <button onclick="setLevel(5)" class="btn-wide">L5</button>
+    
+    <button onclick="startGame()" class="btn-start">START</button>
+    <button onclick="showHistory()" class="btn-wide">STATS</button>
+  </div>
+
+  <div id="game-panel" class="controls-grid hidden">
+    <button onclick="pressNum('7')">7</button>
+    <button onclick="pressNum('8')">8</button>
+    <button onclick="pressNum('9')">9</button>
+    <button onclick="clearInput()" class="btn-action">C</button>
+    
+    <button onclick="pressNum('4')">4</button>
+    <button onclick="pressNum('5')">5</button>
+    <button onclick="pressNum('6')">6</button>
+    <button onclick="pressNum('-')">-</button>
+    
+    <button onclick="pressNum('1')">1</button>
+    <button onclick="pressNum('2')">2</button>
+    <button onclick="pressNum('3')">3</button>
+    <button onclick="stopGame()" class="btn-action">STOP</button>
+    
+    <button onclick="pressNum('0')" class="btn-wide">0</button>
+    <button onclick="submitAnswer()" class="btn-start btn-wide">OK =</button>
+  </div>
+</div>
+
+<script>
+  // Game State
+  let mode = '+';
+  let level = 1;
+  let lives = 3;
+  let currentAns = 0;
+  let inputBuffer = "";
+  let timerId = null;
+  let startTime = 0;
+  let taskHistory = [];
+  let isPlaying = false;
+
+  // Keypad & Hardware Keyboard Support
+  window.addEventListener('keydown', (e) => {
+    if (!isPlaying) return;
+    if (e.key >= '0' && e.key <= '9') pressNum(e.key);
+    if (e.key === '-' || e.key === 'Backspace') {
+      if (e.key === '-') pressNum('-');
+      else inputBuffer = inputBuffer.slice(0, -1);
+      updateLCD();
+    }
+    if (e.key === 'Enter') submitAnswer();
+    if (e.key === 'Escape') stopGame();
+  });
+
+  function setMode(m) {
+    mode = m;
+    const labels = { '+': 'ADD', '-': 'SUB', '*': 'MUL', '/': 'DIV' };
+    document.getElementById('display-mode').innerText = `MODE: ${labels[m]}`;
+  }
+
+  function setLevel(l) {
+    level = l;
+    document.getElementById('display-sub').innerText = `STUFE: ${level} | ZEIT: 0.0s`;
+  }
+
+  function generateTask() {
+    let a, b;
+    const maxVal = [9, 20, 50, 100, 500][level - 1];
+    
+    if (mode === '+') {
+      a = Math.floor(Math.random() * maxVal) + 1;
+      b = Math.floor(Math.random() * maxVal) + 1;
+      currentAns = a + b;
+    } else if (mode === '-') {
+      a = Math.floor(Math.random() * maxVal) + 1;
+      b = Math.floor(Math.random() * a) + 1; // Direct positive result
+      currentAns = a - b;
+    } else if (mode === '*') {
+      const multMax = [5, 10, 12, 20, 50][level - 1];
+      a = Math.floor(Math.random() * multMax) + 1;
+      b = Math.floor(Math.random() * multMax) + 1;
+      currentAns = a * b;
+    } else if (mode === '/') {
+      const divMax = [5, 10, 12, 15, 20][level - 1];
+      b = Math.floor(Math.random() * divMax) + 1;
+      currentAns = Math.floor(Math.random() * divMax) + 1;
+      a = b * currentAns;
+    }
+
+    const opSymbol = mode === '*' ? '×' : mode === '/' ? '÷' : mode;
+    return `${a} ${opSymbol} ${b}`;
+  }
+
+  function startGame() {
+    lives = 3;
+    taskHistory = [];
+    isPlaying = true;
+    document.getElementById('setup-panel').classList.add('hidden');
+    document.getElementById('game-panel').classList.remove('hidden');
+    nextTask();
+  }
+
+  function nextTask() {
+    inputBuffer = "";
+    const taskStr = generateTask();
+    document.getElementById('display-main').innerText = `${taskStr} =`;
+    updateLivesDisplay();
+    
+    startTime = Date.now();
+    if (timerId) clearInterval(timerId);
+    timerId = setInterval(() => {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+      document.getElementById('display-sub').innerText = `STUFE: ${level} | ZEIT: ${elapsed}s`;
+    }, 100);
+  }
+
+  function pressNum(num) {
+    if (inputBuffer.length < 6) {
+      inputBuffer += num;
+      updateLCD();
+    }
+  }
+
+  function clearInput() {
+    inputBuffer = "";
+    updateLCD();
+  }
+
+  function updateLCD() {
+    const currentTaskStr = document.getElementById('display-main').innerText.split('=')[0];
+    document.getElementById('display-main').innerText = `${currentTaskStr}= ${inputBuffer}`;
+  }
+
+  function updateLivesDisplay() {
+    document.getElementById('display-lives').innerText = '❤️'.repeat(lives);
+  }
+
+  function submitAnswer() {
+    if (inputBuffer === "") return;
+    clearInterval(timerId);
+    
+    const timeSpent = parseFloat(((Date.now() - startTime) / 1000).toFixed(2));
+    const userAns = parseInt(inputBuffer, 10);
+    const isCorrect = userAns === currentAns;
+
+    taskHistory.push({ time: timeSpent, correct: isCorrect });
+
+    if (!isCorrect) {
+      lives--;
+      if (lives <= 0) {
+        endGame();
+        return;
+      }
+    }
+    nextTask();
+  }
+
+  function stopGame() {
+    clearInterval(timerId);
+    endGame();
+  }
+
+  function endGame() {
+    isPlaying = false;
+    clearInterval(timerId);
+    document.getElementById('game-panel').classList.add('hidden');
+    document.getElementById('setup-panel').classList.remove('hidden');
+    
+    // Save to LocalStorage
+    saveHistory(mode, taskHistory);
+    renderChart(taskHistory);
+  }
+
+  function saveHistory(modeKey, historyData) {
+    if (historyData.length === 0) return;
+    let saved = JSON.parse(localStorage.getItem('math_trainer_stats') || '{}');
+    if (!saved[modeKey]) saved[modeKey] = [];
+    saved[modeKey] = saved[modeKey].concat(historyData).slice(-50); // Store last 50
+    localStorage.setItem('math_trainer_stats', JSON.stringify(saved));
+  }
+
+  function renderChart(data) {
+    const mainDisplay = document.getElementById('display-main');
+    const subDisplay = document.getElementById('display-sub');
+    
+    if (!data || data.length === 0) {
+      mainDisplay.innerText = "KEINE DATEN";
+      subDisplay.innerText = "STUFE: 1 | ZEIT: 0.0s";
+      return;
+    }
+
+    const maxTime = Math.max(...data.map(d => d.time), 5);
+    let chartHTML = `<div class="chart-container">`;
+    data.forEach(item => {
+      const height = Math.max(10, Math.min(100, (item.time / maxTime) * 100));
+      const colorClass = item.correct ? '' : 'wrong';
+      chartHTML += `<div class="bar ${colorClass}" style="height: ${height}%;" title="${item.time}s"></div>`;
+    });
+    chartHTML += `</div>`;
+
+    mainDisplay.innerHTML = chartHTML;
+    const correctCount = data.filter(d => d.correct).length;
+    subDisplay.innerText = `TREFFER: ${correctCount}/${data.length}`;
+  }
+
+  function showHistory() {
+    let saved = JSON.parse(localStorage.getItem('math_trainer_stats') || '{}');
+    renderChart(saved[mode] || []);
+  }
+
+  // Basic Service Worker Inline Registration for PWA capability
+  if ('serviceWorker' in navigator) {
+    const swCode = `
+      self.addEventListener('install', e => e.waitUntil(self.skipWaiting()));
+      self.addEventListener('fetch', e => e.respondWith(fetch(e.request)));
+    `;
+    const blob = new Blob([swCode], { type: 'application/javascript' });
+    navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
+  }
+</script>
+</body>
+</html>

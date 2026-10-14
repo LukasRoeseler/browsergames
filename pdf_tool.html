@@ -1,3 +1,24 @@
+<!--
+  ============================================================
+  PDF Tool  —  Version: 0.1.2
+  ============================================================
+
+  VERSIONING RULES (how to bump):
+  - Format: MAJOR.MINOR.PATCH   (currently 0.1.2)
+  - EVERY COMMIT: bump the PATCH (final) number by 1. e.g. 0.1.1 -> 0.1.2
+  - BIGGER CHANGES (new feature, UI overhaul, behaviour change):
+      bump the MINOR (second) number by 1 and reset PATCH to 0.
+      e.g. 0.1.2 -> 0.2.0   — and say so in the commit message.
+  - MAJOR (first) number: only for large breaking rewrites. 0.2.0 -> 1.0.0
+
+  WHERE TO UPDATE THE VERSION:
+  The single source of truth is the `VERSION` constant in the
+  <script> block below (search for: const VERSION). Update it there,
+  and keep this header comment in sync. The footer shows it automatically.
+
+  NOTE: Increment the version on the SAME commit that makes the change.
+  ============================================================
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -216,13 +237,16 @@
 
     <div id="pages"></div>
 
-    <div class="footer">Made with PDF-Lib, PDF.js &amp; JSZip</div>
+    <div class="footer">Made with PDF-Lib, PDF.js &amp; JSZip &middot; <span id="version">v0.1.2</span></div>
 
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const VERSION = '0.1.2'; // bump PATCH on every commit; bump MINOR for bigger changes (see header comment)
+        document.getElementById('version').textContent = 'v' + VERSION;
 
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Rotator</title>
+    <title>PDF Tool</title>
     <style>
         :root {
             --bg-color: #0f0f0f;
@@ -28,131 +28,99 @@
             padding: 20px;
         }
 
-        h1 {
-            font-weight: 300;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            margin-bottom: 5px;
-        }
+        h1 { font-weight: 300; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 5px; }
+        .subtitle { color: var(--muted); margin-bottom: 20px; text-align: center; }
 
-        .subtitle { color: var(--muted); margin-bottom: 20px; }
+        .drop-zone {
+            width: 100%; max-width: 860px;
+            border: 2px dashed #444; border-radius: 16px;
+            padding: 40px 20px; text-align: center; cursor: pointer;
+            transition: all 0.2s; background: var(--card-bg); margin-bottom: 20px;
+        }
+        .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent-color); background: #1f1f1f; }
+        .drop-zone .icon { font-size: 40px; margin-bottom: 10px; }
+        .drop-zone p { margin: 5px 0; color: var(--muted); }
+        .drop-zone strong { color: var(--text-color); }
+
+        .hidden { display: none; }
+        #status { color: var(--muted); margin-bottom: 10px; min-height: 20px; text-align: center; }
 
         .toolbar {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            justify-content: center;
-            margin-bottom: 20px;
+            display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+            margin-bottom: 20px; max-width: 860px;
         }
 
         .btn {
-            background: var(--card-bg);
-            color: var(--text-color);
-            border: 1px solid #333;
-            border-radius: 10px;
-            padding: 10px 18px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s;
+            background: var(--card-bg); color: var(--text-color);
+            border: 1px solid #333; border-radius: 10px; padding: 9px 16px;
+            font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s;
         }
-
         .btn:hover:not(:disabled) { background: #252525; border-color: var(--accent-color); }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .btn.primary { background: var(--accent-color); border-color: var(--accent-color); color: #fff; }
         .btn.primary:hover:not(:disabled) { filter: brightness(1.1); }
         .btn.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
 
-        .drop-zone {
-            width: 100%;
-            max-width: 720px;
-            border: 2px dashed #444;
-            border-radius: 16px;
-            padding: 50px 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            background: var(--card-bg);
-            margin-bottom: 20px;
+        #pages {
+            width: 100%; max-width: 860px;
+            display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
         }
 
-        .drop-zone:hover, .drop-zone.dragover {
-            border-color: var(--accent-color);
-            background: #1f1f1f;
+        .page-card {
+            background: var(--card-bg); border: 1px solid #333; border-radius: 12px;
+            padding: 10px; width: 170px; display: flex; flex-direction: column;
+            align-items: center; gap: 6px; position: relative;
+            transition: transform 0.15s, border-color 0.15s;
         }
+        .page-card.dragging { opacity: 0.5; }
+        .page-card.drop-target { border-color: var(--accent-color); box-shadow: 0 0 0 2px var(--accent-color); }
 
-        .drop-zone .icon { font-size: 40px; margin-bottom: 10px; }
-        .drop-zone p { margin: 5px 0; color: var(--muted); }
-        .drop-zone strong { color: var(--text-color); }
-
-        .hidden { display: none; }
-
-        #status {
-            color: var(--muted);
-            margin-bottom: 10px;
-            min-height: 20px;
+        .thumb-wrap {
+            width: 140px; height: 190px; display: flex; align-items: center; justify-content: center;
+            background: #111; border-radius: 6px; overflow: hidden;
         }
+        .thumb-wrap canvas { max-width: 100%; max-height: 100%; transition: transform 0.2s; }
 
-        #preview {
-            width: 100%;
-            max-width: 720px;
-            max-height: 60vh;
-            overflow: auto;
-            background: var(--card-bg);
-            border: 1px solid #333;
-            border-radius: 16px;
-            padding: 15px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 15px;
-            justify-content: center;
-        }
+        .page-meta { font-size: 12px; color: var(--muted); text-align: center; }
+        .page-meta b { color: var(--text-color); }
 
-        #preview canvas {
-            border-radius: 6px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
-            max-width: 100%;
-            height: auto;
+        .controls { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; }
+        .ctrl {
+            background: #222; color: var(--text-color); border: 1px solid #333;
+            border-radius: 6px; width: 30px; height: 30px; font-size: 15px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
         }
+        .ctrl:hover { border-color: var(--accent-color); background: #2a2a2a; }
+        .ctrl.del:hover { border-color: var(--danger); color: var(--danger); }
 
-        .page-label {
-            width: 100%;
-            text-align: center;
-            color: var(--muted);
-            font-size: 12px;
-        }
+        .select-row { display: flex; align-items: center; gap: 6px; width: 100%; justify-content: center; }
+        .select-row input { accent-color: var(--accent-color); }
 
-        .footer {
-            margin-top: auto;
-            padding: 20px;
-            color: var(--muted);
-            font-size: 12px;
-        }
+        .footer { margin-top: auto; padding: 20px; color: var(--muted); font-size: 12px; }
     </style>
 </head>
 <body>
 
-    <h1>PDF Rotator</h1>
-    <div class="subtitle">Rotate a PDF by 90&deg; &mdash; everything stays on your device</div>
+    <h1>PDF Tool</h1>
+    <div class="subtitle">Merge, split, reorder, rotate and remove pages &mdash; everything stays on your device</div>
 
     <div class="drop-zone" id="dropZone">
         <div class="icon">&#128196;</div>
-        <p><strong>Click to choose</strong> or drag &amp; drop a PDF here</p>
-        <p>Your file is processed locally and never uploaded.</p>
-        <input type="file" id="fileInput" accept="application/pdf,.pdf" class="hidden">
+        <p><strong>Click to choose</strong> or drag &amp; drop one or more PDFs here</p>
+        <p>Your files are processed locally and never uploaded.</p>
+        <input type="file" id="fileInput" accept="application/pdf,.pdf" multiple class="hidden">
     </div>
 
     <div id="status"></div>
 
     <div class="toolbar" id="toolbar" style="display:none;">
-        <button class="btn" id="rotCw">Rotate 90&deg; CW</button>
-        <button class="btn" id="rotCcw">Rotate 90&deg; CCW</button>
-        <button class="btn" id="rot180">Rotate 180&deg;</button>
-        <button class="btn danger" id="resetBtn">Reset</button>
-        <button class="btn primary" id="saveBtn">Save PDF</button>
+        <button class="btn primary" id="mergeBtn">Merge &amp; Download</button>
+        <button class="btn" id="exportSelBtn">Export Selected Pages</button>
+        <button class="btn" id="splitBtn">Split Each Selected Page</button>
+        <button class="btn" id="clearBtn">Clear All</button>
     </div>
 
-    <div id="preview" class="hidden"></div>
+    <div id="pages"></div>
 
     <div class="footer">Made with PDF-Lib &amp; PDF.js</div>
 
@@ -165,15 +133,16 @@
         const fileInput = document.getElementById('fileInput');
         const statusEl = document.getElementById('status');
         const toolbar = document.getElementById('toolbar');
-        const previewEl = document.getElementById('preview');
+        const pagesEl = document.getElementById('pages');
 
-        let pdfDoc = null;          // pdf-lib document
-        let originalRotations = []; // original /Rotate angle per page
-        let currentAngle = 0;       // accumulated rotation (0, 90, 180, 270)
+        const sources = [];   // { id, name, pdfDoc, jsDoc, bytes }
+        const pageList = [];  // { id, sourceId, pageIndex, rotation, canvas }
+        let nextSourceId = 0;
+        let nextPageId = 0;
 
         dropZone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) loadFile(e.target.files[0]);
+            if (e.target.files.length) addFiles(e.target.files);
         });
 
         ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, (e) => {
@@ -183,101 +152,255 @@
             e.preventDefault(); dropZone.classList.remove('dragover');
         }));
         dropZone.addEventListener('drop', (e) => {
-            const file = e.dataTransfer.files[0];
-            if (file) loadFile(file);
+            if (e.dataTransfer.files.length) addFiles(e.dataTransfer.files);
         });
 
-        async function loadFile(file) {
-            if (!file.name.toLowerCase().endsWith('.pdf')) {
-                setStatus('Please choose a PDF file.', true);
-                return;
+        async function addFiles(fileList) {
+            setStatus('Loading PDFs...');
+            for (const file of fileList) {
+                if (!file.name.toLowerCase().endsWith('.pdf')) {
+                    setStatus(`Skipping "${file.name}": not a PDF.`, true);
+                    continue;
+                }
+                try {
+                    const bytes = await file.arrayBuffer();
+                    const pdfDoc = await PDFLib.PDFDocument.load(bytes, { ignoreEncryption: true });
+                    const jsDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
+                    const srcId = nextSourceId++;
+                    sources.push({ id: srcId, name: file.name, pdfDoc, jsDoc });
+                    const count = pdfDoc.getPageCount();
+                    for (let i = 0; i < count; i++) {
+                        pageList.push({
+                            id: nextPageId++, sourceId: srcId,
+                            pageIndex: i, rotation: 0, canvas: null
+                        });
+                    }
+                    setStatus(`Loaded "${file.name}" (${count} page${count > 1 ? 's' : ''}).`);
+                } catch (err) {
+                    console.error(err);
+                    setStatus(`Could not read "${file.name}".`, true);
+                }
             }
-            setStatus('Loading PDF...');
+            toolbar.style.display = 'flex';
+            renderAll();
+            updateCount();
+        }
+
+        function renderAll() {
+            pagesEl.innerHTML = '';
+            pageList.forEach(p => pagesEl.appendChild(createCard(p)));
+        }
+
+        function createCard(p) {
+            const card = document.createElement('div');
+            card.className = 'page-card';
+            card.draggable = true;
+            card.dataset.id = p.id;
+            card.dataset.sourceId = p.sourceId;
+
+            const src = sources.find(s => s.id === p.sourceId);
+
+            const selectRow = document.createElement('div');
+            selectRow.className = 'select-row';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.title = 'Select page';
+            selectRow.appendChild(cb);
+            card.appendChild(selectRow);
+
+            const thumbWrap = document.createElement('div');
+            thumbWrap.className = 'thumb-wrap';
+
+            if (p.canvas) {
+                thumbWrap.appendChild(p.canvas);
+            } else {
+                const canvas = document.createElement('canvas');
+                thumbWrap.appendChild(canvas);
+                p.canvas = canvas;
+                renderThumb(p, canvas);
+            }
+            applyRotation(p);
+            card.appendChild(thumbWrap);
+
+            const meta = document.createElement('div');
+            meta.className = 'page-meta';
+            meta.innerHTML = `Page <b>${p.pageIndex + 1}</b><br>${src ? escapeHtml(src.name) : ''}`;
+            card.appendChild(meta);
+
+            const controls = document.createElement('div');
+            controls.className = 'controls';
+
+            controls.appendChild(makeCtrl('\u27F2', 'Rotate 90\u00B0 CW', () => {
+                p.rotation = (p.rotation + 90) % 360;
+                applyRotation(p);
+            }));
+            controls.appendChild(makeCtrl('\u27F3', 'Rotate 90\u00B0 CCW', () => {
+                p.rotation = (p.rotation - 90 + 360) % 360;
+                applyRotation(p);
+            }));
+            controls.appendChild(makeCtrl('\u2191', 'Move up', () => movePage(p.id, -1)));
+            controls.appendChild(makeCtrl('\u2193', 'Move down', () => movePage(p.id, 1)));
+            controls.appendChild(makeCtrl('\u2715', 'Remove page', () => removePage(p.id), true));
+
+            card.appendChild(controls);
+
+            card.addEventListener('dragstart', (e) => {
+                card.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', String(p.id));
+            });
+            card.addEventListener('dragend', () => card.classList.remove('dragging'));
+            card.addEventListener('dragover', (e) => { e.preventDefault(); card.classList.add('drop-target'); });
+            card.addEventListener('dragleave', () => card.classList.remove('drop-target'));
+            card.addEventListener('drop', (e) => {
+                e.preventDefault();
+                card.classList.remove('drop-target');
+                const dragId = Number(e.dataTransfer.getData('text/plain'));
+                reorderPage(dragId, p.id);
+            });
+
+            return card;
+        }
+
+        function makeCtrl(text, title, handler, isDel) {
+            const b = document.createElement('button');
+            b.className = 'ctrl' + (isDel ? ' del' : '');
+            b.textContent = text;
+            b.title = title;
+            b.addEventListener('click', handler);
+            return b;
+        }
+
+        async function renderThumb(p, canvas) {
+            const src = sources.find(s => s.id === p.sourceId);
+            if (!src) return;
             try {
-                const data = await file.arrayBuffer();
-                pdfDoc = await PDFLib.PDFDocument.load(data, { ignoreEncryption: true });
-                originalRotations = pdfDoc.getPages().map(p => p.getRotation().angle);
-                currentAngle = 0;
-                toolbar.style.display = 'flex';
-                previewEl.classList.remove('hidden');
-                setStatus(`Loaded "${file.name}" (${pdfDoc.getPageCount()} page${pdfDoc.getPageCount() > 1 ? 's' : ''}).`);
-                await renderPreview();
+                const page = await src.jsDoc.getPage(p.pageIndex + 1);
+                const base = page.getViewport({ scale: 1 });
+                const scale = Math.min(140 / base.width, 190 / base.height);
+                const viewport = page.getViewport({ scale });
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
             } catch (err) {
                 console.error(err);
-                setStatus('Could not read this PDF.', true);
-                pdfDoc = null;
-                toolbar.style.display = 'none';
-                previewEl.classList.add('hidden');
             }
         }
 
-        function applyRotation() {
-            const pages = pdfDoc.getPages();
-            pages.forEach((p, i) => {
-                const orig = originalRotations[i] || 0;
-                p.setRotation(PDFLib.degrees((orig + currentAngle) % 360));
+        function applyRotation(p) {
+            if (p.canvas) p.canvas.style.transform = `rotate(${p.rotation}deg)`;
+        }
+
+        function movePage(id, dir) {
+            const idx = pageList.findIndex(p => p.id === id);
+            const to = idx + dir;
+            if (idx < 0 || to < 0 || to >= pageList.length) return;
+            const [moved] = pageList.splice(idx, 1);
+            pageList.splice(to, 0, moved);
+            renderAll();
+        }
+
+        function reorderPage(dragId, dropId) {
+            const from = pageList.findIndex(p => p.id === dragId);
+            const to = pageList.findIndex(p => p.id === dropId);
+            if (from < 0 || to < 0 || from === to) return;
+            const [moved] = pageList.splice(from, 1);
+            pageList.splice(to, 0, moved);
+            renderAll();
+        }
+
+        function removePage(id) {
+            const idx = pageList.findIndex(p => p.id === id);
+            if (idx < 0) return;
+            pageList.splice(idx, 1);
+            if (pageList.length === 0) {
+                toolbar.style.display = 'none';
+            }
+            renderAll();
+            updateCount();
+        }
+
+        function updateCount() {
+            setStatus(`${pageList.length} page${pageList.length !== 1 ? 's' : ''} in document.`);
+        }
+
+        function selectedPages() {
+            return pageList.filter(p => {
+                const cb = document.querySelector(`.page-card[data-id="${p.id}"] .select-row input`);
+                return cb && cb.checked;
             });
         }
 
-        async function renderPreview() {
-            if (!pdfDoc) return;
-            previewEl.innerHTML = '';
-            const bytes = await pdfDoc.save();
-            const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
-            const container = previewEl;
-
-            for (let n = 1; n <= pdf.numPages; n++) {
-                const page = await pdf.getPage(n);
-                const viewport = page.getViewport({ scale: 1.2 });
-                const canvas = document.createElement('canvas');
-                canvas.width = viewport.width;
-                canvas.height = viewport.height;
-                const ctx = canvas.getContext('2d');
-                await page.render({ canvasContext: ctx, viewport }).promise;
-                container.appendChild(canvas);
+        async function buildOutputDoc(pages) {
+            const out = await PDFLib.PDFDocument.create();
+            for (const p of pages) {
+                const src = sources.find(s => s.id === p.sourceId);
+                if (!src) continue;
+                const [copied] = await out.copyPages(src.pdfDoc, [p.pageIndex]);
+                const orig = src.pdfDoc.getPages()[p.pageIndex].getRotation().angle;
+                copied.setRotation(PDFLib.degrees((orig + p.rotation) % 360));
+                out.addPage(copied);
             }
-
-            const label = document.createElement('div');
-            label.className = 'page-label';
-            label.textContent = `Rotation: ${currentAngle}\u00B0`;
-            container.appendChild(label);
+            return out;
         }
 
-        async function setRotation(angle) {
-            currentAngle = ((angle % 360) + 360) % 360;
-            applyRotation();
-            await renderPreview();
-        }
-
-        document.getElementById('rotCw').addEventListener('click', () => setRotation(currentAngle + 90));
-        document.getElementById('rotCcw').addEventListener('click', () => setRotation(currentAngle - 90));
-        document.getElementById('rot180').addEventListener('click', () => setRotation(currentAngle + 180));
-        document.getElementById('resetBtn').addEventListener('click', () => setRotation(0));
-
-        document.getElementById('saveBtn').addEventListener('click', async () => {
-            if (!pdfDoc) return;
-            setStatus('Saving...');
-            try {
-                const bytes = await pdfDoc.save();
+        function downloadPdf(doc, filename) {
+            doc.save().then(bytes => {
                 const blob = new Blob([bytes], { type: 'application/pdf' });
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
-                a.href = url;
-                a.download = 'rotated.pdf';
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
+                a.href = url; a.download = filename;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
                 setTimeout(() => URL.revokeObjectURL(url), 1000);
-                setStatus('Saved.');
-            } catch (err) {
-                console.error(err);
-                setStatus('Failed to save.', true);
+            });
+        }
+
+        document.getElementById('mergeBtn').addEventListener('click', async () => {
+            if (!pageList.length) return;
+            setStatus('Merging...');
+            const doc = await buildOutputDoc(pageList);
+            downloadPdf(doc, 'merged.pdf');
+            setStatus('Merged PDF saved.');
+        });
+
+        document.getElementById('exportSelBtn').addEventListener('click', async () => {
+            const sel = selectedPages();
+            if (!sel.length) { setStatus('Select at least one page.', true); return; }
+            setStatus('Exporting selected pages...');
+            const doc = await buildOutputDoc(sel);
+            downloadPdf(doc, 'selected-pages.pdf');
+            setStatus('Selected pages saved.');
+        });
+
+        document.getElementById('splitBtn').addEventListener('click', async () => {
+            const sel = selectedPages();
+            if (!sel.length) { setStatus('Select at least one page.', true); return; }
+            setStatus('Splitting into separate PDFs...');
+            for (let i = 0; i < sel.length; i++) {
+                const doc = await buildOutputDoc([sel[i]]);
+                downloadPdf(doc, `page-${sel[i].pageIndex + 1}.pdf`);
+                await new Promise(r => setTimeout(r, 300));
             }
+            setStatus('Split PDFs saved.');
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            sources.length = 0;
+            pageList.length = 0;
+            toolbar.style.display = 'none';
+            renderAll();
+            setStatus('');
         });
 
         function setStatus(msg, isError) {
             statusEl.textContent = msg;
             statusEl.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+        }
+
+        function escapeHtml(s) {
+            return s.replace(/[&<>"']/g, c => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[c]));
         }
     </script>
 </body>

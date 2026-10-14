@@ -117,6 +117,8 @@
         <button class="btn primary" id="mergeBtn">Merge &amp; Download</button>
         <button class="btn" id="exportSelBtn">Export Selected Pages</button>
         <button class="btn" id="splitBtn">Split Each Selected Page</button>
+        <button class="btn" id="selectAllBtn">Select All</button>
+        <button class="btn" id="selectNoneBtn">Select None</button>
         <button class="btn" id="clearBtn">Clear All</button>
     </div>
 
@@ -391,6 +393,15 @@
             renderAll();
             setStatus('');
         });
+
+        function setAllCheckboxes(checked) {
+            pagesEl.querySelectorAll('.page-card .select-row input').forEach(cb => cb.checked = checked);
+            const count = checked ? pageList.length : 0;
+            setStatus(`${count} page${count !== 1 ? 's' : ''} selected.`);
+        }
+
+        document.getElementById('selectAllBtn').addEventListener('click', () => setAllCheckboxes(true));
+        document.getElementById('selectNoneBtn').addEventListener('click', () => setAllCheckboxes(false));
 
         function setStatus(msg, isError) {
             statusEl.textContent = msg;

@@ -46,10 +46,24 @@
         .hidden { display: none; }
         #status { color: var(--muted); margin-bottom: 10px; min-height: 20px; text-align: center; }
 
-        .toolbar {
-            display: flex; flex-direction: column; align-items: center; gap: 10px;
-            margin-bottom: 20px; max-width: 860px; width: 100%;
+        .action-bar {
+            position: sticky; top: 0; z-index: 50;
+            display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center;
+            width: 100%; max-width: 860px; margin-bottom: 14px;
+            background: rgba(15,15,15,0.96); padding: 10px 12px;
+            border: 1px solid #2a2a2a; border-radius: 12px;
+            backdrop-filter: blur(4px);
         }
+        .action-bar .sep {
+            width: 1px; height: 24px; background: #333; margin: 0 2px;
+        }
+        .options-panel {
+            display: flex; flex-direction: column; gap: 10px; align-items: center;
+            width: 100%; max-width: 860px; margin-bottom: 14px;
+            background: var(--card-bg); padding: 12px;
+            border: 1px solid #2a2a2a; border-radius: 12px;
+        }
+        .options-panel.hidden { display: none; }
         .tgroup {
             display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; align-items: center;
         }
@@ -150,21 +164,25 @@
 
     <div id="status"></div>
 
-    <div class="toolbar" id="toolbar" style="display:none;">
-        <div class="tgroup">
-            <button class="btn primary" id="mergeBtn">Merge &amp; Download</button>
-            <button class="btn" id="exportSelBtn">Export Selected</button>
-            <button class="btn" id="splitBtn">Split Selected Pages</button>
-            <button class="btn" id="splitSrcBtn">Split by Source</button>
-            <button class="btn" id="zipBtn">Download ZIP</button>
-            <button class="btn" id="undoBtn" disabled>Undo</button>
-            <button class="btn" id="redoBtn" disabled>Redo</button>
-            <button class="btn danger" id="clearBtn">Clear All</button>
-        </div>
+    <div class="action-bar" id="actionBar" style="display:none;">
+        <button class="btn primary" id="mergeBtn">Merge &amp; Download</button>
+        <button class="btn" id="exportSelBtn">Export Selected</button>
+        <button class="btn" id="splitSrcBtn">Split by Source</button>
+        <button class="btn" id="zipBtn">Download ZIP</button>
+        <span class="sep"></span>
+        <button class="btn" id="undoBtn" disabled>Undo</button>
+        <button class="btn" id="redoBtn" disabled>Redo</button>
+        <span class="sep"></span>
+        <button class="btn danger" id="clearBtn">Clear All</button>
+        <button class="btn" id="optionsBtn">Options &#9662;</button>
+    </div>
+
+    <div class="options-panel hidden" id="optionsPanel">
         <div class="tgroup">
             <button class="btn" id="selectAllBtn">Select All</button>
             <button class="btn" id="selectNoneBtn">Select None</button>
             <button class="btn" id="groupBtn">Group by Source</button>
+            <button class="btn" id="splitBtn">Split Selected Pages</button>
         </div>
         <div class="tgroup size-row">
             <label for="sizeSelect">Page size:</label>
@@ -209,7 +227,8 @@
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
         const statusEl = document.getElementById('status');
-        const toolbar = document.getElementById('toolbar');
+        const actionBar = document.getElementById('actionBar');
+        const optionsPanel = document.getElementById('optionsPanel');
         const pagesEl = document.getElementById('pages');
 
         const sources = [];   // { id, name, pdfDoc, jsDoc }
@@ -218,6 +237,9 @@
         const redoStack = [];
         let nextSourceId = 0;
         let nextPageId = 0;
+
+        function showToolbar() { actionBar.style.display = 'flex'; }
+        function hideToolbar() { actionBar.style.display = 'none'; optionsPanel.classList.add('hidden'); }
         let previewAll = true;
 
         dropZone.addEventListener('click', () => fileInput.click());
@@ -262,7 +284,7 @@
                     setStatus(`Could not read "${file.name}".`, true);
                 }
             }
-            toolbar.style.display = 'flex';
+            showToolbar();
             renderAll();
             updateCount();
         }
@@ -500,7 +522,7 @@
             if (idx < 0) return;
             pushHistory();
             pageList.splice(idx, 1);
-            if (pageList.length === 0) toolbar.style.display = 'none';
+            if (pageList.length === 0) hideToolbar();
             renderAll();
             updateCount();
         }
@@ -554,7 +576,7 @@
             pageList.push(...keep);
             const si = sources.findIndex(s => s.id === srcId);
             if (si >= 0) sources.splice(si, 1);
-            if (pageList.length === 0) toolbar.style.display = 'none';
+            if (pageList.length === 0) hideToolbar();
             renderAll();
             updateCount();
         }
@@ -786,7 +808,7 @@
             pushHistory();
             sources.length = 0;
             pageList.length = 0;
-            toolbar.style.display = 'none';
+            hideToolbar();
             renderAll();
             setStatus('');
         });
@@ -808,6 +830,11 @@
             const scale = Number(e.target.value) / 100;
             pagesEl.style.setProperty('--tw', (140 * scale) + 'px');
             pagesEl.style.setProperty('--th', (190 * scale) + 'px');
+        });
+
+        document.getElementById('optionsBtn').addEventListener('click', (e) => {
+            optionsPanel.classList.toggle('hidden');
+            e.currentTarget.innerHTML = optionsPanel.classList.contains('hidden') ? 'Options &#9662;' : 'Options &#9652;';
         });
 
         function setStatus(msg, isError) {

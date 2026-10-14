@@ -1,10 +1,10 @@
 <!--
   ============================================================
-  PDF Tool  —  Version: 0.2.1
+  PDF Tool  —  Version: 0.2.2
   ============================================================
 
   VERSIONING RULES (how to bump):
-  - Format: MAJOR.MINOR.PATCH   (currently 0.2.1)
+  - Format: MAJOR.MINOR.PATCH   (currently 0.2.2)
   - EVERY COMMIT: bump the PATCH (final) number by 1. e.g. 0.1.1 -> 0.1.2
   - BIGGER CHANGES (new feature, UI overhaul, behaviour change):
       bump the MINOR (second) number by 1 and reset PATCH to 0.
@@ -219,7 +219,7 @@
             <input type="number" id="sizeH" class="hidden" placeholder="H (pt)" min="1">
             <button class="btn" id="fitLargestBtn">Fit to Largest</button>
             <button class="btn" id="fitSmallestBtn">Fit to Smallest</button>
-            <label title="Scale content to fit the chosen size instead of cropping"><input type="checkbox" id="resizeChk" checked> Scale to fit (no crop)</label>
+            <label title="Keep each page's content at its original size, centered on the page, with white space around it. Uncheck to scale content to fit the page size."><input type="checkbox" id="resizeChk" checked> Keep original size (white margins)</label>
             <label><input type="checkbox" id="landscapeChk"> Force landscape</label>
         </div>
         <div class="tgroup field-row">
@@ -238,7 +238,7 @@
 
     <div id="pages"></div>
 
-    <div class="footer">Made with PDF-Lib, PDF.js &amp; JSZip &middot; <span id="version">v0.2.1</span></div>
+    <div class="footer">Made with PDF-Lib, PDF.js &amp; JSZip &middot; <span id="version">v0.2.2</span></div>
 
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -246,7 +246,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        const VERSION = '0.2.1'; // bump PATCH on every commit; bump MINOR for bigger changes (see header comment)
+        const VERSION = '0.2.2'; // bump PATCH on every commit; bump MINOR for bigger changes (see header comment)
         document.getElementById('version').textContent = 'v' + VERSION;
 
         const dropZone = document.getElementById('dropZone');
@@ -740,6 +740,21 @@
             page.drawPage(embedded, { x, y, xScale, yScale, rotate: PDFLib.degrees(drawRot) });
         }
 
+        // Draw a source page at its ORIGINAL size, centered on a page of `boxW` x `boxH`
+        // (white fills the rest; content is never rescaled or cropped).
+        async function drawOriginalPage(out, srcPage, effRot, boxW, boxH) {
+            const page = out.addPage([boxW, boxH]);
+            const embedded = await out.embedPage(srcPage);
+            const srcBox = srcPage.getSize();
+            const srcW = srcBox.width, srcH = srcBox.height;
+            const drawRot = (360 - effRot) % 360;
+            const r = drawRot * Math.PI / 180;
+            const cosR = Math.cos(r), sinR = Math.sin(r);
+            const x = boxW / 2 - (cosR * (srcW / 2) - sinR * (srcH / 2));
+            const y = boxH / 2 - (sinR * (srcW / 2) + cosR * (srcH / 2));
+            page.drawPage(embedded, { x, y, xScale: 1, yScale: 1, rotate: PDFLib.degrees(drawRot) });
+        }
+
         async function buildOutputDoc(pages) {
             const out = await PDFLib.PDFDocument.create();
             const title = document.getElementById('titleInput').value.trim();
@@ -747,16 +762,38 @@
             if (title) out.setTitle(title);
             if (author) out.setAuthor(author);
 
-            const scaleToFit = resizeChk.checked;
+            const keepOriginal = resizeChk.checked;
             const forceSize = globalSize || landscapeChk.checked;
+            const hasGlobal = !!globalSize;
+
+            // When a page size is forced, use one uniform page size that is at least as
+            // large as the biggest page, so content is never shrunk or cropped.
+            let outW = 0, outH = 0;
+            if (forceSize) {
+                let maxW = 0, maxH = 0;
+                for (const p of pages) {
+                    const s = effectivePageSize(p);
+                    if (!s) continue;
+                    if (s.w > maxW) maxW = s.w;
+                    if (s.h > maxH) maxH = s.h;
+                }
+                outW = hasGlobal ? Math.max(globalSize.w, maxW) : maxW;
+                outH = hasGlobal ? Math.max(globalSize.h, maxH) : maxH;
+                if (landscapeChk.checked && outW < outH) { const t = outW; outW = outH; outH = t; }
+            }
 
             for (const p of pages) {
                 if (p.kind === 'blank') {
-                    const box = targetBox(p);
                     const effRot = p.rotation;
                     const swap = (effRot === 90 || effRot === 270);
-                    const pg = out.addPage([swap ? box.h : box.w, swap ? box.w : box.h]);
-                    if (effRot) pg.setRotation(PDFLib.degrees(effRot));
+                    if (forceSize) {
+                        const pg = out.addPage([swap ? outH : outW, swap ? outW : outH]);
+                        if (effRot) pg.setRotation(PDFLib.degrees(effRot));
+                    } else {
+                        const box = targetBox(p);
+                        const pg = out.addPage([swap ? box.h : box.w, swap ? box.w : box.h]);
+                        if (effRot) pg.setRotation(PDFLib.degrees(effRot));
+                    }
                     continue;
                 }
                 const src = sources.find(s => s.id === p.sourceId);
@@ -764,11 +801,15 @@
                 const srcPage = src.pdfDoc.getPages()[p.pageIndex];
                 const orig = srcPage.getRotation().angle;
                 const effRot = (orig + p.rotation) % 360;
-                const box = targetBox(p);
 
-                if (scaleToFit && forceSize) {
-                    await drawScaledPage(out, srcPage, effRot, box);
+                if (forceSize) {
+                    if (hasGlobal && keepOriginal) {
+                        await drawOriginalPage(out, srcPage, effRot, outW, outH);
+                    } else {
+                        await drawScaledPage(out, srcPage, effRot, { w: outW, h: outH });
+                    }
                 } else {
+                    const box = targetBox(p);
                     const [copied] = await out.copyPages(src.pdfDoc, [p.pageIndex]);
                     const swap = (effRot === 90 || effRot === 270);
                     copied.setMediaBox(0, 0, swap ? box.h : box.w, swap ? box.w : box.h);

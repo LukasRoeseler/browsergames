@@ -1,10 +1,10 @@
 <!--
   ============================================================
-  PDF Tool  —  Version: 0.2.2
+  PDF Tool  —  Version: 0.3.0
   ============================================================
 
   VERSIONING RULES (how to bump):
-  - Format: MAJOR.MINOR.PATCH   (currently 0.2.2)
+  - Format: MAJOR.MINOR.PATCH   (currently 0.3.0)
   - EVERY COMMIT: bump the PATCH (final) number by 1. e.g. 0.1.1 -> 0.1.2
   - BIGGER CHANGES (new feature, UI overhaul, behaviour change):
       bump the MINOR (second) number by 1 and reset PATCH to 0.
@@ -107,6 +107,11 @@
         .check-row label { color: var(--muted); font-size: 14px; }
         .check-row input { accent-color: var(--accent-color); }
         .check-row input[type="range"] { accent-color: var(--accent-color); }
+        .check-row select {
+            background: var(--card-bg); color: var(--text-color);
+            border: 1px solid #333; border-radius: 8px; padding: 6px 8px; font-size: 14px;
+        }
+        .check-row select:focus { outline: none; border-color: var(--accent-color); }
 
         .btn {
             background: var(--card-bg); color: var(--text-color);
@@ -187,6 +192,7 @@
 
     <div class="action-bar" id="actionBar" style="display:none;">
         <button class="btn primary" id="mergeBtn">Merge &amp; Download</button>
+        <button class="btn" id="compressBtn">Compress &amp; Download</button>
         <button class="btn" id="exportSelBtn">Export Selected</button>
         <button class="btn" id="splitSrcBtn">Split by Source</button>
         <button class="btn" id="zipBtn">Download ZIP</button>
@@ -231,6 +237,15 @@
             <input type="text" id="authorInput" placeholder="(optional)">
         </div>
         <div class="tgroup check-row">
+            <label>Compress quality:
+                <select id="compressQuality">
+                    <option value="high">High (150dpi)</option>
+                    <option value="medium" selected>Medium (110dpi)</option>
+                    <option value="low">Low (72dpi)</option>
+                </select>
+            </label>
+        </div>
+        <div class="tgroup check-row">
             <label>Zoom <input type="range" id="zoom" min="50" max="200" value="100"></label>
             <label><input type="checkbox" id="previewAll" checked> Preview all pages</label>
         </div>
@@ -238,7 +253,7 @@
 
     <div id="pages"></div>
 
-    <div class="footer">Made with PDF-Lib, PDF.js &amp; JSZip &middot; <span id="version">v0.2.2</span></div>
+    <div class="footer">Made with PDF-Lib, PDF.js &amp; JSZip &middot; <span id="version">v0.3.0</span></div>
 
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -246,7 +261,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        const VERSION = '0.2.2'; // bump PATCH on every commit; bump MINOR for bigger changes (see header comment)
+        const VERSION = '0.3.0'; // bump PATCH on every commit; bump MINOR for bigger changes (see header comment)
         document.getElementById('version').textContent = 'v' + VERSION;
 
         const dropZone = document.getElementById('dropZone');
@@ -831,6 +846,50 @@
             });
         }
 
+        // ---------- compression ----------
+        const compressPresets = {
+            high:   { dpi: 150, jpegQuality: 0.85 },
+            medium: { dpi: 110, jpegQuality: 0.70 },
+            low:    { dpi: 72,  jpegQuality: 0.50 }
+        };
+
+        function dataUrlToBytes(dataUrl) {
+            const base64 = dataUrl.split(',')[1];
+            const bin = atob(base64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            return bytes;
+        }
+
+        // Build the normal output, then rasterize every page as a JPEG at a reduced
+        // resolution/quality and rebuild the PDF. Text becomes image (not selectable),
+        // but the file is much smaller and the content stays recognizable.
+        async function buildCompressedDoc(pages, preset) {
+            const srcDoc = await buildOutputDoc(pages);
+            const srcBytes = await srcDoc.save();
+            const jsDoc = await pdfjsLib.getDocument({ data: srcBytes }).promise;
+            const out = await PDFLib.PDFDocument.create();
+            const title = document.getElementById('titleInput').value.trim();
+            const author = document.getElementById('authorInput').value.trim();
+            if (title) out.setTitle(title);
+            if (author) out.setAuthor(author);
+            const scale = preset.dpi / 72;
+            for (let i = 0; i < jsDoc.numPages; i++) {
+                const page = await jsDoc.getPage(i + 1);
+                const viewport = page.getViewport({ scale });
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.ceil(viewport.width);
+                canvas.height = Math.ceil(viewport.height);
+                const ctx = canvas.getContext('2d');
+                await page.render({ canvasContext: ctx, viewport }).promise;
+                const jpgBytes = dataUrlToBytes(canvas.toDataURL('image/jpeg', preset.jpegQuality));
+                const embedded = await out.embedJpg(jpgBytes);
+                const p = out.addPage([viewport.width / scale, viewport.height / scale]);
+                p.drawImage(embedded, { x: 0, y: 0, width: viewport.width / scale, height: viewport.height / scale });
+            }
+            return out;
+        }
+
         function getBaseName() {
             const v = document.getElementById('fileName').value.trim();
             return v ? v.replace(/\.pdf$/i, '') : '';
@@ -851,6 +910,20 @@
             const doc = await buildOutputDoc(pageList);
             downloadPdf(doc, (getBaseName() || 'merged') + '.pdf');
             setStatus('Merged PDF saved.');
+        });
+
+        document.getElementById('compressBtn').addEventListener('click', async () => {
+            if (!pageList.length) return;
+            const preset = compressPresets[document.getElementById('compressQuality').value];
+            setStatus('Compressing (rasterizing pages)...');
+            try {
+                const doc = await buildCompressedDoc(pageList, preset);
+                downloadPdf(doc, (getBaseName() || 'compressed') + '.pdf');
+                setStatus('Compressed PDF saved.');
+            } catch (err) {
+                console.error(err);
+                setStatus('Compression failed.', true);
+            }
         });
 
         document.getElementById('exportSelBtn').addEventListener('click', async () => {

@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>DeepSeek Music Surfer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%230b1020'/><path d='M24 46V20l20-6v26' stroke='%2300f0ff' stroke-width='5' fill='none' stroke-linecap='round'/><circle cx='20' cy='47' r='5' fill='%2300f0ff'/><circle cx='40' cy='41' r='5' fill='%2300f0ff'/></svg>">
+<style>
+  :root{
+    --bg0:#05070f; --bg1:#0b1020;
+    --cyan:#00f0ff; --magenta:#ff00e0; --blue:#3b82f6; --red:#ff3355; --text:#dff3ff;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; overflow:hidden; background:var(--bg0); color:var(--text);
+    font-family:"Segoe UI", system-ui, -apple-system, Arial, sans-serif; }
+  #app{ position:fixed; inset:0; }
+  canvas#game{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+
+  /* ---- Screens ---- */
+  .screen{ position:absolute; inset:0; display:none; flex-direction:column; align-items:center;
+    justify-content:center; text-align:center; padding:24px; z-index:5;
+    backdrop-filter: blur(2px); }
+  .screen.active{ display:flex; }
+  .panel{ background:rgba(10,16,32,0.72); border:1px solid rgba(0,240,255,0.35);
+    border-radius:16px; padding:28px 32px; max-width:560px; width:100%;
+    box-shadow:0 0 40px rgba(0,240,255,0.12), inset 0 0 30px rgba(0,240,255,0.05); }
+  h1{ font-size:2.1rem; letter-spacing:3px; font-weight:800;
+    background:linear-gradient(90deg,var(--cyan),var(--magenta)); -webkit-background-clip:text;
+    background-clip:text; color:transparent; margin-bottom:6px; text-shadow:0 0 25px rgba(0,240,255,0.3); }
+  .sub{ color:#7fa8c9; font-size:.9rem; letter-spacing:2px; margin-bottom:22px; text-transform:uppercase; }
+  .field{ width:100%; margin:10px 0; }
+  input[type=text], input[type=file]{
+    width:100%; padding:12px 14px; border-radius:10px; border:1px solid rgba(0,240,255,0.3);
+    background:rgba(5,8,18,0.9); color:var(--text); font-size:1rem; outline:none; }
+  input[type=text]:focus{ border-color:var(--cyan); box-shadow:0 0 12px rgba(0,240,255,0.35); }
+  .row{ display:flex; gap:10px; margin:8px 0; }
+  .btn{ flex:1; padding:12px 16px; border:none; border-radius:10px; cursor:pointer;
+    font-size:1rem; font-weight:700; letter-spacing:1px; color:#02121a;
+    background:linear-gradient(90deg,var(--cyan),#7ee7ff); transition:transform .08s, box-shadow .15s;
+    box-shadow:0 0 18px rgba(0,240,255,0.4); }
+  .btn:hover{ transform:translateY(-2px); box-shadow:0 0 26px rgba(0,240,255,0.7); }
+  .btn.ghost{ background:transparent; color:var(--cyan); border:1px solid var(--cyan); box-shadow:none; }
+  .btn.magenta{ background:linear-gradient(90deg,var(--magenta),#ff7bf0); color:#1a0316; }
+  .drop{ border:2px dashed rgba(0,240,255,0.4); border-radius:14px; padding:26px 18px; margin:12px 0;
+    color:#7fa8c9; font-size:.95rem; transition:border-color .2s, background .2s; }
+  .drop.hover{ border-color:var(--cyan); background:rgba(0,240,255,0.08); color:var(--text); }
+  .msg{ margin-top:12px; font-size:.9rem; min-height:1.2em; }
+  .msg.error{ color:var(--red); }
+  .msg.warn{ color:#ffd166; }
+  .msg.ok{ color:#6fffa0; }
+  .divider{ color:#3a5a7a; margin:14px 0; font-size:.8rem; letter-spacing:2px; }
+
+  /* Loading */
+  .spinner{ width:58px; height:58px; border:4px solid rgba(0,240,255,0.2); border-top-color:var(--cyan);
+    border-radius:50%; animation:spin 1s linear infinite; margin:0 auto 18px; }
+  @keyframes spin{ to{ transform:rotate(360deg);} }
+  #loading-text{ color:#9fc6e6; }
+
+  /* Ready */
+  .stats{ display:flex; gap:16px; justify-content:center; margin:14px 0 18px; flex-wrap:wrap; }
+  .stat{ min-width:110px; padding:14px; border-radius:12px; background:rgba(0,240,255,0.06);
+    border:1px solid rgba(0,240,255,0.25); }
+  .stat .val{ font-size:1.7rem; font-weight:800; color:var(--cyan); }
+  .stat .lbl{ font-size:.72rem; letter-spacing:2px; color:#7fa8c9; text-transform:uppercase; }
+
+  /* Game HUD */
+  #screen-game{ pointer-events:none; padding:0; justify-content:flex-start; backdrop-filter:none; }
+  .hud{ width:100%; display:flex; justify-content:space-between; align-items:flex-start;
+    padding:14px 18px; gap:10px; z-index:6; }
+  .hud-item{ display:flex; flex-direction:column; align-items:center; min-width:70px;
+    padding:6px 10px; border-radius:10px; background:rgba(5,8,18,0.55); border:1px solid rgba(0,240,255,0.2); }
+  .hud-item .label{ font-size:.62rem; letter-spacing:2px; color:#7fa8c9; }
+  .hud-item .value{ font-size:1.25rem; font-weight:800; color:var(--text); text-shadow:0 0 12px rgba(0,240,255,0.5); }
+  .hud-item .value.red{ color:var(--red); text-shadow:0 0 12px rgba(255,51,85,0.6); }
+  .progress{ width:100%; height:5px; background:rgba(0,240,255,0.15); position:relative; z-index:6; }
+  #progress-fill{ height:100%; width:0%; background:linear-gradient(90deg,var(--cyan),var(--magenta));
+    box-shadow:0 0 12px rgba(0,240,255,0.8); }
+  .controls{ position:absolute; bottom:20px; left:0; right:0; display:flex; justify-content:space-between;
+    padding:0 18px; pointer-events:none; z-index:6; }
+  .ctrl{ pointer-events:auto; width:76px; height:76px; border-radius:50%; border:none; cursor:pointer;
+    font-size:2rem; color:#02121a; background:linear-gradient(135deg,var(--cyan),#8ef0ff);
+    box-shadow:0 0 22px rgba(0,240,255,0.5); opacity:0.9; }
+  .ctrl:active{ transform:scale(0.92); }
+  .ctrl.pause{ position:absolute; top:14px; right:18px; width:52px; height:52px; font-size:1.2rem; }
+  .hint{ position:absolute; bottom:112px; width:100%; text-align:center; color:#5f86a6; font-size:.8rem;
+    letter-spacing:1px; z-index:6; }
+
+  /* Game over */
+  .final{ font-size:2.4rem; font-weight:900; letter-spacing:2px; }
+  .final.win{ color:#6fffa0; text-shadow:0 0 30px rgba(111,255,160,0.5); }
+  .final.lose{ color:var(--red); text-shadow:0 0 30px rgba(255,51,85,0.5); }
+  .go-stats{ display:flex; gap:16px; justify-content:center; margin:18px 0; flex-wrap:wrap; }
+  .go-stats .stat .val{ color:var(--text); }
+
+  @media (max-width:520px){
+    h1{ font-size:1.6rem; } .panel{ padding:20px 18px; }
+    .hud-item{ min-width:58px; } .hud-item .value{ font-size:1rem; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="game"></canvas>
+
+  <!-- START -->
+  <div id="screen-start" class="screen active">
+    <div class="panel">
+      <h1>DEEPSEEK MUSIC SURFER</h1>
+      <div class="sub">An Audiosurf-style rhythm racer</div>
+
+      <div class="field">
+        <input type="text" id="url-input" placeholder="Paste a direct audio-file URL (.mp3/.wav/.ogg/.m4a)" autocomplete="off">
+      </div>
+      <div class="row">
+        <button id="btn-load-url" class="btn">Load URL</button>
+        <button id="btn-pick" class="btn magenta">Choose file</button>
+      </div>
+      <input type="file" id="file-input" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac" style="display:none">
+
+      <div class="divider">— or drag &amp; drop your song —</div>
+      <div class="drop" id="drop-zone">Drop an audio file here</div>
+      <div class="msg" id="start-msg"></div>
+    </div>
+  </div>
+
+  <!-- LOADING -->
+  <div id="screen-loading" class="screen">
+    <div class="panel">
+      <div class="spinner"></div>
+      <h2 id="loading-title">Analysing audio…</h2>
+      <div id="loading-text">Decoding and detecting beats. Everything stays local.</div>
+    </div>
+  </div>
+
+  <!-- READY -->
+  <div id="screen-ready" class="screen">
+    <div class="panel">
+      <h1>READY</h1>
+      <div class="sub">Your track is loaded</div>
+      <div class="stats">
+        <div class="stat"><div class="val" id="ready-bpm">--</div><div class="lbl">BPM</div></div>
+        <div class="stat"><div class="val" id="ready-len">--</div><div class="lbl">Length</div></div>
+        <div class="stat"><div class="val" id="ready-beats">--</div><div class="lbl">Beats</div></div>
+      </div>
+      <div class="row">
+        <button id="btn-start" class="btn">Start surfing</button>
+      </div>
+      <div class="row">
+        <button id="btn-ready-back" class="btn ghost">Choose another song</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="screen-game" class="screen">
+    <div class="hud">
+      <div class="hud-item"><span class="label">SCORE</span><span class="value" id="hud-score">0</span></div>
+      <div class="hud-item"><span class="label">COMBO</span><span class="value" id="hud-combo">x1</span></div>
+      <div class="hud-item"><span class="label">BPM</span><span class="value" id="hud-bpm">--</span></div>
+      <div class="hud-item"><span class="label">LIVES</span><span class="value red" id="hud-lives">♥♥♥</span></div>
+    </div>
+    <div class="progress"><div id="progress-fill"></div></div>
+    <div class="hint">Steer with A/D or ←/→ · collect <b style="color:#3b82f6">BLUE</b> · dodge <b style="color:#ff3355">RED</b></div>
+    <div class="controls">
+      <button class="ctrl" id="btn-left" aria-label="left">◀</button>
+      <button class="ctrl pause" id="btn-pause" aria-label="pause">⏸</button>
+      <button class="ctrl" id="btn-right" aria-label="right">▶</button>
+    </div>
+  </div>
+
+  <!-- GAME OVER -->
+  <div id="screen-gameover" class="screen">
+    <div class="panel">
+      <div class="final" id="go-title">GAME OVER</div>
+      <div class="sub" id="go-sub">Try again?</div>
+      <div class="go-stats">
+        <div class="stat"><div class="val" id="go-score">0</div><div class="lbl">Score</div></div>
+        <div class="stat"><div class="val" id="go-combo">0</div><div class="lbl">Max combo</div></div>
+      </div>
+      <div class="row">
+        <button id="btn-replay" class="btn">Play again</button>
+        <button id="btn-newsong" class="btn ghost">Choose another song</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   DeepSeek Music Surfer — a fully client-side Audiosurf-style game
+   ============================================================ */
+
+/* ---------- Element refs ---------- */
+const $ = id => document.getElementById(id);
+const canvas = $('game');
+const ctx2d = canvas.getContext('2d');
+
+const screens = {
+  start: $('screen-start'), loading: $('screen-loading'), ready: $('screen-ready'),
+  game: $('screen-game'), gameover: $('screen-gameover')
+};
+function showScreen(name){
+  state.screen = name;
+  for (const k in screens) screens[k].classList.toggle('active', k === name);
+}
+
+/* ---------- Global state ---------- */
+const state = {
+  screen: 'start',
+  audioBuffer: null,
+  beats: [],
+  bpm: 0,
+  songLength: 0,
+  blocks: [],
+  player: { lane: 1, target: 1 },
+  score: 0, combo: 0, maxCombo: 0, lives: 3,
+  playing: false, paused: false, hiddenPaused: false,
+  songTime: 0,
+  nextBeatIndex: 0,
+  pulse: 0, bassEnergy: 0, screenFlash: 0,
+  particles: [],
+  floaters: []
+};
+
+/* ---------- Canvas metrics ---------- */
+let W, H, dpr, horizonY, bottomY, cx, laneW, bottomHalf;
+const TRAVEL = 2.0;            // seconds a block takes to reach the player
+function resize(){
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = Math.floor(W * dpr); canvas.height = Math.floor(H * dpr);
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx2d.setTransform(dpr, 0, 0, dpr, 0, 0);
+  horizonY = H * 0.30; bottomY = H * 0.95;
+  cx = W / 2;
+  bottomHalf = Math.min(W * 0.38, H * 0.62);
+  laneW = (2 * bottomHalf) / 4;
+}
+window.addEventListener('resize', resize);
+
+function laneBottomX(l){ return cx + (l - 1.5) * laneW; }
+function laneScreenX(l, z){ return cx + (laneBottomX(l) - cx) * z; }
+function trackY(z){ return horizonY + (bottomY - horizonY) * z; }
+function edgeX(side, z){ return laneScreenX(side < 0 ? -0.5 : 3.5, z); }
+
+/* ---------- Audio graph ---------- */
+let actx = null, analyser = null, gainNode = null, source = null;
+let startOffset = 0, startCtxTime = 0;
+let freqData = null;
+
+function initAudio(){
+  if (actx) return;
+  actx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = actx.createAnalyser();
+  analyser.fftSize = 2048;
+  analyser.smoothingTimeConstant = 0.8;
+  gainNode = actx.createGain();
+  gainNode.gain.value = 1;
+  gainNode.connect(analyser);
+  analyser.connect(actx.destination);
+  freqData = new Uint8Array(analyser.frequencyBinCount);
+}
+
+let manualStop = false;
+function startSource(offset){
+  source = actx.createBufferSource();
+  source.buffer = state.audioBuffer;
+  source.connect(gainNode);
+  source.start(0, offset);
+  startOffset = offset; startCtxTime = actx.currentTime;
+  state.songTime = offset;
+  source.onended = () => { if (!manualStop && state.playing && state.screen === 'game') endGame(true); };
+}
+
+function getSongTime(){
+  if (!source) return state.songTime;
+  return startOffset + (actx.currentTime - startCtxTime);
+}
+
+function pausePlayback(){
+  if (source){
+    manualStop = true;
+    state.songTime = getSongTime();
+    try{ source.stop(); }catch(e){}
+    source.disconnect(); source = null;
+    manualStop = false;
+  }
+}
+function resumePlayback(){
+  if (actx && state.audioBuffer && state.paused){
+    startSource(state.songTime);
+    state.paused = false;
+  }
+}
+
+function decodeAudio(arrayBuffer){
+  return new Promise((res, rej) => {
+    const p = actx.decodeAudioData(arrayBuffer, res, rej);
+    if (p && p.then) p.then(res, rej);
+  });
+}
+
+/* ============================================================
+   BEAT DETECTION — energy-envelope peak detection
+   ============================================================ */
+function detectBeats(buffer){
+  const sr = buffer.sampleRate, nCh = buffer.numberOfChannels, len = buffer.length;
+  const mono = new Float32Array(len);
+  for (let c = 0; c < nCh; c++){
+    const d = buffer.getChannelData(c);
+    for (let i = 0; i < len; i++) mono[i] += d[i] / nCh;
+  }
+  // energy envelope
+  const win = 1024, hop = 512;
+  const frames = Math.max(1, Math.floor((len - win) / hop) + 1);
+  const energies = new Float32Array(frames);
+  for (let f = 0; f < frames; f++){
+    const off = f * hop; let sum = 0;
+    for (let i = 0; i < win; i++){ const v = mono[off + i]; sum += v * v; }
+    energies[f] = Math.sqrt(sum / win);
+  }
+  const frameRate = sr / hop;
+
+  // local mean via prefix sums (rolling ~0.5s window)
+  const winFrames = Math.max(2, Math.round(frameRate * 0.5));
+  const cum = new Float32Array(frames + 1);
+  for (let i = 0; i < frames; i++) cum[i + 1] = cum[i] + energies[i];
+  const mean = new Float32Array(frames);
+  for (let i = 0; i < frames; i++){
+    const a = Math.max(0, i - winFrames), b = Math.min(frames, i + winFrames + 1);
+    mean[i] = (cum[b] - cum[a]) / (b - a);
+  }
+
+  // peak detection
+  const minGap = Math.round(frameRate * 0.18);
+  const peakFrames = [];
+  let lastPeak = -1e9;
+  for (let f = 1; f < frames - 1; f++){
+    const e = energies[f], m = mean[f];
+    if (e > m * 1.25 && e > energies[f - 1] && e >= energies[f + 1] && e > 0.005 && f - lastPeak >= minGap){
+      peakFrames.push(f); lastPeak = f;
+    }
+  }
+  let beats = peakFrames.map(f => ({ time: f / frameRate, energy: energies[f] }));
+  const bpm = estimateBPM(beats);
+
+  // normalize intensities
+  let emin = Infinity, emax = -Infinity;
+  for (const b of beats){ if (b.energy < emin) emin = b.energy; if (b.energy > emax) emax = b.energy; }
+  const range = (emax - emin) || 1;
+  for (const b of beats) b.intensity = (b.energy - emin) / range;
+
+  // fallback: synthesize a steady grid if detection failed
+  if (beats.length < 4 && bpm > 0){
+    beats = [];
+    const step = 60 / bpm;
+    for (let t = 0.3; t < buffer.duration; t += step) beats.push({ time: t, energy: 0.3, intensity: 0.3 });
+  }
+  return { beats, bpm };
+}
+
+function estimateBPM(beats){
+  if (beats.length < 2) return 0;
+  const hist = {};
+  for (let i = 1; i < beats.length; i++){
+    let dt = beats[i].time - beats[i - 1].time;
+    if (dt <= 0 || dt > 2) continue;
+    let bpm = 60 / dt;
+    while (bpm < 70) bpm *= 2;
+    while (bpm > 180) bpm /= 2;
+    const key = Math.round(bpm / 4) * 4;
+    hist[key] = (hist[key] || 0) + 1;
+  }
+  let best = 0, bestBpm = 0;
+  for (const k in hist) if (hist[k] > best){ best = hist[k]; bestBpm = +k; }
+  return bestBpm;
+}
+
+/* ============================================================
+   BLOCK SCHEDULING — fuller beats => more blocks / glow
+   ============================================================ */
+function shuffle(a){
+  for (let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+function generateBlocks(){
+  const out = [];
+  for (const b of state.beats){
+    const inten = b.intensity || 0;
+    const nBlue = 1 + Math.floor(inten * 2);            // 1..3 collectible
+    const maxRed = Math.max(0, 4 - nBlue);
+    let nRed = 0;
+    if (inten > 0.35 && Math.random() < 0.4 + inten * 0.5) nRed = Math.min(maxRed, Math.floor(inten * 2));
+    const lanes = shuffle([0, 1, 2, 3]);
+    for (let i = 0; i < nBlue; i++) out.push({ t: b.time, lane: lanes[i], color: 'blue', energy: inten });
+    for (let i = 0; i < nRed; i++) out.push({ t: b.time, lane: lanes[nBlue + i], color: 'red', energy: inten });
+  }
+  out.sort((a, b) => a.t - b.t);
+  return out;
+}
+
+/* ============================================================
+   LOADING / FLOW
+   ============================================================ */
+function setMsg(text, cls){
+  const el = $('start-msg'); el.textContent = text; el.className = 'msg' + (cls ? ' ' + cls : '');
+}
+
+function classifyURL(url){
+  try{
+    const h = new URL(url).hostname.toLowerCase();
+    if (/(^|\.)youtube\.com$|(^|\.)youtu\.be$/.test(h)) return 'youtube';
+    if (/(^|\.)spotify\.com$/.test(h)) return 'spotify';
+    if (/(^|\.)soundcloud\.com$/.test(h)) return 'soundcloud';
+    return 'audio';
+  }catch(e){ return 'invalid'; }
+}
+
+async function loadAudio(arrayBuffer){
+  initAudio();
+  showScreen('loading');
+  $('loading-title').textContent = 'Decoding & analysing…';
+  $('loading-text').textContent = 'Detecting beats. Everything stays on your device.';
+  await new Promise(r => setTimeout(r, 30)); // let loading screen paint
+  try{
+    state.audioBuffer = await decodeAudio(arrayBuffer);
+    const res = detectBeats(state.audioBuffer);
+    state.beats = res.beats;
+    state.bpm = res.bpm;
+    state.songLength = state.audioBuffer.duration;
+    $('ready-bpm').textContent = state.bpm ? state.bpm : '—';
+    $('ready-len').textContent = fmtTime(state.songLength);
+    $('ready-beats').textContent = state.beats.length;
+    showScreen('ready');
+  }catch(err){
+    setMsg('Could not decode this audio: ' + (err && err.message ? err.message : err), 'error');
+    showScreen('start');
+  }
+}
+
+function fmtTime(s){
+  const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+  return m + ':' + String(sec).padStart(2, '0');
+}
+
+/* ---------- Start-screen input handlers ---------- */
+$('btn-pick').addEventListener('click', () => $('file-input').click());
+$('file-input').addEventListener('change', e => {
+  const f = e.target.files[0];
+  if (f) readFile(f);
+});
+function readFile(file){
+  if (!/^audio\//.test(file.type) && !/\.(mp3|wav|ogg|m4a|aac|flac|opus|webm)$/i.test(file.name)){
+    setMsg('Please choose an audio file (MP3/WAV/OGG/M4A).', 'error'); return;
+  }
+  setMsg('', '');
+  file.arrayBuffer().then(loadAudio).catch(err => setMsg('Failed to read file: ' + err.message, 'error'));
+}
+
+$('btn-load-url').addEventListener('click', loadUrl);
+$('url-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); });
+async function loadUrl(){
+  const url = $('url-input').value.trim();
+  if (!url){ setMsg('Paste a URL first.', 'warn'); return; }
+  const kind = classifyURL(url);
+  if (kind === 'youtube' || kind === 'spotify' || kind === 'soundcloud'){
+    setMsg('That ' + kind + ' link can\u2019t be decoded in the browser (CORS/DRM). ' +
+      'Download the audio as MP3/WAV and load the file instead.', 'warn');
+    return;
+  }
+  if (kind === 'invalid'){ setMsg('That doesn\u2019t look like a valid URL.', 'error'); return; }
+  setMsg('', '');
+  try{
+    const resp = await fetch(url, { mode: 'cors' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const buf = await resp.arrayBuffer();
+    await loadAudio(buf);
+  }catch(err){
+    setMsg('Couldn\u2019t fetch that URL (likely CORS). Download the file and load it locally.', 'error');
+  }
+}
+
+/* ---------- Drag & drop ---------- */
+const dropZone = $('drop-zone');
+['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => {
+  e.preventDefault(); dropZone.classList.add('hover');
+}));
+['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => {
+  e.preventDefault(); dropZone.classList.remove('hover');
+}));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); e.stopPropagation();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) readFile(f);
+});
+// allow dropping anywhere on the page while on start screen
+document.addEventListener('dragover', e => { if (state.screen === 'start') e.preventDefault(); });
+document.addEventListener('drop', e => {
+  if (state.screen !== 'start') return;
+  e.preventDefault();
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) readFile(f);
+});
+
+/* ---------- Ready / gameover buttons ---------- */
+$('btn-start').addEventListener('click', startGame);
+$('btn-ready-back').addEventListener('click', () => { stopAudio(); showScreen('start'); });
+$('btn-replay').addEventListener('click', startGame);
+$('btn-newsong').addEventListener('click', () => { stopAudio(); showScreen('start'); });
+
+function stopAudio(){ pausePlayback(); }
+
+/* ============================================================
+   GAME FLOW
+   ============================================================ */
+function resetGame(){
+  state.score = 0; state.combo = 0; state.maxCombo = 0; state.lives = 3;
+  state.player.lane = 1; state.player.target = 1;
+  state.particles = []; state.floaters = [];
+  state.nextBeatIndex = 0; state.pulse = 0; state.screenFlash = 0;
+  state.blocks = generateBlocks();
+}
+
+function startGame(){
+  if (!state.audioBuffer) return;
+  initAudio();
+  actx.resume();
+  resetGame();
+  showScreen('game');
+  $('hud-bpm').textContent = state.bpm || '—';
+  startSource(0);
+  state.playing = true; state.paused = false; state.hiddenPaused = false;
+  state.songTime = 0;
+  updateHUD();
+}
+
+function endGame(won){
+  state.playing = false;
+  pausePlayback();
+  $('go-title').textContent = won ? 'SONG COMPLETE' : 'GAME OVER';
+  $('go-title').className = 'final ' + (won ? 'win' : 'lose');
+  $('go-sub').textContent = won ? 'You rode the whole wave!' : 'Crashed on a red block.';
+  $('go-score').textContent = state.score;
+  $('go-combo').textContent = state.maxCombo;
+  showScreen('gameover');
+}
+
+/* ---------- Collisions ---------- */
+function collect(b){
+  state.combo++;
+  state.maxCombo = Math.max(state.maxCombo, state.combo);
+  state.score += Math.round(100 * (1 + (state.combo - 1) * 0.25));
+  const px = laneScreenX(state.player.lane, 1), py = trackY(1);
+  spawnBurst(px, py, '#3b82f6', 22 + Math.round(b.energy * 26));
+  state.floaters.push({ text: '+' + Math.round(100 * (1 + (state.combo - 1) * 0.25)), x: px, y: py, life: 1, color: '#9db8ff' });
+  updateHUD();
+}
+function hitRed(b){
+  state.combo = 0;
+  state.lives--;
+  state.screenFlash = 1;
+  const px = laneScreenX(state.player.lane, 1), py = trackY(1);
+  spawnBurst(px, py, '#ff3355', 40);
+  state.floaters.push({ text: '✕', x: px, y: py, life: 1, color: '#ff3355' });
+  if (state.lives <= 0) endGame(false);
+  updateHUD();
+}
+
+function spawnBurst(x, y, color, n){
+  for (let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2, sp = 80 + Math.random() * 260;
+    state.particles.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 60,
+      life: 0.5 + Math.random() * 0.6, max: 1, size: 2 + Math.random() * 3, color });
+  }
+}
+
+function updateHUD(){
+  $('hud-score').textContent = state.score.toLocaleString();
+  $('hud-combo').textContent = 'x' + Math.max(1, state.combo);
+  $('hud-lives').textContent = '\u2665'.repeat(Math.max(0, state.lives));
+}
+
+/* ---------- Update (game) ---------- */
+function updateGame(dt){
+  // player interpolation
+  state.player.lane += (state.player.target - state.player.lane) * Math.min(1, dt * 14);
+  const pLane = Math.round(state.player.lane);
+
+  // collisions at the moment each block reaches the player line
+  for (const b of state.blocks){
+    if (!b.processed && state.songTime >= b.t){
+      b.processed = true;
+      if (b.lane === pLane){ if (b.color === 'blue') collect(b); else hitRed(b); }
+    }
+  }
+  // drop blocks that have passed well behind the player
+  state.blocks = state.blocks.filter(b => state.songTime < b.t + 0.5);
+
+  // particles / floaters
+  for (const p of state.particles){ p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 220 * dt; p.life -= dt; }
+  state.particles = state.particles.filter(p => p.life > 0);
+  for (const f of state.floaters){ f.y -= 40 * dt; f.life -= dt; }
+  state.floaters = state.floaters.filter(f => f.life > 0);
+
+  // decay pulse & flash
+  state.pulse *= Math.pow(0.03, dt);
+  state.screenFlash = Math.max(0, state.screenFlash - dt * 2.2);
+
+  // song finished?
+  if (state.songTime >= state.songLength - 0.05) endGame(true);
+
+  // progress bar
+  $('progress-fill').style.width = Math.min(100, (state.songTime / state.songLength) * 100) + '%';
+
+  updateHUD();
+}
+
+function advanceBeats(){
+  while (state.nextBeatIndex < state.beats.length && state.songTime >= state.beats[state.nextBeatIndex].time){
+    state.pulse = Math.max(state.pulse, state.beats[state.nextBeatIndex].intensity);
+    state.nextBeatIndex++;
+  }
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+function updateLiveAudio(){
+  if (!analyser) { state.bassEnergy = 0; return; }
+  analyser.getByteFrequencyData(freqData);
+  let b = 0;
+  for (let i = 2; i < 40; i++) b += freqData[i];
+  state.bassEnergy = b / (38 * 255);
+}
+
+function renderBackground(){
+  // deep space gradient
+  const g = ctx2d.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#04060e'); g.addColorStop(0.5, '#0b1020'); g.addColorStop(1, '#0a0a1e');
+  ctx2d.fillStyle = g; ctx2d.fillRect(0, 0, W, H);
+  // starfield
+  ctx2d.save();
+  const t = performance.now() / 1000;
+  for (let i = 0; i < 70; i++){
+    const sx = (i * 137.5) % W, sy = (i * 89.7) % (H * 0.7);
+    const tw = 0.4 + 0.6 * Math.abs(Math.sin(t * (0.4 + (i % 5) * 0.15) + i));
+    ctx2d.globalAlpha = 0.25 * tw;
+    ctx2d.fillStyle = i % 3 ? '#8fd6ff' : '#c9a7ff';
+    ctx2d.fillRect(sx, sy, 1.6, 1.6);
+  }
+  ctx2d.restore();
+}
+
+function drawRibbon(glow){
+  // track floor
+  const leftTop = edgeX(-1, 0), rightTop = edgeX(1, 0);
+  const leftBot = edgeX(-1, 1), rightBot = edgeX(1, 1);
+  ctx2d.beginPath();
+  ctx2d.moveTo(leftTop, trackY(0)); ctx2d.lineTo(rightTop, trackY(0));
+  ctx2d.lineTo(rightBot, trackY(1)); ctx2d.lineTo(leftBot, trackY(1)); ctx2d.closePath();
+  const g = ctx2d.createLinearGradient(0, horizonY, 0, bottomY);
+  g.addColorStop(0, 'rgba(16,26,54,0.35)');
+  g.addColorStop(1, 'rgba(24,40,84,' + (0.45 + glow * 0.25) + ')');
+  ctx2d.fillStyle = g; ctx2d.fill();
+  ctx2d.strokeStyle = 'rgba(0,240,255,' + (0.25 + glow * 0.5) + ')';
+  ctx2d.lineWidth = 2; ctx2d.stroke();
+
+  // lane dividers
+  for (let l = 0; l <= 4; l++){
+    ctx2d.beginPath();
+    ctx2d.moveTo(laneScreenX(l - 0.5, 0), trackY(0));
+    ctx2d.lineTo(laneScreenX(l - 0.5, 1), trackY(1));
+    ctx2d.strokeStyle = 'rgba(120,180,255,' + (0.10 + glow * 0.18) + ')';
+    ctx2d.lineWidth = 1.5; ctx2d.stroke();
+  }
+}
+
+function drawCrossLines(glow){
+  // scrolling cross-lines; speed & brightness ramp with beat energy
+  const linesPerSec = (state.bpm || 120) / 60 * 0.7;
+  const speed = linesPerSec * (1 + state.bassEnergy * 1.6 + glow * 0.6);
+  const count = 14;
+  for (let k = 0; k < count; k++){
+    let z = ((k / count) + state.songTime * speed) % 1;
+    if (z <= 0.001) continue;
+    const x1 = edgeX(-1, z), x2 = edgeX(1, z), y = trackY(z);
+    const b = 0.10 + glow * 0.55 + state.bassEnergy * 0.3;
+    ctx2d.beginPath();
+    ctx2d.moveTo(x1, y); ctx2d.lineTo(x2, y);
+    ctx2d.strokeStyle = 'rgba(0,240,255,' + b + ')';
+    ctx2d.lineWidth = 1 + z * 1.5; ctx2d.stroke();
+  }
+}
+
+function drawBlocks(glow){
+  const hitLine = trackY(1);
+  for (const b of state.blocks){
+    const z = 1 - (b.t - state.songTime) / TRAVEL;
+    if (z < -0.02 || z > 1.25) continue;
+    const x = laneScreenX(b.lane, z), y = trackY(z);
+    const size = (10 + 30 * z);
+    const color = b.color === 'blue' ? '#3b82f6' : '#ff3355';
+    const intensity = 0.6 + b.energy * 0.8 + glow * 0.4;
+
+    ctx2d.save();
+    ctx2d.shadowBlur = 14 * z + 8 * intensity;
+    ctx2d.shadowColor = color;
+    ctx2d.globalAlpha = Math.min(1, (z + 0.4) * 1.2);
+    // diamond block
+    ctx2d.beginPath();
+    ctx2d.moveTo(x, y - size); ctx2d.lineTo(x + size, y);
+    ctx2d.lineTo(x, y + size); ctx2d.lineTo(x - size, y); ctx2d.closePath();
+    ctx2d.fillStyle = color;
+    ctx2d.fill();
+    ctx2d.globalAlpha = 1;
+    ctx2d.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx2d.lineWidth = 1.5; ctx2d.stroke();
+    // inner core
+    ctx2d.beginPath();
+    ctx2d.moveTo(x, y - size * 0.45); ctx2d.lineTo(x + size * 0.45, y);
+    ctx2d.lineTo(x, y + size * 0.45); ctx2d.lineTo(x - size * 0.45, y); ctx2d.closePath();
+    ctx2d.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx2d.fill();
+    ctx2d.restore();
+  }
+  // hit line glow
+  ctx2d.beginPath();
+  ctx2d.moveTo(edgeX(-1, 1), hitLine); ctx2d.lineTo(edgeX(1, 1), hitLine);
+  ctx2d.strokeStyle = 'rgba(255,255,255,' + (0.15 + glow * 0.5) + ')';
+  ctx2d.lineWidth = 3; ctx2d.stroke();
+}
+
+function drawPlayer(){
+  const x = laneScreenX(state.player.lane, 1), y = trackY(1);
+  const s = 20;
+  ctx2d.save();
+  ctx2d.shadowBlur = 22; ctx2d.shadowColor = '#3b82f6';
+  // surfer arrow / diamond
+  ctx2d.beginPath();
+  ctx2d.moveTo(x, y - s * 1.5); ctx2d.lineTo(x + s, y);
+  ctx2d.lineTo(x, y + s); ctx2d.lineTo(x - s, y); ctx2d.closePath();
+  ctx2d.fillStyle = '#3b82f6'; ctx2d.fill();
+  ctx2d.strokeStyle = '#a8c7ff'; ctx2d.lineWidth = 2; ctx2d.stroke();
+  // board
+  ctx2d.beginPath();
+  ctx2d.ellipse(x, y + s * 0.7, s * 1.7, s * 0.55, 0, 0, Math.PI * 2);
+  ctx2d.fillStyle = 'rgba(0,240,255,0.5)'; ctx2d.fill();
+  ctx2d.restore();
+}
+
+function drawParticles(){
+  for (const p of state.particles){
+    const a = Math.max(0, p.life / p.max);
+    ctx2d.globalAlpha = a;
+    ctx2d.fillStyle = p.color;
+    ctx2d.shadowBlur = 12; ctx2d.shadowColor = p.color;
+    ctx2d.fillRect(p.x, p.y, p.size, p.size);
+  }
+  ctx2d.globalAlpha = 1; ctx2d.shadowBlur = 0;
+}
+
+function drawFloaters(){
+  ctx2d.textAlign = 'center';
+  for (const f of state.floaters){
+    ctx2d.globalAlpha = Math.max(0, f.life);
+    ctx2d.fillStyle = f.color;
+    ctx2d.font = 'bold 18px sans-serif';
+    ctx2d.fillText(f.text, f.x, f.y);
+  }
+  ctx2d.globalAlpha = 1;
+}
+
+function drawBeatGlow(glow){
+  const strong = Math.max(glow, state.bassEnergy * 0.7);
+  if (strong <= 0.02) return;
+  const g = ctx2d.createRadialGradient(cx, H * 0.55, 0, cx, H * 0.55, H * 0.9);
+  g.addColorStop(0, 'rgba(0,240,255,' + (0.18 * strong) + ')');
+  g.addColorStop(0.5, 'rgba(120,0,255,' + (0.10 * strong) + ')');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx2d.fillStyle = g; ctx2d.fillRect(0, 0, W, H);
+}
+
+function renderGame(){
+  renderBackground();
+  const glow = Math.max(state.pulse, state.bassEnergy * 0.6);
+  drawRibbon(glow);
+  drawCrossLines(glow);
+  drawBlocks(glow);
+  drawParticles();
+  drawPlayer();
+  drawFloaters();
+  drawBeatGlow(glow);
+  if (state.screenFlash > 0){
+    ctx2d.fillStyle = 'rgba(255,51,85,' + (state.screenFlash * 0.35) + ')';
+    ctx2d.fillRect(0, 0, W, H);
+  }
+}
+
+/* ============================================================
+   MAIN LOOP
+   ============================================================ */
+let lastFrame = performance.now();
+function loop(){
+  const now = performance.now();
+  const dt = Math.min((now - lastFrame) / 1000, 0.05);
+  lastFrame = now;
+
+  updateLiveAudio();
+
+  if (state.screen === 'game'){
+    if (state.playing && !state.paused){
+      state.songTime = getSongTime();
+      advanceBeats();
+      updateGame(dt);
+    } else if (state.playing && state.paused){
+      state.pulse *= Math.pow(0.03, dt);
+      $('progress-fill').style.width = Math.min(100, (state.songTime / state.songLength) * 100) + '%';
+    }
+    renderGame();
+  } else {
+    state.pulse *= Math.pow(0.03, dt);
+    renderBackground();
+    if (state.screen === 'ready'){
+      // subtle pulsing glow on ready screen
+      const g = ctx2d.createRadialGradient(cx, H * 0.5, 0, cx, H * 0.5, H * 0.8);
+      g.addColorStop(0, 'rgba(0,240,255,' + (0.05 + state.bassEnergy * 0.12) + ')');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx2d.fillStyle = g; ctx2d.fillRect(0, 0, W, H);
+    }
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ============================================================
+   INPUT — keyboard & touch
+   ============================================================ */
+function moveLeft(){ state.player.target = Math.max(0, state.player.target - 1); }
+function moveRight(){ state.player.target = Math.min(3, state.player.target + 1); }
+
+window.addEventListener('keydown', e => {
+  if (state.screen !== 'game') return;
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A'){ moveLeft(); e.preventDefault(); }
+  else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D'){ moveRight(); e.preventDefault(); }
+  else if (e.key === ' ' || e.key === 'p' || e.key === 'P'){ togglePause(); e.preventDefault(); }
+});
+$('btn-left').addEventListener('pointerdown', e => { e.preventDefault(); moveLeft(); });
+$('btn-right').addEventListener('pointerdown', e => { e.preventDefault(); moveRight(); });
+$('btn-pause').addEventListener('click', togglePause);
+
+function togglePause(){
+  if (state.screen !== 'game' || !state.playing) return;
+  if (state.paused){
+    if (state.hiddenPaused) state.hiddenPaused = false;
+    resumePlayback(); $('btn-pause').textContent = '\u23F8';
+  }
+  else { pausePlayback(); state.paused = true; state.hiddenPaused = false; $('btn-pause').textContent = '\u25B6'; }
+}
+
+/* pause automatically when the tab is hidden */
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && state.screen === 'game' && state.playing && !state.paused){
+    pausePlayback(); state.paused = true; state.hiddenPaused = true; $('btn-pause').textContent = '\u25B6';
+  } else if (!document.hidden && state.hiddenPaused && state.playing){
+    state.hiddenPaused = false;
+    resumePlayback(); $('btn-pause').textContent = '\u23F8';
+  }
+});
+
+/* ---------- boot ---------- */
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

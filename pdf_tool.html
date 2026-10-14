@@ -50,6 +50,17 @@
             margin-bottom: 20px; max-width: 860px;
         }
 
+        .size-row {
+            display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+        }
+        .size-row label { color: var(--muted); font-size: 14px; }
+        .size-row select, .size-row input[type="number"] {
+            background: var(--card-bg); color: var(--text-color);
+            border: 1px solid #333; border-radius: 8px; padding: 7px 10px; font-size: 14px;
+        }
+        .size-row select:focus, .size-row input:focus { outline: none; border-color: var(--accent-color); }
+        .size-row input[type="number"] { width: 70px; }
+
         .btn {
             background: var(--card-bg); color: var(--text-color);
             border: 1px solid #333; border-radius: 10px; padding: 9px 16px;
@@ -119,6 +130,19 @@
         <button class="btn" id="splitBtn">Split Each Selected Page</button>
         <button class="btn" id="selectAllBtn">Select All</button>
         <button class="btn" id="selectNoneBtn">Select None</button>
+        <div class="size-row">
+            <label for="sizeSelect">Page size:</label>
+            <select id="sizeSelect">
+                <option value="original">Original</option>
+                <option value="a4">A4 (210&times;297mm)</option>
+                <option value="letter">Letter</option>
+                <option value="a3">A3</option>
+                <option value="legal">Legal</option>
+                <option value="custom">Custom</option>
+            </select>
+            <input type="number" id="sizeW" class="hidden" placeholder="W (pt)" min="1">
+            <input type="number" id="sizeH" class="hidden" placeholder="H (pt)" min="1">
+        </div>
         <button class="btn" id="clearBtn">Clear All</button>
     </div>
 
@@ -333,14 +357,54 @@
             });
         }
 
+        const sizePresets = {
+            a4: { w: 595, h: 842 },
+            letter: { w: 612, h: 792 },
+            a3: { w: 842, h: 1191 },
+            legal: { w: 612, h: 1008 }
+        };
+        let globalSize = null;
+
+        const sizeSelect = document.getElementById('sizeSelect');
+        const sizeW = document.getElementById('sizeW');
+        const sizeH = document.getElementById('sizeH');
+
+        function updateGlobalSize() {
+            const v = sizeSelect.value;
+            if (v === 'original') {
+                globalSize = null;
+                sizeW.classList.add('hidden');
+                sizeH.classList.add('hidden');
+            } else if (v === 'custom') {
+                sizeW.classList.remove('hidden');
+                sizeH.classList.remove('hidden');
+                const w = Number(sizeW.value), h = Number(sizeH.value);
+                globalSize = (w > 0 && h > 0) ? { w, h } : null;
+            } else {
+                sizeW.classList.add('hidden');
+                sizeH.classList.add('hidden');
+                globalSize = sizePresets[v] || null;
+            }
+        }
+
+        sizeSelect.addEventListener('change', updateGlobalSize);
+        sizeW.addEventListener('input', updateGlobalSize);
+        sizeH.addEventListener('input', updateGlobalSize);
+
         async function buildOutputDoc(pages) {
             const out = await PDFLib.PDFDocument.create();
             for (const p of pages) {
                 const src = sources.find(s => s.id === p.sourceId);
                 if (!src) continue;
                 const [copied] = await out.copyPages(src.pdfDoc, [p.pageIndex]);
-                const orig = src.pdfDoc.getPages()[p.pageIndex].getRotation().angle;
-                copied.setRotation(PDFLib.degrees((orig + p.rotation) % 360));
+                const srcPage = src.pdfDoc.getPages()[p.pageIndex];
+                const orig = srcPage.getRotation().angle;
+                const effRot = (orig + p.rotation) % 360;
+                if (globalSize) {
+                    const swap = (effRot === 90 || effRot === 270);
+                    copied.setMediaBox(0, 0, swap ? globalSize.h : globalSize.w, swap ? globalSize.w : globalSize.h);
+                }
+                copied.setRotation(PDFLib.degrees(effRot));
                 out.addPage(copied);
             }
             return out;

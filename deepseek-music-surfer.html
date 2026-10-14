@@ -115,6 +115,7 @@
         <button id="btn-load-url" class="btn">Load URL</button>
         <button id="btn-pick" class="btn magenta">Choose file</button>
       </div>
+      <button id="btn-demo" class="btn ghost" style="margin-top:10px;">▶ Load demo song (120 BPM)</button>
       <input type="file" id="file-input" accept="audio/*,.mp3,.wav,.ogg,.m4a,.aac,.flac" style="display:none">
 
       <div class="divider">— or drag &amp; drop your song —</div>
@@ -428,18 +429,94 @@ async function loadAudio(arrayBuffer){
   await new Promise(r => setTimeout(r, 30)); // let loading screen paint
   try{
     state.audioBuffer = await decodeAudio(arrayBuffer);
-    const res = detectBeats(state.audioBuffer);
-    state.beats = res.beats;
-    state.bpm = res.bpm;
-    state.songLength = state.audioBuffer.duration;
-    $('ready-bpm').textContent = state.bpm ? state.bpm : '—';
-    $('ready-len').textContent = fmtTime(state.songLength);
-    $('ready-beats').textContent = state.beats.length;
-    showScreen('ready');
+    finishLoad();
   }catch(err){
     setMsg('Could not decode this audio: ' + (err && err.message ? err.message : err), 'error');
     showScreen('start');
   }
+}
+
+function finishLoad(){
+  const res = detectBeats(state.audioBuffer);
+  state.beats = res.beats;
+  state.bpm = res.bpm;
+  state.songLength = state.audioBuffer.duration;
+  $('ready-bpm').textContent = state.bpm ? state.bpm : '—';
+  $('ready-len').textContent = fmtTime(state.songLength);
+  $('ready-beats').textContent = state.beats.length;
+  showScreen('ready');
+}
+
+function loadDemo(){
+  initAudio();
+  showScreen('loading');
+  $('loading-title').textContent = 'Building demo track…';
+  $('loading-text').textContent = 'Synthesising a 120 BPM test song locally.';
+  setTimeout(() => {
+    state.audioBuffer = buildDemoBuffer();
+    finishLoad();
+  }, 30);
+}
+
+/* Synthesise the built-in demo song (120 BPM, Am-F-C-G) into an AudioBuffer.
+   Keeps the game fully self-contained — no extra audio file needed. */
+function buildDemoBuffer(){
+  const sr = actx.sampleRate || 44100;
+  const bpm = 120, beatDur = 60 / bpm;
+  const bars = 16, beatsN = bars * 4;
+  const dur = beatsN * beatDur;
+  const N = Math.floor(dur * sr);
+  const mono = new Float32Array(N);
+
+  const bassRoots = [110.00, 87.31, 130.81, 98.00];            // A2, F2, C3, G2
+  const leadNotes = [[329.63, 440.00], [349.23, 440.00], [392.00, 329.63], [246.94, 293.66]];
+
+  const addKick = (t0) => {
+    const st = Math.round(t0 * sr), n = Math.round(0.40 * sr);
+    for (let i = 0; i < n; i++){ const idx = st + i; if (idx >= N) break; const t = i / sr;
+      const f = 150 * Math.exp(-t * 30) + 42; mono[idx] += Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 20); }
+  };
+  const addSnare = (t0) => {
+    const st = Math.round(t0 * sr), n = Math.round(0.25 * sr);
+    for (let i = 0; i < n; i++){ const idx = st + i; if (idx >= N) break; const t = i / sr;
+      mono[idx] += ((Math.random() * 2 - 1) * 0.6 + Math.sin(2 * Math.PI * 190 * t) * 0.4) * Math.exp(-t * 25) * 0.55; }
+  };
+  const addHat = (t0) => {
+    const st = Math.round(t0 * sr), n = Math.round(0.08 * sr);
+    for (let i = 0; i < n; i++){ const idx = st + i; if (idx >= N) break; const t = i / sr;
+      mono[idx] += (Math.random() * 2 - 1) * Math.exp(-t * 70) * 0.18; }
+  };
+  const addBass = (t0, freq) => {
+    const st = Math.round(t0 * sr), n = Math.round(beatDur * 0.85 * sr);
+    for (let i = 0; i < n; i++){ const idx = st + i; if (idx >= N) break; const t = i / sr;
+      mono[idx] += (Math.sin(2 * Math.PI * freq * t) + 0.3 * Math.sin(2 * Math.PI * freq * 2 * t)) * Math.min(1, t * 60) * Math.exp(-t * 6) * 0.5; }
+  };
+  const addLead = (t0, freq) => {
+    const st = Math.round(t0 * sr), n = Math.round(beatDur * 0.9 * sr);
+    for (let i = 0; i < n; i++){ const idx = st + i; if (idx >= N) break; const t = i / sr;
+      mono[idx] += (Math.sin(2 * Math.PI * freq * t) + 0.35 * Math.sin(2 * Math.PI * freq * 2 * t)) * Math.min(1, t * 60) * Math.exp(-t * 4) * 0.28; }
+  };
+
+  for (let b = 0; b < beatsN; b++){
+    const t = b * beatDur, bar = Math.floor(b / 4), bi = b % 4;
+    addKick(t);
+    if (bi === 1 || bi === 3) addSnare(t);
+    addHat(t); addHat(t + beatDur / 2);
+    addBass(t, bassRoots[bar % 4]);
+    if (bi === 0) addLead(t, leadNotes[bar % 4][0]);
+    else if (bi === 2) addLead(t, leadNotes[bar % 4][1]);
+  }
+
+  const fade = Math.round(0.5 * sr);
+  for (let i = 0; i < fade; i++){ const g = i / fade; mono[i] *= g; mono[N - 1 - i] *= g; }
+  let peak = 0;
+  for (let i = 0; i < N; i++) peak = Math.max(peak, Math.abs(mono[i]));
+  const s = peak > 0 ? 0.92 / peak : 1;
+  for (let i = 0; i < N; i++) mono[i] *= s;
+
+  const buf = actx.createBuffer(1, N, sr);
+  buf.copyToChannel(mono, 0);
+  return buf;
 }
 
 function fmtTime(s){
@@ -462,6 +539,7 @@ function readFile(file){
 }
 
 $('btn-load-url').addEventListener('click', loadUrl);
+$('btn-demo').addEventListener('click', loadDemo);
 $('url-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); });
 async function loadUrl(){
   const url = $('url-input').value.trim();

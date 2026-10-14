@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Rotator</title>
+    <style>
+        :root {
+            --bg-color: #0f0f0f;
+            --card-bg: #1a1a1a;
+            --accent-color: #3b82f6;
+            --text-color: #efefef;
+            --muted: #888;
+            --danger: #ef4444;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        h1 {
+            font-weight: 300;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .subtitle { color: var(--muted); margin-bottom: 20px; }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: var(--card-bg);
+            color: var(--text-color);
+            border: 1px solid #333;
+            border-radius: 10px;
+            padding: 10px 18px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn:hover:not(:disabled) { background: #252525; border-color: var(--accent-color); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn.primary { background: var(--accent-color); border-color: var(--accent-color); color: #fff; }
+        .btn.primary:hover:not(:disabled) { filter: brightness(1.1); }
+        .btn.danger:hover:not(:disabled) { border-color: var(--danger); color: var(--danger); }
+
+        .drop-zone {
+            width: 100%;
+            max-width: 720px;
+            border: 2px dashed #444;
+            border-radius: 16px;
+            padding: 50px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--card-bg);
+            margin-bottom: 20px;
+        }
+
+        .drop-zone:hover, .drop-zone.dragover {
+            border-color: var(--accent-color);
+            background: #1f1f1f;
+        }
+
+        .drop-zone .icon { font-size: 40px; margin-bottom: 10px; }
+        .drop-zone p { margin: 5px 0; color: var(--muted); }
+        .drop-zone strong { color: var(--text-color); }
+
+        .hidden { display: none; }
+
+        #status {
+            color: var(--muted);
+            margin-bottom: 10px;
+            min-height: 20px;
+        }
+
+        #preview {
+            width: 100%;
+            max-width: 720px;
+            max-height: 60vh;
+            overflow: auto;
+            background: var(--card-bg);
+            border: 1px solid #333;
+            border-radius: 16px;
+            padding: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        #preview canvas {
+            border-radius: 6px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            max-width: 100%;
+            height: auto;
+        }
+
+        .page-label {
+            width: 100%;
+            text-align: center;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .footer {
+            margin-top: auto;
+            padding: 20px;
+            color: var(--muted);
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>PDF Rotator</h1>
+    <div class="subtitle">Rotate a PDF by 90&deg; &mdash; everything stays on your device</div>
+
+    <div class="drop-zone" id="dropZone">
+        <div class="icon">&#128196;</div>
+        <p><strong>Click to choose</strong> or drag &amp; drop a PDF here</p>
+        <p>Your file is processed locally and never uploaded.</p>
+        <input type="file" id="fileInput" accept="application/pdf,.pdf" class="hidden">
+    </div>
+
+    <div id="status"></div>
+
+    <div class="toolbar" id="toolbar" style="display:none;">
+        <button class="btn" id="rotCw">Rotate 90&deg; CW</button>
+        <button class="btn" id="rotCcw">Rotate 90&deg; CCW</button>
+        <button class="btn" id="rot180">Rotate 180&deg;</button>
+        <button class="btn danger" id="resetBtn">Reset</button>
+        <button class="btn primary" id="saveBtn">Save PDF</button>
+    </div>
+
+    <div id="preview" class="hidden"></div>
+
+    <div class="footer">Made with PDF-Lib &amp; PDF.js</div>
+
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const statusEl = document.getElementById('status');
+        const toolbar = document.getElementById('toolbar');
+        const previewEl = document.getElementById('preview');
+
+        let pdfDoc = null;          // pdf-lib document
+        let originalRotations = []; // original /Rotate angle per page
+        let currentAngle = 0;       // accumulated rotation (0, 90, 180, 270)
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) loadFile(e.target.files[0]);
+        });
+
+        ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, (e) => {
+            e.preventDefault(); dropZone.classList.add('dragover');
+        }));
+        ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, (e) => {
+            e.preventDefault(); dropZone.classList.remove('dragover');
+        }));
+        dropZone.addEventListener('drop', (e) => {
+            const file = e.dataTransfer.files[0];
+            if (file) loadFile(file);
+        });
+
+        async function loadFile(file) {
+            if (!file.name.toLowerCase().endsWith('.pdf')) {
+                setStatus('Please choose a PDF file.', true);
+                return;
+            }
+            setStatus('Loading PDF...');
+            try {
+                const data = await file.arrayBuffer();
+                pdfDoc = await PDFLib.PDFDocument.load(data, { ignoreEncryption: true });
+                originalRotations = pdfDoc.getPages().map(p => p.getRotation().angle);
+                currentAngle = 0;
+                toolbar.style.display = 'flex';
+                previewEl.classList.remove('hidden');
+                setStatus(`Loaded "${file.name}" (${pdfDoc.getPageCount()} page${pdfDoc.getPageCount() > 1 ? 's' : ''}).`);
+                await renderPreview();
+            } catch (err) {
+                console.error(err);
+                setStatus('Could not read this PDF.', true);
+                pdfDoc = null;
+                toolbar.style.display = 'none';
+                previewEl.classList.add('hidden');
+            }
+        }
+
+        function applyRotation() {
+            const pages = pdfDoc.getPages();
+            pages.forEach((p, i) => {
+                const orig = originalRotations[i] || 0;
+                p.setRotation(PDFLib.degrees((orig + currentAngle) % 360));
+            });
+        }
+
+        async function renderPreview() {
+            if (!pdfDoc) return;
+            previewEl.innerHTML = '';
+            const bytes = await pdfDoc.save();
+            const pdf = await pdfjsLib.getDocument({ data: bytes }).promise;
+            const container = previewEl;
+
+            for (let n = 1; n <= pdf.numPages; n++) {
+                const page = await pdf.getPage(n);
+                const viewport = page.getViewport({ scale: 1.2 });
+                const canvas = document.createElement('canvas');
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+                const ctx = canvas.getContext('2d');
+                await page.render({ canvasContext: ctx, viewport }).promise;
+                container.appendChild(canvas);
+            }
+
+            const label = document.createElement('div');
+            label.className = 'page-label';
+            label.textContent = `Rotation: ${currentAngle}\u00B0`;
+            container.appendChild(label);
+        }
+
+        async function setRotation(angle) {
+            currentAngle = ((angle % 360) + 360) % 360;
+            applyRotation();
+            await renderPreview();
+        }
+
+        document.getElementById('rotCw').addEventListener('click', () => setRotation(currentAngle + 90));
+        document.getElementById('rotCcw').addEventListener('click', () => setRotation(currentAngle - 90));
+        document.getElementById('rot180').addEventListener('click', () => setRotation(currentAngle + 180));
+        document.getElementById('resetBtn').addEventListener('click', () => setRotation(0));
+
+        document.getElementById('saveBtn').addEventListener('click', async () => {
+            if (!pdfDoc) return;
+            setStatus('Saving...');
+            try {
+                const bytes = await pdfDoc.save();
+                const blob = new Blob([bytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'rotated.pdf';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+                setStatus('Saved.');
+            } catch (err) {
+                console.error(err);
+                setStatus('Failed to save.', true);
+            }
+        });
+
+        function setStatus(msg, isError) {
+            statusEl.textContent = msg;
+            statusEl.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+        }
+    </script>
+</body>
+</html>

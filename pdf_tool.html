@@ -1,10 +1,10 @@
 <!--
   ============================================================
-  PDF Tool  —  Version: 0.1.2
+  PDF Tool  —  Version: 0.2.0
   ============================================================
 
   VERSIONING RULES (how to bump):
-  - Format: MAJOR.MINOR.PATCH   (currently 0.1.2)
+  - Format: MAJOR.MINOR.PATCH   (currently 0.2.0)
   - EVERY COMMIT: bump the PATCH (final) number by 1. e.g. 0.1.1 -> 0.1.2
   - BIGGER CHANGES (new feature, UI overhaul, behaviour change):
       bump the MINOR (second) number by 1 and reset PATCH to 0.
@@ -237,7 +237,7 @@
 
     <div id="pages"></div>
 
-    <div class="footer">Made with PDF-Lib, PDF.js &amp; JSZip &middot; <span id="version">v0.1.2</span></div>
+    <div class="footer">Made with PDF-Lib, PDF.js &amp; JSZip &middot; <span id="version">v0.2.0</span></div>
 
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -245,7 +245,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-        const VERSION = '0.1.2'; // bump PATCH on every commit; bump MINOR for bigger changes (see header comment)
+        const VERSION = '0.2.0'; // bump PATCH on every commit; bump MINOR for bigger changes (see header comment)
         document.getElementById('version').textContent = 'v' + VERSION;
 
         const dropZone = document.getElementById('dropZone');
@@ -297,7 +297,7 @@
                     const count = pdfDoc.getPageCount();
                     for (let i = 0; i < count; i++) {
                         pageList.push({
-                            id: nextPageId++, kind: 'source', sourceId: srcId,
+                            id: nextPageId++, kind: 'source', sourceId: srcId, group: srcId,
                             pageIndex: i, rotation: 0, w: null, h: null,
                             canvas: null, thumbEl: null
                         });
@@ -315,26 +315,51 @@
 
         function renderAll() {
             pagesEl.innerHTML = '';
-            let lastSid = null;
+            let lastGroup = null;
             let currentSection = null;
             for (const p of pageList) {
-                if (p.sourceId !== lastSid) {
-                    lastSid = p.sourceId;
-                    currentSection = createSection(p.sourceId);
+                if (p.group !== lastGroup) {
+                    lastGroup = p.group;
+                    currentSection = createSection(p.group);
                     pagesEl.appendChild(currentSection);
                 }
                 currentSection.querySelector('.doc-pages').appendChild(createCard(p));
             }
         }
 
-        function createSection(srcId) {
+        function groupName(group) {
+            const srcIds = [];
+            for (const p of pageList) if (p.group === group && !srcIds.includes(p.sourceId)) srcIds.push(p.sourceId);
+            const names = srcIds.map(sid => sid === -1 ? 'Inserted pages' : (sources.find(s => s.id === sid) ? sources.find(s => s.id === sid).name.replace(/\.pdf$/i, '') : 'doc'));
+            return names.join(' + ');
+        }
+
+        function getNextGroup(group) {
+            const idxs = pageList.map((p, i) => p.group === group ? i : -1).filter(i => i >= 0);
+            if (!idxs.length) return null;
+            const lastIdx = Math.max(...idxs);
+            for (let i = lastIdx + 1; i < pageList.length; i++) if (pageList[i].group !== group) return pageList[i].group;
+            return null;
+        }
+
+        function mergeWithNext(group) {
+            const nextGroup = getNextGroup(group);
+            if (nextGroup == null) return;
+            pushHistory();
+            for (const p of pageList) if (p.group === nextGroup) p.group = group;
+            renderAll();
+            updateCount();
+            setStatus('Merged two blocks — pages can now be mixed.');
+        }
+
+        function createSection(group) {
             const sec = document.createElement('div');
             sec.className = 'doc-section';
-            sec.dataset.sourceId = srcId;
+            sec.dataset.group = group;
 
-            const src = sources.find(s => s.id === srcId);
-            const name = src ? src.name : 'Inserted pages';
-            const count = pageList.filter(p => p.sourceId === srcId).length;
+            const name = groupName(group);
+            const count = pageList.filter(p => p.group === group).length;
+            const hasNext = getNextGroup(group) != null;
 
             const header = document.createElement('div');
             header.className = 'doc-header';
@@ -346,10 +371,11 @@
             cnt.textContent = `${count} page${count !== 1 ? 's' : ''}`;
             header.appendChild(nm);
             header.appendChild(cnt);
-            header.appendChild(makeBtn('\u2191', 'Move document up', () => moveDoc(srcId, -1)));
-            header.appendChild(makeBtn('\u2193', 'Move document down', () => moveDoc(srcId, 1)));
-            header.appendChild(makeBtn('\u2611', 'Select all in document', () => setDocCheckboxes(srcId, true)));
-            header.appendChild(makeBtn('\u2715', 'Remove document', () => removeDoc(srcId), true));
+            if (hasNext) header.appendChild(makeBtn('\u29C9', 'Merge with next block', () => mergeWithNext(group)));
+            header.appendChild(makeBtn('\u2191', 'Move block up', () => moveDoc(group, -1)));
+            header.appendChild(makeBtn('\u2193', 'Move block down', () => moveDoc(group, 1)));
+            header.appendChild(makeBtn('\u2611', 'Select all in block', () => setDocCheckboxes(group, true)));
+            header.appendChild(makeBtn('\u2715', 'Remove block', () => removeDoc(group), true));
 
             const row = document.createElement('div');
             row.className = 'doc-pages';
@@ -378,6 +404,7 @@
             card.draggable = true;
             card.dataset.id = p.id;
             card.dataset.sourceId = p.sourceId;
+            card.dataset.group = p.group;
 
             const src = p.kind === 'source' ? sources.find(s => s.id === p.sourceId) : null;
 
@@ -489,7 +516,7 @@
 
         // ---------- history / undo-redo ----------
         function snapshot() {
-            return pageList.map(p => ({ id: p.id, kind: p.kind, sourceId: p.sourceId, pageIndex: p.pageIndex, rotation: p.rotation, w: p.w, h: p.h }));
+            return pageList.map(p => ({ id: p.id, kind: p.kind, sourceId: p.sourceId, group: p.group, pageIndex: p.pageIndex, rotation: p.rotation, w: p.w, h: p.h }));
         }
         function pushHistory() {
             history.push(snapshot());
@@ -557,7 +584,7 @@
             pushHistory();
             const o = pageList[idx];
             pageList.splice(idx + 1, 0, {
-                id: nextPageId++, kind: o.kind, sourceId: o.sourceId,
+                id: nextPageId++, kind: o.kind, sourceId: o.sourceId, group: o.group,
                 pageIndex: o.pageIndex, rotation: o.rotation, w: o.w, h: o.h,
                 canvas: null, thumbEl: null
             });
@@ -571,35 +598,36 @@
             pushHistory();
             const size = globalSize || { w: 595, h: 842 };
             pageList.splice(idx + 1, 0, {
-                id: nextPageId++, kind: 'blank', sourceId: -1, pageIndex: -1,
+                id: nextPageId++, kind: 'blank', sourceId: -1, group: -1, pageIndex: -1,
                 rotation: 0, w: size.w, h: size.h, canvas: null, thumbEl: null
             });
             renderAll();
             updateCount();
         }
 
-        function moveDoc(srcId, dir) {
+        function moveDoc(group, dir) {
             const order = [];
-            for (const p of pageList) if (!order.includes(p.sourceId)) order.push(p.sourceId);
-            const idx = order.indexOf(srcId);
+            for (const p of pageList) if (!order.includes(p.group)) order.push(p.group);
+            const idx = order.indexOf(group);
             const swapIdx = idx + dir;
             if (idx < 0 || swapIdx < 0 || swapIdx >= order.length) return;
             pushHistory();
             [order[idx], order[swapIdx]] = [order[swapIdx], order[idx]];
             const newList = [];
-            for (const sid of order) newList.push(...pageList.filter(p => p.sourceId === sid));
+            for (const g of order) newList.push(...pageList.filter(p => p.group === g));
             pageList.length = 0;
             pageList.push(...newList);
             renderAll();
         }
 
-        function removeDoc(srcId) {
+        function removeDoc(group) {
             pushHistory();
-            const keep = pageList.filter(p => p.sourceId !== srcId);
+            const keep = pageList.filter(p => p.group !== group);
             pageList.length = 0;
             pageList.push(...keep);
-            const si = sources.findIndex(s => s.id === srcId);
-            if (si >= 0) sources.splice(si, 1);
+            for (let i = sources.length - 1; i >= 0; i--) {
+                if (!pageList.some(p => p.sourceId === sources[i].id)) sources.splice(i, 1);
+            }
             if (pageList.length === 0) hideToolbar();
             renderAll();
             updateCount();
@@ -616,8 +644,8 @@
             });
         }
 
-        function setDocCheckboxes(srcId, checked) {
-            document.querySelectorAll(`.page-card[data-source-id="${srcId}"] .select-row input`).forEach(cb => cb.checked = checked);
+        function setDocCheckboxes(group, checked) {
+            document.querySelectorAll(`.page-card[data-group="${group}"] .select-row input`).forEach(cb => cb.checked = checked);
         }
 
         // ---------- page size ----------
@@ -740,10 +768,10 @@
 
         function groupPagesBySource() {
             const order = [];
-            for (const p of pageList) if (!order.includes(p.sourceId)) order.push(p.sourceId);
-            return order.map(sid => ({
-                name: sid === -1 ? 'inserted' : (sources.find(s => s.id === sid) ? sources.find(s => s.id === sid).name.replace(/\.pdf$/i, '') : 'doc'),
-                pages: pageList.filter(p => p.sourceId === sid)
+            for (const p of pageList) if (!order.includes(p.group)) order.push(p.group);
+            return order.map(g => ({
+                name: groupName(g),
+                pages: pageList.filter(p => p.group === g)
             }));
         }
 
@@ -817,7 +845,7 @@
 
         document.getElementById('groupBtn').addEventListener('click', () => {
             pushHistory();
-            pageList.sort((a, b) => a.sourceId - b.sourceId || a.pageIndex - b.pageIndex);
+            pageList.sort((a, b) => a.group - b.group || a.sourceId - b.sourceId || a.pageIndex - b.pageIndex);
             renderAll();
             setStatus('Pages grouped by source document.');
         });

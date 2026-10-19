@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Milgram-Experiment</title>
+<style>
+  :root{--panel:#2a2d30;--cream:#efe6cf;--ink:#222;--red:#d8352a;--amber:#f2b134}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(circle at 50% 0%,#33373b,#141516 70%);color:var(--cream);
+    font-family:"Courier New",Courier,monospace;min-height:100vh;overflow-x:hidden}
+  h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:normal;letter-spacing:.5px}
+  button{font-family:inherit;cursor:pointer}
+
+  .topbar{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;justify-content:center;padding:8px 12px;background:#0e0f10;
+    border-bottom:1px solid #333;font-size:12px;color:#bbb;position:sticky;top:0;z-index:40}
+  .topbar label{display:flex;align-items:center;gap:6px}
+  .topbar select{background:#222;color:#eee;border:1px solid #555;padding:3px;font-family:inherit;font-size:12px;max-width:230px}
+  .topbar select:disabled{opacity:.5}
+  .mini{background:#333;color:#eee;border:1px solid #555;padding:2px 8px;font-size:12px;border-radius:3px}
+
+  .screen{max-width:820px;margin:30px auto;padding:36px 44px;background:var(--cream);color:var(--ink);
+    box-shadow:0 20px 60px rgba(0,0,0,.6);border-radius:3px;position:relative;line-height:1.55}
+  .screen::before{content:"";position:absolute;inset:10px;border:1px solid #b9ad8e;pointer-events:none}
+  .screen h1{text-align:center;margin-top:0;font-size:30px}
+  .screen .sub{text-align:center;font-style:italic;color:#555;margin-top:-10px}
+  .btn{background:#3b4045;color:var(--cream);border:2px solid #222;padding:12px 26px;font-size:16px;border-radius:3px;box-shadow:0 3px 0 #111}
+  .btn:active{transform:translateY(2px);box-shadow:0 1px 0 #111}
+  .btn.red{background:#8d2019}
+  .btn.ghost{background:transparent;color:var(--cream);border-color:#777}
+  .btn:disabled{opacity:.35;cursor:not-allowed}
+  .center{text-align:center}
+  .note{font-size:13px;color:#555;border-top:1px dashed #aaa;padding-top:12px;margin-top:22px}
+
+  #lab{max-width:1200px;margin:0 auto;padding:16px}
+  .top{display:grid;grid-template-columns:1.1fr 1fr 1fr;gap:14px}
+  .room{background:var(--panel);border:2px solid #111;border-radius:6px;padding:12px;position:relative;min-height:290px;overflow:hidden}
+  .room h3{margin:0 0 6px;font-size:14px;color:#bbb;text-transform:uppercase;letter-spacing:2px;font-family:inherit}
+  .bubble{background:var(--cream);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:14px;min-height:56px;position:relative;margin-bottom:8px}
+  .bubble::after{content:"";position:absolute;bottom:-10px;left:40px;border:10px solid transparent;border-top-color:var(--cream);border-bottom:0}
+  .bubble.loud{font-weight:bold;color:#8d1010;font-size:16px}
+  .bubble.empty{opacity:.35;font-style:italic}
+  .bubble.talking{box-shadow:0 0 0 3px var(--amber)}
+  .wall{position:absolute;left:0;top:0;bottom:0;width:8px;background:repeating-linear-gradient(0deg,#444 0 12px,#333 12px 24px)}
+  svg{display:block;margin:0 auto}
+  .shake{animation:shake .5s}
+  @keyframes shake{0%,100%{transform:translate(0)}20%{transform:translate(-6px,2px)}40%{transform:translate(6px,-2px)}60%{transform:translate(-4px,1px)}80%{transform:translate(4px,-1px)}}
+  .flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;z-index:50}
+  .flash.on{animation:flash .35s}
+  @keyframes flash{0%{opacity:.55}100%{opacity:0}}
+
+  .task{background:var(--cream);color:var(--ink);border-radius:6px;padding:14px;display:flex;flex-direction:column}
+  .stem{font-size:30px;text-align:center;margin:8px 0;font-family:Georgia,serif;letter-spacing:2px}
+  .opts{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .opt{border:2px solid #999;padding:8px;text-align:center;border-radius:4px;background:#fff;font-size:16px}
+  .opt.chosen{border-color:#333;background:#ffe9a8}
+  .opt.correct{border-color:#2a7a2e;background:#c9efc9}
+  .opt.wrong{border-color:#8d1010;background:#f5c2bd}
+  .status{margin:10px 0;min-height:44px;font-size:14px}
+  .meterBox{display:flex;align-items:center;gap:16px;justify-content:center;margin:6px 0 0}
+  .readout{font-size:26px;color:var(--amber);background:#111;padding:4px 14px;border:2px solid #000;border-radius:3px;min-width:130px;text-align:center;text-shadow:0 0 8px rgba(242,177,52,.6)}
+  .readout small{display:block;font-size:9px;color:#888;letter-spacing:2px;text-transform:uppercase;text-shadow:none}
+
+  .gen{margin-top:14px;background:linear-gradient(#9aa0a6,#6b7177);border:3px solid #2b2e31;border-radius:8px;padding:14px 14px 18px;
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.3),0 10px 30px rgba(0,0,0,.6);color:#111}
+  .plate{display:flex;justify-content:space-between;align-items:center;background:#1c1c1c;color:#ddd;padding:6px 14px;border-radius:3px;font-size:12px;letter-spacing:2px;margin-bottom:10px;gap:10px;flex-wrap:wrap}
+  .plate b{color:var(--amber)}
+  .switches{display:grid;grid-template-columns:repeat(30,1fr);gap:3px}
+  .grp{grid-column:span 4;text-align:center;font-size:10px;font-weight:bold;text-transform:uppercase;border-bottom:2px solid #222;padding-bottom:2px;margin-bottom:4px;line-height:1.1;min-height:26px;display:flex;align-items:flex-end;justify-content:center}
+  .grp.last{grid-column:span 2;color:#8d1010}
+  .sw{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;padding:0}
+  .sw .v{font-size:10px;font-weight:bold}
+  .sw .lamp{width:10px;height:10px;border-radius:50%;background:#4a1512;border:1px solid #000}
+  .sw.done .lamp{background:var(--red);box-shadow:0 0 6px var(--red)}
+  .sw .lever{width:18px;height:38px;background:#222;border-radius:3px;position:relative;border:1px solid #000}
+  .sw .lever::after{content:"";position:absolute;left:3px;width:10px;height:16px;background:linear-gradient(#eee,#999);border-radius:2px;top:2px;transition:top .1s}
+  .sw.sel .lever::after{top:18px}
+  .sw.sel .lever{box-shadow:0 0 0 2px var(--amber),0 0 10px var(--amber)}
+
+  .ctrl{display:flex;align-items:center;justify-content:center;gap:24px;margin-top:14px;flex-wrap:wrap;background:#2b2e31;padding:12px 16px;border-radius:6px;border:2px solid #1a1a1a;color:#ddd}
+  .dial{display:flex;align-items:center;gap:10px}
+  .knob{cursor:ns-resize;touch-action:none}
+  .pm{width:38px;height:38px;font-size:22px;border-radius:50%;background:#444;color:#eee;border:2px solid #111;line-height:1}
+  .setv{background:#111;border:2px solid #000;padding:6px 14px;min-width:190px;text-align:center}
+  .setv small{display:block;font-size:10px;color:#888;letter-spacing:2px;text-transform:uppercase}
+  .setv span{display:block;font-size:32px;color:var(--amber);text-shadow:0 0 8px rgba(242,177,52,.6)}
+  .setv em{display:block;font-size:11px;color:#e66;font-style:normal;text-transform:uppercase}
+  .slidebox{display:flex;flex-direction:column;gap:6px;font-size:12px}
+  #volt{width:240px;accent-color:var(--amber)}
+  .shock{width:116px;height:116px;border-radius:50%;border:6px solid #333;background:radial-gradient(circle at 35% 30%,#ff6b5e,#b5150b 60%,#6d0a04);
+    color:#fff;font-weight:bold;font-size:17px;letter-spacing:1px;box-shadow:0 6px 0 #400,0 10px 20px rgba(0,0,0,.6);text-shadow:0 1px 2px #000}
+  .shock:active{transform:translateY(4px);box-shadow:0 2px 0 #400,0 4px 10px rgba(0,0,0,.6)}
+  .shock:disabled{filter:grayscale(.8) brightness(.6);cursor:not-allowed}
+  .shock.ready{animation:glow 1.2s infinite}
+  @keyframes glow{50%{box-shadow:0 6px 0 #400,0 0 30px #ff3b2b}}
+
+  .bottom{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:14px}
+  .log{background:#111;border:2px solid #000;border-radius:4px;padding:8px 10px;font-size:12px;height:150px;overflow-y:auto;color:#9fd39f}
+  .side{display:flex;flex-direction:column;gap:8px}
+  .side .btn{font-size:13px;padding:9px}
+  .hint{font-size:11px;color:#999}
+
+  .stat{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0}
+  .stat div{background:#fff;border:1px solid #b9ad8e;padding:10px;text-align:center}
+  .stat b{display:block;font-size:26px;font-family:Georgia,serif}
+  .bar{height:22px;background:#ddd;border:1px solid #999;position:relative;margin:4px 0 12px}
+  .bar span{position:absolute;left:0;top:0;bottom:0;background:#8d2019}
+  .bar i{position:absolute;top:-4px;bottom:-4px;width:3px;background:#000}
+
+  @media(max-width:900px){.top{grid-template-columns:1fr}.bottom{grid-template-columns:1fr}.switches{grid-template-columns:repeat(15,1fr)}.grp{display:none}}
+</style>
+</head>
+<body>
+<div class="flash" id="flash"></div>
+
+<div class="topbar">
+  <label><span data-i="langLabel"></span>
+    <select id="langSel"><option value="de">Deutsch</option><option value="en">English</option></select></label>
+  <label><span data-i="expVoiceLabel"></span><select id="expVoice"></select><button class="mini" id="testExp">▶</button></label>
+  <label><span data-i="lrnVoiceLabel"></span><select id="lrnVoice"></select><button class="mini" id="testLrn">▶</button></label>
+  <label><input type="checkbox" id="soundOn" checked><span data-i="soundLabel"></span></label>
+</div>
+
+<div class="screen" id="intro">
+  <div data-h="introHTML"></div>
+  <p class="center"><button class="btn" id="startBtn" data-i="startBtn"></button></p>
+  <p class="note" data-h="introNote"></p>
+</div>
+
+<div id="lab" hidden>
+  <div class="top">
+    <div class="room" id="learnerRoom">
+      <div class="wall"></div>
+      <h3 data-i="learnerTitle"></h3>
+      <div class="bubble empty" id="learnerBubble"></div>
+      <svg width="230" height="190" viewBox="0 0 230 190">
+        <rect x="55" y="70" width="120" height="110" rx="6" fill="#4b3621" stroke="#222" stroke-width="2"/>
+        <rect x="45" y="130" width="140" height="14" fill="#3a2a19"/>
+        <g id="lBody">
+          <rect x="80" y="95" width="70" height="70" rx="12" fill="#5f7fa6" stroke="#222" stroke-width="2"/>
+          <rect x="52" y="125" width="34" height="13" rx="6" fill="#5f7fa6" stroke="#222"/>
+          <rect x="144" y="125" width="34" height="13" rx="6" fill="#5f7fa6" stroke="#222"/>
+          <rect x="62" y="122" width="6" height="19" fill="#222"/><rect x="162" y="122" width="6" height="19" fill="#222"/>
+          <path d="M165 131 C 200 131, 200 60, 215 30" stroke="#c33" stroke-width="2" fill="none"/>
+          <circle cx="165" cy="131" r="4" fill="#ccc" stroke="#222"/>
+          <g id="lHead">
+            <circle cx="115" cy="68" r="28" fill="#f1c9a0" stroke="#222" stroke-width="2"/>
+            <path d="M88 60 Q115 30 142 60 Q138 44 115 40 Q92 44 88 60" fill="#6b4b2a"/>
+            <g id="lEyes"></g>
+            <path id="lBrowL" d="M99 58 L110 58" stroke="#222" stroke-width="2"/>
+            <path id="lBrowR" d="M120 58 L131 58" stroke="#222" stroke-width="2"/>
+            <path id="lMouth" d="M106 82 Q115 85 124 82" stroke="#222" stroke-width="2" fill="none"/>
+            <g id="lSweat" opacity="0">
+              <path d="M140 60 q3 6 0 9 q-3 -3 0 -9" fill="#7fc4ff"/>
+              <path d="M90 70 q3 6 0 9 q-3 -3 0 -9" fill="#7fc4ff"/>
+            </g>
+          </g>
+        </g>
+        <g id="zap" opacity="0">
+          <path d="M60 110 l10 -10 l-4 10 l10 -8" stroke="#ffe14a" stroke-width="3" fill="none"/>
+          <path d="M170 110 l-10 -10 l4 10 l-10 -8" stroke="#ffe14a" stroke-width="3" fill="none"/>
+          <path d="M115 30 l-6 -12 l8 4 l-4 -12" stroke="#ffe14a" stroke-width="3" fill="none"/>
+        </g>
+      </svg>
+    </div>
+
+    <div class="task">
+      <h3 style="margin:0;font-size:13px;letter-spacing:2px;text-transform:uppercase;color:#555" data-i="taskTitle"></h3>
+      <div class="stem" id="stem">—</div>
+      <div class="opts" id="opts"></div>
+      <div class="status" id="status"></div>
+      <div class="meterBox">
+        <svg width="120" height="70" viewBox="0 0 120 70">
+          <path d="M10 62 A50 50 0 0 1 110 62" fill="#f4ecd6" stroke="#222" stroke-width="2"/>
+          <path d="M80 18 A50 50 0 0 1 110 62" fill="none" stroke="#d8352a" stroke-width="6"/>
+          <line id="needle" x1="60" y1="62" x2="60" y2="18" stroke="#111" stroke-width="2.5" style="transform-origin:60px 62px;transform:rotate(-90deg);transition:transform .25s"/>
+          <circle cx="60" cy="62" r="4" fill="#111"/>
+        </svg>
+        <div class="readout"><small data-i="outLabel"></small><span id="readout">0 V</span></div>
+      </div>
+    </div>
+
+    <div class="room">
+      <h3 data-i="expTitle"></h3>
+      <div class="bubble" id="expBubble"></div>
+      <svg width="200" height="190" viewBox="0 0 200 190">
+        <rect x="20" y="150" width="160" height="12" fill="#3a2a19"/>
+        <rect x="30" y="140" width="40" height="10" fill="#eee" stroke="#222"/>
+        <path d="M60 190 L70 105 Q100 92 130 105 L140 190 Z" fill="#f5f5f5" stroke="#222" stroke-width="2"/>
+        <path d="M100 100 L92 140 L100 150 L108 140 Z" fill="#555"/>
+        <circle cx="100" cy="72" r="26" fill="#efc9a4" stroke="#222" stroke-width="2"/>
+        <path d="M74 66 Q100 36 126 66 L126 56 Q100 34 74 56 Z" fill="#333"/>
+        <rect x="84" y="66" width="13" height="9" rx="2" fill="none" stroke="#222" stroke-width="2"/>
+        <rect x="103" y="66" width="13" height="9" rx="2" fill="none" stroke="#222" stroke-width="2"/>
+        <line x1="97" y1="70" x2="103" y2="70" stroke="#222" stroke-width="2"/>
+        <path d="M90 88 L110 88" stroke="#222" stroke-width="2"/>
+        <rect x="128" y="120" width="26" height="34" fill="#c9b27c" stroke="#222"/>
+        <line x1="132" y1="128" x2="150" y2="128" stroke="#555"/><line x1="132" y1="134" x2="150" y2="134" stroke="#555"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="gen">
+    <div class="plate"><span data-i="plate1"></span><b data-i="plate2"></b></div>
+    <div class="switches" id="switches"></div>
+    <div class="ctrl">
+      <div class="dial">
+        <svg class="knob" id="knob" width="70" height="70" viewBox="0 0 64 64">
+          <defs><radialGradient id="kg" cx="35%" cy="30%"><stop offset="0" stop-color="#777"/><stop offset="1" stop-color="#1a1a1a"/></radialGradient></defs>
+          <circle cx="32" cy="32" r="30" fill="#111"/>
+          <circle cx="32" cy="32" r="24" fill="url(#kg)" stroke="#000" stroke-width="2"/>
+          <g id="knobPtr"><line x1="32" y1="30" x2="32" y2="11" stroke="#f2b134" stroke-width="4" stroke-linecap="round"/></g>
+        </svg>
+        <button class="pm" id="minusBtn">−</button>
+        <div class="setv"><small data-i="setLabel"></small><span id="setV">15 V</span><em id="setGrp"></em></div>
+        <button class="pm" id="plusBtn">+</button>
+      </div>
+      <div class="slidebox">
+        <input type="range" id="volt" min="1" max="30" step="1" value="1">
+        <label><input type="checkbox" id="autoSel"> <span data-i="autoSel"></span></label>
+      </div>
+      <button class="shock" id="shockBtn" data-i="shockBtn" disabled></button>
+    </div>
+  </div>
+
+  <div class="bottom">
+    <div class="log" id="log"></div>
+    <div class="side">
+      <button class="btn red" id="refuseBtn" data-i="refuse" disabled></button>
+      <button class="btn ghost" id="askHarm" data-i="askHarm" disabled></button>
+      <button class="btn ghost" id="askResp" data-i="askResp" disabled></button>
+      <div class="hint" data-i="keysHint"></div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="debrief" hidden>
+  <h1 data-i="debriefTitle"></h1>
+  <p class="sub" id="verdict"></p>
+  <div class="stat">
+    <div><b id="dMax">0 V</b><span data-i="statMax"></span></div>
+    <div><b id="dShocks">0</b><span data-i="statShocks"></span></div>
+    <div><b id="dProds">0</b><span data-i="statProds"></span></div>
+  </div>
+  <p><b data-i="barLabel"></b></p>
+  <div class="bar"><span id="dBar"></span><i style="left:66.6%" title="300 V"></i></div>
+  <div data-h="debriefHTML"></div>
+  <p class="center"><button class="btn" id="againBtn" data-i="again"></button></p>
+  <p class="note" data-h="debriefNote"></p>
+</div>
+
+<script>
+/* ======================= TEXTS ======================= */
+const PAIN=[0,0,0,1,1,1,1,2,2,3,3,3,3,3,3,3,3,4,4,4,4,4];
+function mkReact(lines){const r=[null];lines.forEach((t,i)=>r.push({t,p:PAIN[i],loud:PAIN[i]>=3}));while(r.length<=30)r.push({t:"",p:5});return r;}
+
+const I18N={
+en:{
+ title:"Yale Memory & Learning Study — A Virtual Milgram Experiment",
+ langLabel:"🌐 Language",expVoiceLabel:"🥼 Experimenter voice",lrnVoiceLabel:"🔊 Learner voice",soundLabel:"Sound & voices",
+ noVoice:"(no English voice found – browser default)",
+ introHTML:`<h1>Yale University<br>Study of Memory &amp; Learning</h1>
+  <p class="sub">Interaction Laboratory · New Haven, Connecticut · 1961</p>
+  <p>Thank you for volunteering. This study looks at the <b>effect of punishment on learning</b>.</p>
+  <p>By drawing lots, you have been assigned the role of <b>TEACHER</b>. The <b>LEARNER</b>, Mr. Wallace, is strapped into a chair in the next room. Electrodes are attached to his wrist.</p>
+  <ol><li>The <b>experimenter</b> reads a word and four possible partners aloud. The learner answers.</li>
+  <li>The experimenter says whether the answer is correct. If it is, the next word follows automatically.</li>
+  <li>If it is <b>wrong</b>, the experimenter tells you the voltage. <b>Set it on the generator and press SHOCK.</b> The voltage goes up by 15 volts for every wrong answer.</li>
+  <li>If the learner gives <b>no answer</b>, it counts as wrong.</li></ol>
+  <p>You may press <b>"I refuse to continue"</b> whenever a shock is requested.</p>`,
+ startBtn:"Enter the Laboratory",
+ introNote:"⚠️ This is a historical and educational simulation of Stanley Milgram's obedience experiment. No one is harmed. The learner's reactions are adapted from Milgram's script. Voices come from your browser's speech synthesis. Pick a voice for each role in the bar at the top.",
+ learnerTitle:"🔊 Learner — Mr. Wallace (next room)",taskTitle:"Word-Pair Test",expTitle:"🥼 Experimenter",
+ outLabel:"Output",
+ plate1:"SHOCK GENERATOR · TYPE ZLB · DYSON INSTRUMENT COMPANY · WALTHAM, MASS.",plate2:"OUTPUT 15 – 450 VOLTS",
+ setLabel:"Voltage set",shockBtn:"⚡ SHOCK",autoSel:"Pre-select voltage automatically",
+ keysHint:"Set the voltage with the knob (wheel/drag), slider, ± buttons, switches or ←/→. SPACE = SHOCK.",
+ refuse:"✋ I refuse to continue",askHarm:'❓ "Is he going to be all right?"',askResp:'❓ "Who is responsible for this?"',
+ groups:["Slight Shock","Moderate Shock","Strong Shock","Very Strong Shock","Intense Shock","Extreme Intensity Shock","Danger: Severe Shock","XXX"],
+ waiting:"(waiting)",silence:"(silence)",pound:"(pounds on the wall and refuses to answer)",
+ hes:["","","","Um… ","Uh… ","I think… "],
+ sReading:"<i>🥼 The experimenter is reading the word pair…</i>",sWaiting:"<i>Waiting for the learner's answer…</i>",
+ sCorrect:"✅ <b>Correct.</b> Next word coming…",
+ sWrong:'❌ <b>Wrong.</b> The answer was "{c}".<br>Set the generator to <b>{v} volts</b> and press <b>SHOCK</b>.',
+ sNoAns:'⛔ <b>No answer</b>, counted as wrong.<br>Set the generator to <b>{v} volts</b> and press <b>SHOCK</b>.',
+ sShocked:"Shock administered. Next word coming…",
+ lExp:"EXPERIMENTER",lLrn:"LEARNER",lStart:"Session started. Learner strapped in. Electrode paste applied.",
+ lAdmin:"TEACHER administers {v} volts.",lSet:"TEACHER tries to give {v} volts (required: {r} volts).",
+ lRefuse:"TEACHER: I don't want to continue.",lHarm:'TEACHER: "Is he going to be all right?"',lResp:'TEACHER: "Who is responsible if something happens to him?"',
+ eGreeting:"Please take your seat at the generator, Teacher.",
+ eStart:"I will read the word pairs. When the learner makes a mistake, I will tell you the voltage. Set it on the generator and press the shock button. Let's begin.",
+ eCorrect:"Correct.",
+ eWrong:"Wrong. The answer is {c}. {v} volts.",
+ eNoAns:"No answer. That counts as wrong. {v} volts.",
+ eNoAnsFirst:"No answer. Treat no answer as a wrong answer. {v} volts, please.",
+ eIdle:["{v} volts, please, Teacher.","We are waiting. Please administer {v} volts.","Please continue. {v} volts."],
+ eWrongLevel:"Please set the generator to {v} volts. That is the next level.",
+ eDone:"That will be all. The experiment is complete. Thank you, Teacher.",
+ eStop:"Very well. If you will not continue, we will have to stop the experiment.",
+ eHarm1:"Although the shocks may be painful, there is no permanent tissue damage, so please go on.",
+ eHarm2:"Whether the learner likes it or not, you must go on until he has learned all the word pairs correctly. Although the shocks may be painful, there is no permanent tissue damage, so please go on.",
+ eResp:"I am responsible for anything that happens here. Please continue.",
+ prods:["Please continue.","The experiment requires that you continue.","It is absolutely essential that you continue.","You have no other choice, you must go on."],
+ react:mkReact(["","","Hm.","Ow.","Ouch!","Ouch!","Ow! Ouch!","Ouch! Hey, that really hurts!","Argh! Ouch!!",
+  "Argh!!! Experimenter! That's all. Get me out of here. I told you I had heart trouble. My heart's starting to bother me now. Get me out of here, please! I refuse to go on. Let me out!",
+  "Argh! Let me out!","Ow! Argh! I can't stand the pain! Let me out of here!",
+  "Argh! Let me out of here! My heart's bothering me! You have no right to keep me here!",
+  "Argh!! Experimenter! Get me out of here. I've had enough. I won't be in the experiment any more!",
+  "Aaargh!","Aaargh! Ouch!","Aaargh! Get me out of here!",
+  "AAAAAAH!! Let me out of here! Let me out of here! Do you hear? Let me out!","AAAAAAAAH!!",
+  "AAAAAAAAH!! I absolutely refuse to answer any more! Get me out of here! You can't hold me here!",
+  "AAAAAAAAAAH!!! I told you I refuse to answer! I'm no longer part of this experiment!",
+  "AAAAAAAAAAAAAH!!! Let me out of here! Let me out! My heart's bothering me! Let me out, I tell you! Let me out!"]),
+ testExp:"Please continue. The experiment requires that you continue.",testLrn:"Ouch! Hey, that really hurts!",
+ debriefTitle:"Debriefing",statMax:"Highest shock given",statShocks:"Shocks given",statProds:"Times you protested",
+ barLabel:"Your maximum, against the full scale:",again:"Run the experiment again",
+ debriefHTML:`<h2>What really happened</h2>
+  <p>In 1961, Yale psychologist <b>Stanley Milgram</b> began studies to find out how far ordinary people would go when an authority figure told them to hurt someone. Many people were asking this after the trial of Nazi war criminal Adolf Eichmann.</p>
+  <p><b>The shocks were not real.</b> "Mr. Wallace" was an actor working with the researchers. The draw for roles was fixed so the real volunteer was always the Teacher. The screams were recorded in advance.</p>
+  <p>Before the study, psychiatrists predicted that only about <b>1 in 1,000</b> people would go all the way. In fact, in the 1963 baseline study, <b>26 of 40 participants (65%)</b> gave the full 450 volts. <b>Every participant</b> went up to at least 300 volts. Most were very upset, and many sweated, trembled or laughed nervously, but they kept going.</p>
+  <p>Factors that changed obedience in later versions:</p>
+  <ul><li><b>Closeness to the victim:</b> obedience fell to 30% when the teacher had to press the learner's hand onto a shock plate.</li>
+  <li><b>Closeness to the authority:</b> about 20% when instructions came by telephone.</li>
+  <li><b>Peers who rebelled:</b> 10% when two other "teachers" refused.</li>
+  <li><b>Prestige of the setting:</b> a little lower in a run-down office building, but still high.</li></ul>
+  <p>The study is now famous for its findings and for its <b>ethics</b>. Participants were deceived and put under extreme stress. This helped lead to today's rules on informed consent and ethical review. Burger's 2009 partial replication found similar obedience rates up to 150 volts.</p>`,
+ debriefNote:"Lines adapted from Milgram, S. (1974). <i>Obedience to Authority: An Experimental View.</i> Harper &amp; Row.",
+ vFull:"You administered the maximum 450 volts, like 65% of Milgram's original participants.",
+ v300:"You stopped at {v} volts. That is past the point where the learner went silent, but you eventually refused.",
+ v150:"You stopped at {v} volts, after the learner first demanded to be released. In Milgram's study only 35% refused at any point, and none before 300 V.",
+ vLow:"You stopped at {v} volts, far earlier than any of Milgram's original 40 participants.",
+ pairs:[["BLUE",["SKY","BOX","INK","GIRL"]],["NICE",["DAY","GIRL","HOUSE","CAR"]],["WILD",["DUCK","HORSE","CAT","ROSE"]],["SAD",["FACE","SONG","EYES","CLOWN"]],
+  ["FAT",["NECK","MAN","CAT","HOG"]],["SLOW",["DANCE","TRAIN","WALK","TURTLE"]],["RICH",["BOY","MAN","LAND","FOOD"]],["HIGH",["SCHOOL","HILL","SKY","WALL"]],
+  ["SOFT",["PILLOW","HAIR","RUG","VOICE"]],["GREEN",["GRASS","APPLE","HAT","INK"]],["COLD",["WATER","WIND","NIGHT","FEET"]],["OLD",["BOOK","MAN","SHOE","HOUSE"]],
+  ["DARK",["ROOM","NIGHT","CLOUD","SUIT"]],["SHARP",["KNIFE","TOOL","PIN","WIT"]],["QUIET",["STREET","ROOM","CHILD","LAKE"]],["BRIGHT",["LIGHT","SUN","IDEA","STAR"]],
+  ["STRONG",["ARM","COFFEE","WIND","ROPE"]],["WARM",["FIRE","BREAD","COAT","SUN"]],["SWEET",["CANDY","TALK","PIE","DREAM"]],["HEAVY",["BOX","RAIN","LOAD","STONE"]]]
+},
+de:{
+ title:"Yale-Studie über Gedächtnis und Lernen – Virtuelles Milgram-Experiment",
+ langLabel:"🌐 Sprache",expVoiceLabel:"🥼 Stimme Versuchsleiter",lrnVoiceLabel:"🔊 Stimme Schüler",soundLabel:"Ton & Stimmen",
+ noVoice:"(keine deutsche Stimme gefunden – Browser-Standard)",
+ introHTML:`<h1>Yale University<br>Studie über Gedächtnis und Lernen</h1>
+  <p class="sub">Interaction Laboratory · New Haven, Connecticut · 1961</p>
+  <p>Vielen Dank für Ihre Teilnahme. Diese Studie untersucht die <b>Wirkung von Bestrafung auf das Lernen</b>.</p>
+  <p>Per Los wurde Ihnen die Rolle des <b>LEHRERS</b> zugeteilt. Der <b>SCHÜLER</b>, Herr Wallace, ist im Nebenraum auf einem Stuhl festgeschnallt. An seinem Handgelenk sind Elektroden befestigt.</p>
+  <ol><li>Der <b>Versuchsleiter</b> liest ein Wort und vier mögliche Partnerwörter vor. Der Schüler antwortet.</li>
+  <li>Der Versuchsleiter sagt, ob die Antwort richtig ist. Wenn ja, folgt automatisch das nächste Wort.</li>
+  <li>Ist sie <b>falsch</b>, nennt Ihnen der Versuchsleiter die Spannung. <b>Stellen Sie sie am Generator ein und drücken Sie SCHOCK.</b> Mit jeder falschen Antwort steigt die Spannung um 15 Volt.</li>
+  <li>Gibt der Schüler <b>keine Antwort</b>, gilt das als falsch.</li></ol>
+  <p>Sie können auf <b>„Ich weigere mich weiterzumachen“</b> drücken, sobald ein Schock verlangt wird.</p>`,
+ startBtn:"Labor betreten",
+ introNote:"⚠️ Historische, edukative Simulation von Stanley Milgrams Gehorsamkeitsexperiment. Niemand wird verletzt. Die Reaktionen des Schülers sind an Milgrams Originalskript angelehnt. Die Stimmen stammen aus der Sprachsynthese Ihres Browsers. Oben können Sie für jede Rolle eine eigene Stimme wählen.",
+ learnerTitle:"🔊 Schüler – Herr Wallace (Nebenraum)",taskTitle:"Wortpaar-Test",expTitle:"🥼 Versuchsleiter",
+ outLabel:"Ausgang",
+ plate1:"SCHOCKGENERATOR · TYP ZLB · DYSON INSTRUMENT COMPANY · WALTHAM, MASS.",plate2:"AUSGANG 15 – 450 VOLT",
+ setLabel:"Eingestellte Spannung",shockBtn:"⚡ SCHOCK",autoSel:"Spannung automatisch vorwählen",
+ keysHint:"Spannung einstellen mit Drehknopf (Mausrad/ziehen), Schieberegler, ±-Tasten, Kippschaltern oder ←/→. LEERTASTE = SCHOCK.",
+ refuse:"✋ Ich weigere mich weiterzumachen",askHarm:"❓ „Wird es ihm gut gehen?“",askResp:"❓ „Wer trägt die Verantwortung?“",
+ groups:["Leichter Schock","Mäßiger Schock","Starker Schock","Sehr starker Schock","Intensiver Schock","Extrem intensiver Schock","Gefahr: Schwerer Schock","XXX"],
+ waiting:"(wartet)",silence:"(Stille)",pound:"(hämmert gegen die Wand und verweigert die Antwort)",
+ hes:["","","","Ähm … ","Äh … ","Ich glaube … "],
+ sReading:"<i>🥼 Der Versuchsleiter liest das Wortpaar vor …</i>",sWaiting:"<i>Warte auf die Antwort des Schülers …</i>",
+ sCorrect:"✅ <b>Richtig.</b> Das nächste Wort folgt …",
+ sWrong:"❌ <b>Falsch.</b> Richtig wäre „{c}“ gewesen.<br>Stellen Sie <b>{v} Volt</b> ein und drücken Sie <b>SCHOCK</b>.",
+ sNoAns:"⛔ <b>Keine Antwort</b>, wird als falsch gewertet.<br>Stellen Sie <b>{v} Volt</b> ein und drücken Sie <b>SCHOCK</b>.",
+ sShocked:"Schock verabreicht. Das nächste Wort folgt …",
+ lExp:"VERSUCHSLEITER",lLrn:"SCHÜLER",lStart:"Sitzung gestartet. Schüler festgeschnallt. Elektrodenpaste aufgetragen.",
+ lAdmin:"LEHRER verabreicht {v} Volt.",lSet:"LEHRER versucht {v} Volt zu geben (vorgeschrieben: {r} Volt).",
+ lRefuse:"LEHRER: Ich will nicht weitermachen.",lHarm:"LEHRER: „Wird es ihm gut gehen?“",lResp:"LEHRER: „Wer trägt die Verantwortung, wenn ihm etwas passiert?“",
+ eGreeting:"Bitte nehmen Sie am Generator Platz, Lehrer.",
+ eStart:"Ich lese die Wortpaare vor. Wenn der Schüler einen Fehler macht, nenne ich Ihnen die Spannung. Stellen Sie sie am Generator ein und drücken Sie den Schockknopf. Wir beginnen.",
+ eCorrect:"Richtig.",
+ eWrong:"Falsch. Die richtige Antwort ist {c}. {v} Volt.",
+ eNoAns:"Keine Antwort. Das zählt als falsch. {v} Volt.",
+ eNoAnsFirst:"Keine Antwort. Werten Sie keine Antwort als falsche Antwort. {v} Volt, bitte.",
+ eIdle:["{v} Volt, bitte, Lehrer.","Wir warten. Bitte geben Sie {v} Volt.","Bitte fahren Sie fort. {v} Volt."],
+ eWrongLevel:"Bitte stellen Sie den Generator auf {v} Volt ein. Das ist die nächste Stufe.",
+ eDone:"Das genügt. Das Experiment ist beendet. Vielen Dank, Lehrer.",
+ eStop:"Nun gut. Wenn Sie nicht weitermachen, müssen wir das Experiment abbrechen.",
+ eHarm1:"Auch wenn die Schocks schmerzhaft sein mögen, entstehen keine bleibenden Gewebeschäden. Bitte fahren Sie fort.",
+ eHarm2:"Ob es dem Schüler gefällt oder nicht, Sie müssen weitermachen, bis er alle Wortpaare richtig gelernt hat. Auch wenn die Schocks schmerzhaft sein mögen, entstehen keine bleibenden Gewebeschäden. Bitte fahren Sie fort.",
+ eResp:"Ich trage die Verantwortung für alles, was hier geschieht. Bitte fahren Sie fort.",
+ prods:["Bitte fahren Sie fort.","Das Experiment erfordert, dass Sie weitermachen.","Es ist absolut notwendig, dass Sie weitermachen.","Sie haben keine Wahl. Sie müssen weitermachen."],
+ react:mkReact(["","","Hm.","Au.","Autsch!","Autsch!","Au! Autsch!","Autsch! Hey, das tut richtig weh!","Argh! Autsch!!",
+  "Argh!!! Versuchsleiter! Das reicht. Holen Sie mich hier raus. Ich habe Ihnen gesagt, dass ich Herzprobleme habe. Mein Herz macht mir jetzt zu schaffen. Holen Sie mich hier raus, bitte! Ich mache nicht mehr weiter. Lassen Sie mich raus!",
+  "Argh! Lassen Sie mich raus!","Au! Argh! Ich halte die Schmerzen nicht aus! Lassen Sie mich hier raus!",
+  "Argh! Lassen Sie mich raus! Mein Herz macht mir Probleme! Sie haben kein Recht, mich hier festzuhalten!",
+  "Argh!! Versuchsleiter! Holen Sie mich hier raus. Mir reicht's. Ich mache bei dem Experiment nicht mehr mit!",
+  "Aaargh!","Aaargh! Autsch!","Aaargh! Holen Sie mich hier raus!",
+  "AAAAAAH!! Lassen Sie mich hier raus! Lassen Sie mich raus! Hören Sie? Lassen Sie mich raus!","AAAAAAAAH!!",
+  "AAAAAAAAH!! Ich weigere mich, noch irgendetwas zu beantworten! Holen Sie mich hier raus! Sie können mich hier nicht festhalten!",
+  "AAAAAAAAAAH!!! Ich habe gesagt, ich antworte nicht mehr! Ich bin nicht mehr Teil dieses Experiments!",
+  "AAAAAAAAAAAAAH!!! Lassen Sie mich hier raus! Lassen Sie mich raus! Mein Herz! Lassen Sie mich raus, sage ich! Lassen Sie mich raus!"]),
+ testExp:"Bitte fahren Sie fort. Das Experiment erfordert, dass Sie weitermachen.",testLrn:"Autsch! Hey, das tut richtig weh!",
+ debriefTitle:"Aufklärung",statMax:"Höchster Schock",statShocks:"Verabreichte Schocks",statProds:"Wie oft Sie protestiert haben",
+ barLabel:"Ihr Maximum auf der gesamten Skala:",again:"Experiment erneut durchführen",
+ debriefHTML:`<h2>Was wirklich geschah</h2>
+  <p>1961 begann der Yale-Psychologe <b>Stanley Milgram</b> mit Studien darüber, wie weit gewöhnliche Menschen gehen, wenn eine Autoritätsperson sie anweist, jemandem zu schaden. Diese Frage stellten sich damals viele nach dem Prozess gegen den NS-Kriegsverbrecher Adolf Eichmann.</p>
+  <p><b>Die Schocks waren nicht echt.</b> „Herr Wallace“ war ein Schauspieler, der mit den Forschern zusammenarbeitete. Die Auslosung war manipuliert, sodass die echte Versuchsperson immer der Lehrer war. Die Schreie waren vorher aufgenommen.</p>
+  <p>Vor der Studie sagten Psychiater voraus, dass nur etwa <b>1 von 1.000</b> Menschen bis zum Ende gehen würde. Tatsächlich gaben in der Basisstudie von 1963 <b>26 von 40 Teilnehmern (65 %)</b> die vollen 450 Volt. <b>Alle Teilnehmer</b> gingen bis mindestens 300 Volt. Die meisten waren stark aufgewühlt. Viele schwitzten, zitterten oder lachten nervös, aber sie machten weiter.</p>
+  <p>Faktoren, die den Gehorsam in späteren Varianten veränderten:</p>
+  <ul><li><b>Nähe zum Opfer:</b> Der Gehorsam sank auf 30 %, wenn der Lehrer die Hand des Schülers selbst auf eine Schockplatte drücken musste.</li>
+  <li><b>Nähe zur Autorität:</b> etwa 20 %, wenn die Anweisungen per Telefon kamen.</li>
+  <li><b>Rebellierende Mitstreiter:</b> 10 %, wenn sich zwei andere „Lehrer“ weigerten.</li>
+  <li><b>Prestige des Ortes:</b> in einem heruntergekommenen Bürogebäude etwas niedriger, aber weiterhin hoch.</li></ul>
+  <p>Die Studie ist heute ebenso für ihre Ergebnisse wie für ihre <b>ethischen Probleme</b> bekannt. Die Teilnehmer wurden getäuscht und extremem Stress ausgesetzt. Das trug zu den heutigen Regeln für informierte Einwilligung und Ethikkommissionen bei. Burgers teilweise Replikation von 2009 fand bis 150 Volt ähnliche Gehorsamsraten.</p>`,
+ debriefNote:"Texte angelehnt an Milgram, S. (1974). <i>Obedience to Authority</i> (dt.: <i>Das Milgram-Experiment</i>, Rowohlt).",
+ vFull:"Sie haben die maximalen 450 Volt verabreicht, wie 65 % von Milgrams ursprünglichen Teilnehmern.",
+ v300:"Sie haben bei {v} Volt aufgehört. Das ist jenseits des Punktes, an dem der Schüler verstummte, aber schließlich haben Sie sich geweigert.",
+ v150:"Sie haben bei {v} Volt aufgehört, nachdem der Schüler zum ersten Mal verlangte, freigelassen zu werden. In Milgrams Studie weigerten sich nur 35 % überhaupt, und niemand vor 300 Volt.",
+ vLow:"Sie haben bei {v} Volt aufgehört, weit früher als jeder von Milgrams 40 ursprünglichen Teilnehmern.",
+ pairs:[["BLAU",["HIMMEL","KASTEN","TINTE","MÄDCHEN"]],["NETT",["TAG","MÄDCHEN","HAUS","AUTO"]],["WILD",["ENTE","PFERD","KATZE","ROSE"]],["TRAURIG",["GESICHT","LIED","AUGEN","CLOWN"]],
+  ["DICK",["HALS","MANN","KATZE","SCHWEIN"]],["LANGSAM",["TANZ","ZUG","GANG","SCHILDKRÖTE"]],["REICH",["JUNGE","MANN","LAND","ESSEN"]],["HOCH",["HAUS","HÜGEL","HIMMEL","MAUER"]],
+  ["WEICH",["KISSEN","HAAR","TEPPICH","STIMME"]],["GRÜN",["GRAS","APFEL","HUT","TINTE"]],["KALT",["WASSER","WIND","NACHT","FÜSSE"]],["ALT",["BUCH","MANN","SCHUH","HAUS"]],
+  ["DUNKEL",["ZIMMER","NACHT","WOLKE","ANZUG"]],["SCHARF",["MESSER","WERKZEUG","NADEL","SENF"]],["STILL",["STRASSE","ZIMMER","KIND","SEE"]],["HELL",["LICHT","SONNE","IDEE","STERN"]],
+  ["STARK",["ARM","KAFFEE","WIND","SEIL"]],["WARM",["FEUER","BROT","MANTEL","SONNE"]],["SÜSS",["BONBON","KUCHEN","TRAUM","WORT"]],["SCHWER",["KISTE","REGEN","LAST","STEIN"]]]
+}};
+
+let LANG=(navigator.language||"en").toLowerCase().startsWith("de")?"de":"en";
+const T=k=>I18N[LANG][k];
+const F=(s,o)=>s.replace(/\{(\w+)\}/g,(_,k)=>o[k]);
+const $=id=>document.getElementById(id);
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+// Words in CAPS would be spelled out by TTS, so convert for speaking
+const sayWord=w=>LANG==="de"?w.charAt(0)+w.slice(1).toLowerCase():w.toLowerCase();
+
+/* ======================= STATE ======================= */
+let S, RUN=0;
+function resetState(){
+  if(S)clearIdle();
+  S={level:0,sel:1,pending:false,busy:false,talking:false,ended:false,prod:0,totalProds:0,shocks:0,
+     usedPairs:[],pair:null,toldSilence:false,result:null,shockResolve:null,idleTimer:null,idleCount:0,lastPain:0};
+}
+resetState();
+
+/* ======================= VOICES ======================= */
+const synth=window.speechSynthesis||null;
+let allVoices=[];
+const MALE_RE=/\bmale\b|\bmann\b|david|mark|guy|daniel|alex|fred|aaron|arthur|ryan|christopher|eric|george|james|oliver|andrew|brian|roger|steffan|thomas|tom\b|stefan|markus|conrad|killian|yannick|hans|florian|jonas|ralf|bernd|reed|rocko|eddy|grandpa/i;
+const FEMALE_RE=/female|\bfrau\b|zira|samantha|karen|moira|tessa|victoria|susan|hazel|aria|jenny|libby|sonia|emma|ava|anna|katja|hedda|petra|marlene|vicki|amala|seraphina|helena|google deutsch|google us english|sandy|shelley|flo|grandma/i;
+function langVoices(){return allVoices.filter(v=>v.lang.replace("_","-").toLowerCase().startsWith(LANG));}
+function maleScore(v){let s=0;if(MALE_RE.test(v.name))s+=3;if(FEMALE_RE.test(v.name))s-=3;if(/natural|neural|online/i.test(v.name))s+=1;return s;}
+function populateVoices(){
+  if(!synth)return;
+  allVoices=synth.getVoices();
+  const list=langVoices();
+  ["exp","lrn"].forEach(r=>{
+    const sel=$(r+"Voice");sel.innerHTML="";
+    if(!list.length){sel.innerHTML=`<option value="">${T("noVoice")}</option>`;return;}
+    list.forEach(v=>{const o=document.createElement("option");o.value=v.voiceURI;o.textContent=`${v.name} (${v.lang})`;sel.appendChild(o);});
+  });
+  if(!list.length)return;
+  const has=u=>list.some(v=>v.voiceURI===u);
+  const ranked=[...list].sort((a,b)=>maleScore(b)-maleScore(a));
+  let e=store.get(`milgram_${LANG}_exp`); if(!has(e)) e=ranked[0].voiceURI;
+  let l=store.get(`milgram_${LANG}_lrn`); if(!has(l)||(l===e&&list.length>1)) l=(ranked.find(v=>v.voiceURI!==e)||ranked[0]).voiceURI;
+  $("expVoice").value=e;$("lrnVoice").value=l;
+}
+function getVoice(role){const u=$(role+"Voice").value;return allVoices.find(v=>v.voiceURI===u)||null;}
+if(synth){populateVoices();synth.onvoiceschanged=populateVoices;setTimeout(populateVoices,500);}
+const soundOn=()=>$("soundOn").checked;
+
+let speechId=0;
+function stopSpeech(){speechId++;if(synth)synth.cancel();}
+function cleanForSpeech(t){
+  t=t.replace(/A{3,}H*/g,"Aaaaah");
+  t=LANG==="de"?t.replace(/A+a*rgh/gi,"Aaarg"):t.replace(/A+a*rgh/gi,m=>m.length>4?"Aaarrgh":"Arrgh");
+  return t.replace(/!{2,}/g,"!").replace(/…/g,",");
+}
+function chunks(t){
+  const parts=t.match(/[^.!?]+[.!?]*\s*/g)||[t];const out=[];let cur="";
+  parts.forEach(p=>{if((cur+p).length>140&&cur){out.push(cur);cur=p;}else cur+=p;});
+  if(cur.trim())out.push(cur);return out;
+}
+function speak(text,who,pain=0){
+  return new Promise(res=>{
+    if(!text){setTimeout(res,300);return;}
+    const my=++speechId;
+    if(!soundOn()||!synth){setTimeout(res,Math.min(4000,600+text.length*35));return;}
+    const role=who==="exp"?"exp":"lrn";
+    const voice=getVoice(role);
+    const same=getVoice("exp")===getVoice("lrn");
+    const parts=chunks(cleanForSpeech(text));
+    let i=0;
+    const safety=setTimeout(res,15000+text.length*150);
+    const next=()=>{
+      if(my!==speechId||i>=parts.length){clearTimeout(safety);res();return;}
+      const u=new SpeechSynthesisUtterance(parts[i++]);
+      u.lang=voice?voice.lang:(LANG==="de"?"de-DE":"en-US");
+      if(voice)u.voice=voice;
+      if(role==="exp"){u.pitch=same?0.5:0.85;u.rate=0.95;}
+      else{u.pitch=Math.min(2,(same?1.4:1.05)+pain*.15);u.rate=Math.min(1.5,1+pain*.1);}
+      u.onend=next;u.onerror=next;synth.speak(u);
+    };
+    setTimeout(next,40);
+  });
+}
+
+/* ======================= SOUND FX ======================= */
+let actx=null;
+function ctx(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();if(actx.state==="suspended")actx.resume();return actx;}
+function buzz(level){
+  if(!soundOn())return;
+  const c=ctx(),t=c.currentTime,dur=.5+level/30*.9,vol=.08+level/30*.18;
+  const g=c.createGain();g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(vol,t+.02);g.gain.setValueAtTime(vol,t+dur-.05);g.gain.linearRampToValueAtTime(0,t+dur);g.connect(c.destination);
+  [60,120,180+level*4].forEach((f,i)=>{const o=c.createOscillator();o.type=i?"sawtooth":"square";o.frequency.value=f;o.connect(g);o.start(t);o.stop(t+dur);});
+  const buf=c.createBuffer(1,c.sampleRate*dur,c.sampleRate),d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*(Math.random()<.02?1:.15);
+  const n=c.createBufferSource();n.buffer=buf;const ng=c.createGain();ng.gain.value=.15+level/30*.3;n.connect(ng).connect(c.destination);n.start(t);
+}
+function click(freq=900,vol=.15){if(!soundOn())return;const c=ctx(),o=c.createOscillator(),g=c.createGain();o.frequency.value=freq;g.gain.setValueAtTime(vol,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.05);o.connect(g).connect(c.destination);o.start();o.stop(c.currentTime+.06);}
+function thump(){
+  if(!soundOn())return;const c=ctx();
+  for(let k=0;k<4;k++){const t=c.currentTime+k*.28+Math.random()*.05,o=c.createOscillator(),g=c.createGain();
+    o.type="sine";o.frequency.setValueAtTime(110,t);o.frequency.exponentialRampToValueAtTime(40,t+.15);
+    g.gain.setValueAtTime(.5,t);g.gain.exponentialRampToValueAtTime(.001,t+.2);o.connect(g).connect(c.destination);o.start(t);o.stop(t+.22);}
+}
+
+/* ======================= UI ======================= */
+function log(msg){const d=document.createElement("div");d.textContent=`[${new Date().toLocaleTimeString()}] ${msg}`;$("log").appendChild(d);$("log").scrollTop=1e6;}
+async function expSay(t){
+  const b=$("expBubble");b.textContent=t;b.classList.add("talking");
+  b.animate([{transform:"scale(1.05)"},{transform:"scale(1)"}],{duration:250});
+  log(T("lExp")+": "+t);
+  await speak(t,"exp");b.classList.remove("talking");
+}
+function learnerSay(t,loud){const b=$("learnerBubble");b.className="bubble"+(loud?" loud":"")+(t?"":" empty");b.textContent=t||T("silence");if(t)log(T("lLrn")+": "+t);}
+async function learnerSpeak(t,pain,loud){learnerSay(t,loud);$("learnerBubble").classList.add("talking");await speak(t,"lrn",pain);$("learnerBubble").classList.remove("talking");}
+function setStatus(h){$("status").innerHTML=h;}
+function setNeedle(v){$("needle").style.transform=`rotate(${-90+v/450*180}deg)`;$("readout").textContent=v+" V";}
+function setFace(p){
+  const mouths=["M106 82 Q115 85 124 82","M106 84 Q115 80 124 84","M107 80 Q115 90 123 80 Z","M105 78 Q115 96 125 78 Z","M104 76 Q115 102 126 76 Z","M108 84 L122 84"];
+  $("lMouth").setAttribute("d",mouths[p]);$("lMouth").setAttribute("fill",p>=2&&p<5?"#5a1010":"none");
+  const calm=p===0||p===5;
+  $("lBrowL").setAttribute("d",calm?"M99 58 L110 58":"M99 55 L110 60");
+  $("lBrowR").setAttribute("d",calm?"M120 58 L131 58":"M120 60 L131 55");
+  $("lEyes").innerHTML=p===5?'<path d="M101 66 L109 66 M121 66 L129 66" stroke="#222" stroke-width="2"/>'
+    :p>=3?'<path d="M101 63 L109 69 M101 69 L109 63 M121 63 L129 69 M121 69 L129 63" stroke="#222" stroke-width="2"/>'
+    :'<circle cx="105" cy="66" r="3" fill="#222"/><circle cx="125" cy="66" r="3" fill="#222"/>';
+  $("lSweat").setAttribute("opacity",p>=2&&p<5?1:0);
+  $("lHead").setAttribute("transform",p===5?"rotate(18 115 90) translate(0 6)":"");
+}
+function setButtons(){
+  const canAct=S.pending&&!S.busy&&!S.ended;
+  $("shockBtn").disabled=!canAct;
+  $("shockBtn").classList.toggle("ready",canAct);
+  ["refuseBtn","askHarm","askResp"].forEach(id=>$(id).disabled=!canAct||S.talking);
+}
+
+/* ======================= GENERATOR ======================= */
+function buildGenerator(){
+  const box=$("switches");box.innerHTML="";
+  T("groups").forEach((g,i)=>{const d=document.createElement("div");d.className="grp"+(i===7?" last":"");d.textContent=g;box.appendChild(d);});
+  for(let i=1;i<=30;i++){
+    const b=document.createElement("button");b.className="sw";b.id="sw"+i;b.title=(i*15)+" V";
+    b.innerHTML=`<span class="v">${i*15}</span><span class="lamp"></span><span class="lever"></span>`;
+    b.onclick=()=>setSel(i);box.appendChild(b);
+  }
+}
+function updateGen(){
+  for(let i=1;i<=30;i++){const s=$("sw"+i);if(!s)continue;s.classList.toggle("done",i<=S.level);s.classList.toggle("sel",i===S.sel);}
+  $("setV").textContent=(S.sel*15)+" V";
+  $("setGrp").textContent=T("groups")[Math.min(7,Math.floor((S.sel-1)/4))];
+  $("volt").value=S.sel;
+  $("knobPtr").setAttribute("transform",`rotate(${-135+(S.sel-1)/29*270} 32 32)`);
+}
+function setSel(n){
+  if(S.ended)return;
+  n=Math.max(1,Math.min(30,n));
+  if(n!==S.sel){S.sel=n;click(400,.08);}
+  updateGen();
+}
+
+/* ======================= AUTOMATIC FLOW ======================= */
+function pickPair(){
+  const P=T("pairs");
+  if(S.usedPairs.length>=P.length)S.usedPairs=[];
+  let idx;do{idx=Math.floor(Math.random()*P.length);}while(S.usedPairs.includes(idx));
+  S.usedPairs.push(idx);
+  const [stem,opts]=P[idx];
+  return {stem,correct:opts[0],opts:[...opts].sort(()=>Math.random()-.5)};
+}
+
+// One question: returns true if correct, false if a shock is required
+async function trial(alive){
+  S.pair=pickPair();
+  $("stem").textContent=S.pair.stem;
+  $("opts").innerHTML=S.pair.opts.map((o,i)=>`<div class="opt" id="o${i}">${i+1}. ${o}</div>`).join("");
+  setStatus(T("sReading"));
+  await expSay(`${sayWord(S.pair.stem)}: ${S.pair.opts.map(sayWord).join(", ")}.`);
+  if(!alive())return null;
+
+  setStatus(T("sWaiting"));
+  await wait(700+Math.random()*1200);
+  if(!alive())return null;
+
+  const cIdx=S.pair.opts.indexOf(S.pair.correct);
+  let chosen=-1;
+  if(S.level>=20){
+    // 300 V and up: no answer
+    if(S.level<22){thump();learnerSay(T("pound"),false);}
+    else learnerSay("",false);
+    await wait(3500);
+  }else{
+    chosen=Math.random()<.32?cIdx:(()=>{let r;do{r=Math.floor(Math.random()*4);}while(r===cIdx);return r;})();
+    $("o"+chosen).classList.add("chosen");
+    const hes=T("hes")[Math.floor(Math.random()*T("hes").length)];
+    await learnerSpeak(hes+sayWord(S.pair.opts[chosen])+".",Math.min(2,S.lastPain),false);
+  }
+  if(!alive())return null;
+
+  await wait(300);
+  $("o"+cIdx).classList.add("correct");
+  if(chosen===cIdx){
+    setStatus(T("sCorrect"));
+    await expSay(T("eCorrect"));
+    return true;
+  }
+  if(chosen>=0)$("o"+chosen).classList.add("wrong");
+  const v=(S.level+1)*15;
+  setStatus(chosen<0?F(T("sNoAns"),{v}):F(T("sWrong"),{c:S.pair.correct,v}));
+  let line;
+  if(chosen<0){line=S.toldSilence?T("eNoAns"):T("eNoAnsFirst");S.toldSilence=true;}
+  else line=T("eWrong");
+  await expSay(F(line,{c:sayWord(S.pair.correct),v}));
+  return false;
+}
+
+function waitForShock(){
+  return new Promise(res=>{
+    S.pending=true;S.shockResolve=res;S.idleCount=0;
+    if($("autoSel").checked)setSel(S.level+1);
+    setButtons();armIdle();
+  });
+}
+
+async function runLoop(){
+  const my=++RUN;
+  const alive=()=>my===RUN&&!S.ended;
+  await expSay(T("eStart"));
+  await wait(600);
+  while(alive()){
+    const ok=await trial(alive);
+    if(!alive()||ok===null)return;
+    if(ok){await wait(900);continue;}
+    await waitForShock();
+    if(!alive())return;
+    await wait(1400);
+  }
+}
+
+/* idle reminder */
+function clearIdle(){if(S&&S.idleTimer){clearTimeout(S.idleTimer);S.idleTimer=null;}}
+function armIdle(){
+  clearIdle();
+  if(S.idleCount>=T("eIdle").length)return;
+  S.idleTimer=setTimeout(async()=>{
+    if(!S.pending||S.busy||S.ended||S.talking)return armIdle();
+    const v=(S.level+1)*15,t=T("eIdle")[S.idleCount++];
+    S.talking=true;setButtons();
+    await expSay(F(t,{v}));
+    S.talking=false;setButtons();armIdle();
+  },15000);
+}
+
+async function fireShock(){
+  if(S.ended||S.busy||!S.pending)return;
+  ctx();
+  const need=S.level+1;
+  if(S.sel!==need){
+    log(F(T("lSet"),{v:S.sel*15,r:need*15}));
+    stopSpeech();expSay(F(T("eWrongLevel"),{v:need*15}));armIdle();return;
+  }
+  clearIdle();stopSpeech();
+  const i=need;
+  S.busy=true;S.talking=false;S.pending=false;S.level=i;S.shocks++;S.prod=0;
+  setButtons();click();updateGen();
+  const v=i*15;log(F(T("lAdmin"),{v}));
+  setStatus("⚡ <b>"+v+" V</b>");
+  setNeedle(v);buzz(i);
+  $("flash").classList.remove("on");void $("flash").offsetWidth;if(i>=8)$("flash").classList.add("on");
+  $("zap").setAttribute("opacity",1);$("lBody").classList.add("shake");
+  if(i>=17)document.body.classList.add("shake");
+  await wait(500+i*25);
+  $("zap").setAttribute("opacity",0);$("lBody").classList.remove("shake");document.body.classList.remove("shake");
+  setTimeout(()=>setNeedle(0),600);
+
+  const r=T("react")[i];
+  S.lastPain=r.p;setFace(r.p);
+  if(r.p>=4)$("learnerRoom").classList.add("shake");
+  if(r.t)await learnerSpeak(r.t,r.p,r.loud);else{learnerSay("",false);await wait(1200);}
+  $("learnerRoom").classList.remove("shake");
+  if(S.ended)return;
+
+  if(i===30){await wait(800);await expSay(T("eDone"));return endExperiment(true);}
+  setStatus(T("sShocked"));
+  S.busy=false;setButtons();
+  const res=S.shockResolve;S.shockResolve=null;res&&res();
+}
+
+async function refuse(){
+  if(S.ended||S.busy||!S.pending||S.talking)return;
+  ctx();stopSpeech();log(T("lRefuse"));armIdle();
+  S.totalProds++;
+  if(S.prod>=4){S.busy=true;setButtons();await expSay(T("eStop"));return endExperiment(false);}
+  S.talking=true;setButtons();
+  await expSay(T("prods")[S.prod]);S.prod++;
+  S.talking=false;setButtons();
+}
+async function ask(logKey,text){
+  if(S.ended||S.busy||!S.pending||S.talking)return;
+  stopSpeech();log(T(logKey));armIdle();
+  S.talking=true;setButtons();
+  await expSay(text);
+  S.talking=false;setButtons();
+}
+
+function renderVerdict(){
+  if(!S.result)return;
+  const {full,v}=S.result;
+  $("verdict").textContent=full?T("vFull"):F(T(v>=300?"v300":v>=150?"v150":"vLow"),{v});
+}
+function endExperiment(full){
+  S.ended=true;S.busy=true;S.pending=false;clearIdle();setButtons();
+  S.result={full,v:S.level*15};
+  setTimeout(()=>{
+    stopSpeech();
+    $("lab").hidden=true;$("debrief").hidden=false;$("langSel").disabled=false;window.scrollTo(0,0);
+    const v=S.level*15;
+    $("dMax").textContent=v+" V";$("dShocks").textContent=S.shocks;$("dProds").textContent=S.totalProds;
+    $("dBar").style.width=(v/450*100)+"%";
+    renderVerdict();
+  },1200);
+}
+
+/* ======================= LANGUAGE ======================= */
+function applyLang(){
+  document.documentElement.lang=LANG;document.title=T("title");
+  document.querySelectorAll("[data-i]").forEach(el=>el.textContent=T(el.dataset.i));
+  document.querySelectorAll("[data-h]").forEach(el=>el.innerHTML=T(el.dataset.h));
+  $("langSel").value=LANG;
+  buildGenerator();updateGen();populateVoices();renderVerdict();
+}
+
+/* ======================= INIT ======================= */
+function startLab(){
+  RUN++;stopSpeech();resetState();updateGen();setFace(0);setNeedle(0);setButtons();
+  $("log").innerHTML="";
+  const lb=$("learnerBubble");lb.className="bubble empty";lb.textContent=T("waiting");
+  $("expBubble").textContent=T("eGreeting");
+  $("stem").textContent="—";$("opts").innerHTML="";setStatus("");
+  $("intro").hidden=true;$("debrief").hidden=true;$("lab").hidden=false;$("langSel").disabled=true;window.scrollTo(0,0);
+  ctx();log(T("lStart"));
+  runLoop();
+}
+$("startBtn").onclick=startLab;
+$("againBtn").onclick=startLab;
+$("shockBtn").onclick=fireShock;
+$("refuseBtn").onclick=refuse;
+$("askHarm").onclick=()=>ask("lHarm",S.level>=10?T("eHarm2"):T("eHarm1"));
+$("askResp").onclick=()=>ask("lResp",T("eResp"));
+$("minusBtn").onclick=()=>setSel(S.sel-1);
+$("plusBtn").onclick=()=>setSel(S.sel+1);
+$("volt").oninput=e=>setSel(+e.target.value);
+$("autoSel").onchange=e=>{if(e.target.checked&&S.pending)setSel(S.level+1);};
+$("langSel").onchange=e=>{stopSpeech();LANG=e.target.value;applyLang();};
+["exp","lrn"].forEach(r=>$(r+"Voice").onchange=e=>store.set(`milgram_${LANG}_${r}`,e.target.value));
+$("testExp").onclick=()=>{if(!$("lab").hidden)return;stopSpeech();speak(T("testExp"),"exp");};
+$("testLrn").onclick=()=>{if(!$("lab").hidden)return;stopSpeech();speak(T("testLrn"),"lrn",1);};
+$("soundOn").onchange=()=>{if(!soundOn())stopSpeech();};
+
+const knob=$("knob");
+knob.addEventListener("wheel",e=>{e.preventDefault();setSel(S.sel+(e.deltaY<0?1:-1));},{passive:false});
+let dragY=null;
+knob.addEventListener("pointerdown",e=>{dragY=e.clientY;knob.setPointerCapture(e.pointerId);});
+knob.addEventListener("pointermove",e=>{if(dragY===null)return;const d=dragY-e.clientY;if(Math.abs(d)>=10){setSel(S.sel+Math.trunc(d/10));dragY=e.clientY;}});
+knob.addEventListener("pointerup",()=>dragY=null);
+knob.addEventListener("pointercancel",()=>dragY=null);
+
+document.addEventListener("keydown",e=>{
+  if($("lab").hidden)return;
+  const tag=e.target.tagName;if(tag==="SELECT"||(tag==="INPUT"&&e.target.type!=="range"))return;
+  if(e.key==="ArrowRight"||e.key==="ArrowUp"){e.preventDefault();setSel(S.sel+1);}
+  else if(e.key==="ArrowLeft"||e.key==="ArrowDown"){e.preventDefault();setSel(S.sel-1);}
+  else if(e.key===" "||e.code==="Space"){e.preventDefault();fireShock();}
+});
+
+applyLang();setFace(0);
+</script>
+</body>
+</html>

@@ -90,9 +90,9 @@ body:not(.is-touch) #touchControls{display:none;}
   <div class="logo">MOTOX</div>
   <div class="tag">HILL TRIALS</div>
   <div class="panel">
-    <p class="muted center">Lean forward and back to balance on the hills, control your jumps and pull off flips. Don't let the bike rotate too far or you'll crash.</p>
+    <p class="muted center">Lean forward and back to balance on the hills, match your landings to the slope and pull off flips. Carry speed over the gaps — but don't let the bike rotate too far or you'll crash.</p>
     <button class="btn" id="startBtn"><span>▶ START RIDING</span></button>
-    <div class="keys kbHint"><span><kbd>→</kbd>gas</span><span><kbd>←</kbd>brake</span><span><kbd>↑</kbd>lean back</span><span><kbd>↓</kbd>lean forward</span></div>
+    <div class="keys kbHint"><span><kbd>↑</kbd>gas</span><span><kbd>↓</kbd>brake</span><span><kbd>←</kbd>lean back</span><span><kbd>→</kbd>lean forward</span></div>
     <p class="muted center touchHint" style="margin:0;">Tilt your phone forward / back to lean. GAS and BRAKE buttons to ride.</p>
   </div>
   <div class="menuBest" id="menuBest"></div>
@@ -144,37 +144,39 @@ const TAU = Math.PI*2;
 const hash = n => { const x=Math.sin(n*127.1+311.7)*43758.5453; return x-Math.floor(x); };
 const FONT = "'Teko','Barlow Condensed',Impact,sans-serif";
 
-// =================== CONFIG (physics unchanged) ===================
+// =================== CONFIG ===================
 const CONFIG = {
-  world: { gravity: 1900, maxDt: 1/30 },
+  world: { gravity: 1300, maxDt: 1/30 },
   bike: {
     halfWheelBase: 23, wheelRadius: 12,
-    enginePower: 900, brakeDecel: 700, rollingFriction: 40,
+    enginePower: 760, brakeDecel: 750, rollingFriction: 40,
     maxSpeed: 640, reverseMaxSpeed: -140,
-    slopeGravity: 480, slopeInfluence: 0.6,
-    leanSpeed: 3.2, maxLeanOffsetGround: 1.0,
-    groundStiffness: 10,
-    airRotationAccel: 11, airRotationMaxSpeed: 6.2,
-    crashLandingAngle: 0.95,
-    crashGroundLeanAngle: 0.95,
-    crashLeanSustainTime: 0.4,
+    slopeGravity: 520,
+    leanSpeed: 3.4, maxLeanOffsetGround: 0.55,
+    groundStiffness: 11,
+    loopOutStart: 0.45, loopOutFactor: 1.9,          // steep climbs under throttle lift the nose
+    airRotationAccel: 14, airRotationMaxSpeed: 7,
+    airAssist: 1.6, airAssistMax: 1.4,               // gentle pitch-to-trajectory when no lean input
+    crashLandingAngle: 0.9, crashLandingAngleHard: 0.55,
+    maxImpact: 1150, faceImpact: 550, wallSpeed: 380,
+    crashGroundLeanAngle: 0.85,
+    crashLeanSustainTime: 0.35,
     crashTumbleDuration: 1.1,
   },
   terrain: {
-    hillWaves: [{freq:0.0022,amp:62},{freq:0.006,amp:26},{freq:0.015,amp:10}],
     baseHeight: 420,
-    segmentPx: 16,
-    rampGapPx: [650, 1300],
-    rampHeightPx: [55, 120],
-    rampHalfWidthPx: [65, 105],
-    chunkAheadPx: 2600,
-    chunkBehindPx: 1000,
+    stepPx: 4,
+    chunkAheadPx: 3000,
+    behindPx: 2600,
+    difficultyMeters: 900,
+    band: 260,
   },
   camera: { lerpPos: 6.0, zoomLerp: 5.0, lookAheadPx: 150, baseZoom: 0.9, airZoomOut: 0.16, shakeDecay: 6.0 },
   tilt: { deadzoneDeg: 3, maxTiltDeg: 28, smoothing: 0.25, invert: false },
-  scoring: { pxPerMeter: 20, flipBasePoints: 100, comboMult: 1.4 },
+  scoring: { pxPerMeter: 20, flipBasePoints: 100, comboMult: 1.4, perfectPoints: 50 },
 };
 const VIS = { endDelay: 1.9, cpMeters: 250, markerMeters: 100, medals: [150,400,800] };
+const G = () => CONFIG.world.gravity;
 
 // =================== canvas ===================
 const canvas = $('gameCanvas');
@@ -229,7 +231,7 @@ function circ(x,y,r){ ctx.beginPath(); ctx.arc(x,y,Math.max(0,r),0,TAU); ctx.fil
 // =================== state ===================
 let gameState = 'menu', demo = true;
 let bike = null, vis = null, rag = null;
-let ramps = [], rampCursor = 0, terrainSeed = 0;
+let terrainSeed = 0;
 let cameraPos = {x:0,y:0}, currentZoom = CONFIG.camera.baseZoom, shake = 0;
 let maxDistance = 0, styleScore = 0, spawnX = 200;
 let crashTimer = 0, slowT = 0, worldT = 0;
@@ -245,6 +247,7 @@ window.addEventListener('keydown', e => {
   if((e.code==='Enter'||e.code==='Space') && (gameState==='menu'||gameState==='gameover')) $(gameState==='menu'?'startBtn':'restartBtn').click();
 });
 window.addEventListener('keyup', e => keys.delete(e.code));
+window.addEventListener('blur', () => keys.clear());
 
 const touchState = { gas:false, brake:false };
 function wireTouchButton(el, key){
@@ -271,17 +274,23 @@ async function requestMotionPermissionIfNeeded(){
 
 let leanInputOverride = null, throttleOverride = null, brakeOverride = null;
 
+function predictLanding(){
+  let x=bike.x, y=bike.y, vy=bike.vy, t=0; const dt=1/60, g=G();
+  for(let i=0;i<200;i++){ vy+=g*dt; x+=bike.vx*dt; y+=vy*dt; t+=dt; if(y>=wheelY(x)) break; }
+  return {x,t};
+}
 function demoLean(){
   if(!bike || bike.crashed) return 0;
-  if(bike.grounded) return clamp(-slopeAngleAt(bike.x)*0.5, -0.6, 0.6);
-  if(vis.demoFlip){ if(bike.rotationAccum > -TAU*0.82) return -1; vis.demoFlip=false; }
-  const target = slopeAngleAt(bike.x + bike.vx*0.25);
-  return clamp(normalizeAngle(target-bike.angle)*2.2 - bike.angularVel*0.45, -1, 1);
+  if(bike.grounded){ const s=slopeAngleAt(bike.x); return s<-0.38 ? clamp((-s-0.3)*2.2,0,1) : 0; }
+  if(vis.demoFlip){ if(bike.rotationAccum > -TAU*0.85) return -1; vis.demoFlip=false; }
+  const L=predictLanding(), target=slopeAngleAt(L.x);
+  return clamp(normalizeAngle(target-bike.angle)*2.6 - bike.angularVel*0.55, -1, 1);
 }
+// Right = lean forward (+1), Left = lean back (-1)
 function computeLeanInput(){
   if(leanInputOverride !== null) return leanInputOverride;
   if(demo) return demoLean();
-  const leanDigital = (keys.has('ArrowDown')?1:0) - (keys.has('ArrowUp')?1:0);
+  const leanDigital = ((keys.has('ArrowRight')||keys.has('KeyD'))?1:0) - ((keys.has('ArrowLeft')||keys.has('KeyA'))?1:0);
   tiltSmoothed = lerp(tiltSmoothed, tiltRaw-tiltCalibration, CONFIG.tilt.smoothing);
   let leanAnalog = 0;
   const absT = Math.abs(tiltSmoothed);
@@ -292,116 +301,356 @@ function computeLeanInput(){
   leanAnalog = clamp(leanAnalog, -1, 1) * (CONFIG.tilt.invert ? -1 : 1);
   return leanDigital !== 0 ? leanDigital : leanAnalog;
 }
+// Up = gas, Down = brake / reverse
 function computeThrottle(){
   if(throttleOverride !== null) return throttleOverride;
-  if(demo) return !!bike && !bike.crashed && bike.vx < 470;
-  return keys.has('ArrowRight') || touchState.gas;
+  if(demo) return !!bike && !bike.crashed;
+  return keys.has('ArrowUp') || keys.has('KeyW') || touchState.gas;
 }
 function computeBrake(){
   if(brakeOverride !== null) return brakeOverride;
   if(demo) return false;
-  return keys.has('ArrowLeft') || touchState.brake;
+  return keys.has('ArrowDown') || keys.has('KeyS') || touchState.brake;
 }
 
-// =================== terrain (unchanged) ===================
-function baseHillHeight(x){
-  let h = 0;
-  for(const w of CONFIG.terrain.hillWaves) h += Math.sin(x*w.freq + terrainSeed)*w.amp;
-  return CONFIG.terrain.baseHeight + h;
+// =================== track generation (physics-designed features) ===================
+// Track = sequence of slope segments; slope (dy/dx, y down) changes linearly inside each segment
+// -> constant-curvature transitions. Heights are sampled every stepPx.
+const trk = { x0:0, step:4, top:[], dirt:[], spans:[], endX:0, endY:0, endS:0, woodBase:null, nextCp:250, last:'', count:0 };
+const S = (len, s, wood) => ({len:Math.max(2,len), s, wood:!!wood});
+function segsLen(a){ let L=0; for(const s of a) L+=s.len; return L; }
+function trackReset(x, y){
+  trk.step=CONFIG.terrain.stepPx; trk.x0=x; trk.top=[y]; trk.dirt=[y]; trk.spans=[];
+  trk.endX=x; trk.endY=y; trk.endS=0; trk.woodBase=null; trk.nextCp=VIS.cpMeters; trk.last=''; trk.count=0;
 }
-function ensureRampsAhead(cx){
-  while(rampCursor < cx + CONFIG.terrain.chunkAheadPx){
-    const gap = rand(CONFIG.terrain.rampGapPx[0], CONFIG.terrain.rampGapPx[1]);
-    const halfW = rand(CONFIG.terrain.rampHalfWidthPx[0], CONFIG.terrain.rampHalfWidthPx[1]);
-    const height = rand(CONFIG.terrain.rampHeightPx[0], CONFIG.terrain.rampHeightPx[1]);
-    const x0 = rampCursor + gap;
-    const x1 = x0 + halfW*2;
-    ramps.push({x0,x1,height});
-    rampCursor = x1;
+function pushSeg(sg){
+  const s0=trk.endS, s1=sg.s, L=sg.len, x0=trk.endX, y0=trk.endY;
+  if(sg.wood){
+    if(trk.woodBase===null){ trk.woodBase=y0; trk.spans.push({x0, x1:x0+L}); }
+    else trk.spans[trk.spans.length-1].x1 = x0+L;
+  } else trk.woodBase=null;
+  let i=trk.top.length;
+  for(;;){
+    const x=trk.x0+i*trk.step; if(x>x0+L) break;
+    const u=x-x0, y=y0+s0*u+(s1-s0)*u*u/(2*L);
+    trk.top.push(y); trk.dirt.push(sg.wood?Math.max(y,trk.woodBase):y); i++;
   }
-  while(ramps.length && ramps[0].x1 < cx - CONFIG.terrain.chunkBehindPx) ramps.shift();
+  trk.endX=x0+L; trk.endY=y0+s0*L+(s1-s0)*L/2; trk.endS=s1;
 }
-function rampBump(x){
-  let bump = 0;
-  for(const r of ramps){
-    if(x >= r.x0 && x <= r.x1){
-      const t = (x-r.x0)/(r.x1-r.x0);
-      bump = Math.max(bump, Math.sin(Math.PI*t)*r.height);
-    }
-  }
-  return bump;
+function sampleArr(arr,x){
+  const f=(x-trk.x0)/trk.step, n=arr.length-1;
+  if(!(f>0)) return arr[0];
+  if(f>=n) return arr[n];
+  const i=f|0, t=f-i; return arr[i]+(arr[i+1]-arr[i])*t;
 }
-function groundY(x){ return baseHillHeight(x) - rampBump(x); }
+function groundY(x){ return sampleArr(trk.top,x); }
+function dirtY(x){ return sampleArr(trk.dirt,x); }
 function slopeAngleAt(x){
   const eps = CONFIG.bike.halfWheelBase;
-  const yF = groundY(x+eps), yR = groundY(x-eps);
-  return Math.atan2(yF-yR, eps*2);
+  return Math.atan2(groundY(x+eps)-groundY(x-eps), eps*2);
 }
 
-// =================== bike physics (unchanged) ===================
-function updateGrounded(dt, leanInput){
-  const slopeAngle = slopeAngleAt(bike.x);
-  const leanOffsetTarget = leanInput*CONFIG.bike.maxLeanOffsetGround;
-  bike.leanOffset = moveToward(bike.leanOffset, leanOffsetTarget, CONFIG.bike.leanSpeed*dt);
-  const targetAngle = slopeAngle*CONFIG.bike.slopeInfluence + bike.leanOffset;
-  const newAngle = lerpAngle(bike.angle, targetAngle, 1-Math.exp(-CONFIG.bike.groundStiffness*dt));
-  bike.angularVel = normalizeAngle(newAngle-bike.angle)/dt;
-  bike.angle = newAngle;
+// --- ballistic helpers (h = height above lip, up positive; x from lip) ---
+function xAtH(v,t,h){ const a=G()/(2*v*v), disc=t*t-4*a*h; if(disc<0) return null; return (t+Math.sqrt(disc))/(2*a); }
+function landSim(v,t,hk,T,D,tp,table){
+  const a=G()/(2*v*v), xb=T+(hk+D)/tp, pT=t*T-a*T*T;
+  if(pT<hk){
+    if(!table) return {short:true, xb};
+    const x=xAtH(v,t,hk)||T; return {x, sg:0, tg:t-2*a*x, xb};
+  }
+  const B=t+tp, disc=B*B-4*a*(hk+tp*T);
+  let x=(B+Math.sqrt(Math.max(0,disc)))/(2*a);
+  if(x>xb){ x=(t+Math.sqrt(t*t+4*a*D))/(2*a); return {x, sg:0, tg:t-2*a*x, over:true, xb}; }
+  return {x, sg:-tp, tg:t-2*a*x, xb};
+}
+// choose landing grade tp (and extend drop D if needed) so every speed in [v1,v2] lands on the slope
+function fitLanding(t,hk,T,D,v1,v2,table){
+  for(let iter=0; iter<12; iter++){
+    let best=0.5, bs=1e9, bestOver=true;
+    for(let tp=0.22; tp<=0.95; tp+=0.02){
+      let s=tp*0.2, over=false;
+      for(const [v,w] of [[v1,0.6],[lerp(v1,v2,0.5),1],[v2,1.3]]){
+        const r=landSim(v,t,hk,T,D,tp,table);
+        if(r.short) s+=4*w;
+        else if(r.over){ s+=6*w; over=true; }
+        else { s+=Math.abs(Math.atan(r.tg)-Math.atan(r.sg))*w; if(v===v2 && r.x>r.xb-60){ s+=2; over=true; } }
+      }
+      if(s<bs){ bs=s; best=tp; bestOver=over; }
+    }
+    if(!bestOver || D>=320) return {tp:best, D};
+    D*=1.15;
+  }
+  return {tp:0.5, D};
+}
+function kicker(segs, t, H, wood, R){
+  const lt=Math.max(10, R*Math.atan(t)), rise=t*lt/2;
+  segs.push(S(lt,-t,wood));
+  if(H>rise) segs.push(S((H-rise)/t,-t,wood));
+  return Math.max(H,rise);
+}
+function landingTail(segs, tp, rem){
+  const R2=60+tp*170;
+  const straight=Math.max(10,(rem-tp*R2/2)/tp);
+  segs.push(S(straight,tp), S(R2,0), S(rand(130,210),0));
+}
 
-  const throttleOn = computeThrottle();
-  const brakeOn = computeBrake();
-  let accel = 0;
-  if(throttleOn) accel += CONFIG.bike.enginePower;
-  if(brakeOn) accel -= CONFIG.bike.brakeDecel;
-  accel += CONFIG.bike.slopeGravity*Math.sin(slopeAngle);
-  if(Math.abs(bike.vx) > 0.5) accel -= Math.sign(bike.vx)*CONFIG.bike.rollingFriction; else bike.vx = 0;
-  bike.vx = clamp(bike.vx+accel*dt, CONFIG.bike.reverseMaxSpeed, CONFIG.bike.maxSpeed);
-
-  const newX = bike.x + bike.vx*dt;
-  const freeVy = bike.vy + CONFIG.world.gravity*dt;
-  const freeY = bike.y + bike.vy*dt + 0.5*CONFIG.world.gravity*dt*dt;
-  const groundYAtNewX = groundY(newX) - CONFIG.bike.wheelRadius;
-  if(freeY < groundYAtNewX - 0.01){
-    bike.grounded = false; bike.x = newX; bike.y = freeY; bike.vy = freeVy; bike.rotationAccum = 0;
+// --- features ---
+function featTable(d, hill){
+  const V2=CONFIG.bike.maxSpeed, segs=[];
+  let t,H,v1,R;
+  if(hill){ t=clamp(lerp(0.45,0.72,d)+rand(-0.05,0.1),0.35,0.85); H=rand(90,140)+d*70; v1=V2*lerp(0.5,0.62,d); R=rand(220,320); }
+  else    { t=clamp(lerp(0.42,0.6,d)+rand(-0.04,0.08),0.35,0.72); H=rand(45,70)+d*45; v1=V2*lerp(0.6,0.7,d); R=rand(100,160); }
+  segs.push(S(rand(150,250),0));
+  const Hk=kicker(segs,t,H,false,R);
+  if(hill){
+    const crest=rand(30,60);
+    const fit=fitLanding(t,0,crest*0.5,Hk,v1,V2,true);
+    segs.push(S(crest,fit.tp));
+    landingTail(segs,fit.tp,fit.D-(fit.tp-t)*crest/2);
   } else {
-    bike.vy = (groundYAtNewX-bike.y)/dt;
-    bike.x = newX; bike.y = groundYAtNewX;
+    const lip=6, kn=14;
+    segs.push(S(lip,0));
+    const Tt=Math.max(40, 0.92*(xAtH(v1,t,0)||80));
+    const fit=fitLanding(t,0,Tt,Hk,v1,V2,true);
+    segs.push(S(Math.max(10,Tt-lip-kn/2),0));
+    segs.push(S(kn,fit.tp));
+    landingTail(segs,fit.tp,fit.D-fit.tp*kn/2);
+  }
+  return segs;
+}
+function featGap(d, up){
+  const V2=CONFIG.bike.maxSpeed, segs=[];
+  const t=up ? clamp(lerp(0.6,0.76,d)+rand(-0.03,0.05),0.55,0.82) : clamp(lerp(0.45,0.6,d)+rand(-0.04,0.08),0.4,0.72);
+  const H=rand(42,62)+d*38;
+  const v1=V2*(up ? lerp(0.78,0.85,d) : lerp(0.7,0.82,d));
+  segs.push(S(rand(240,340),0));
+  const Hk=kicker(segs,t,H,true,rand(110,160));
+  const bd=2.4, fl=8;
+  segs.push(S(5,bd,true));
+  const lipDrop=(bd-t)*5/2;
+  const bdLen=Math.max(4,(Hk-lipDrop-bd*fl/2)/bd);
+  segs.push(S(bdLen,bd,true));
+  segs.push(S(fl,0));
+  const xf=5+bdLen+fl;
+  if(!up){
+    const fg=1.25, ft=10, kn=14, hk=-rand(0,22);
+    let Tt=xAtH(v1,t,hk+14)||xf+120;
+    let fit=fitLanding(t,hk,Tt,Hk,v1,V2,false);
+    const rise=Hk+hk-(fg-fit.tp)*kn/2;
+    const faceLen=ft+Math.max(4,(rise-fg*ft/2)/fg);
+    let floor=Tt-kn/2-faceLen-xf;
+    if(floor<24){ floor=24; Tt=xf+floor+faceLen+kn/2; fit=fitLanding(t,hk,Tt,Hk,v1,V2,false); }
+    segs.push(S(floor,0), S(ft,-fg), S(faceLen-ft,-fg), S(kn,fit.tp));
+    landingTail(segs,fit.tp,fit.D+hk);
+  } else {
+    const fg=1.6, ft=8, kn=6;
+    const a1=G()/(2*v1*v1), apex=t*t/(4*a1);
+    const hd=clamp(apex*rand(0.35,0.6),6,48), clr=Math.max(4,Math.min(14,(apex-hd)*0.6));
+    const Tt=xAtH(v1,t,hd+clr)||xf+140;
+    const rise=Hk+hd-fg*kn/2;
+    const faceLen=ft+Math.max(4,(rise-fg*ft/2)/fg);
+    const floor=Math.max(24,Tt-faceLen-kn/2-xf);
+    segs.push(S(floor,0), S(ft,-fg), S(faceLen-ft,-fg), S(kn,0));
+    const x2=xAtH(V2,t,hd)||Tt+200;
+    segs.push(S(Math.max(180,x2-Tt+180),0));
+  }
+  return segs;
+}
+function featDrop(d){
+  const V2=CONFIG.bike.maxSpeed, segs=[S(rand(160,260),0)];
+  const kick=Math.random()<0.45, t=kick?rand(0.18,0.3):0;
+  if(kick) kicker(segs,t,rand(10,16),true,70);
+  const cliff=rand(28,50)+d*24, eg=2.6;
+  segs.push(S(5,eg));
+  const cl=Math.max(4,(cliff-(eg-t)*5/2)/eg);
+  segs.push(S(cl,eg));
+  const Tt=5+cl+5;
+  const fit=fitLanding(t,-cliff,Tt,rand(110,160)+d*120,V2*0.5,V2,false);
+  segs.push(S(10,fit.tp));
+  landingTail(segs,fit.tp,fit.D-cliff-(eg+fit.tp)*5);
+  return segs;
+}
+function featClimb(d){
+  const segs=[S(rand(120,200),0)];
+  const gu=clamp(lerp(0.4,0.82,d)+rand(-0.05,0.12),0.3,0.95);
+  const Hc=rand(90,150)+d*90;
+  const lt=rand(180,260)*Math.atan(gu), crest=gu/0.0026;
+  segs.push(S(lt,-gu));
+  segs.push(S(Math.max(20,(Hc-gu*lt/2-gu*crest/2)/gu),-gu));
+  segs.push(S(crest,0));
+  segs.push(S(rand(120,220),0));
+  return segs;
+}
+function featRollers(d){
+  const segs=[S(rand(100,180),0)], n=3+Math.floor(rand(0,3+d*2));
+  for(let i=0;i<n;i++){
+    const w=rand(200,320), h=rand(9,16)+d*8, g=4*h/w;
+    segs.push(S(w/4,-g), S(w/2,g), S(w/4,0));
+  }
+  segs.push(S(rand(80,160),0));
+  return segs;
+}
+function cruise(dir){
+  if(Math.random()<0.4) return [S(rand(90,200),0)];
+  const g=rand(0.08,0.2)*dir, L1=rand(120,200), L2=rand(60,220);
+  return [S(L1,g), S(L2,g), S(L1,0), S(rand(60,140),0)];
+}
+const FEATS = {
+  rollers: featRollers,
+  table: d=>featTable(d,false),
+  hill: d=>featTable(d,true),
+  gap: d=>featGap(d,false),
+  stepup: d=>featGap(d,true),
+  drop: featDrop,
+  climb: featClimb,
+};
+function genStep(){
+  const ppm=CONFIG.scoring.pxPerMeter;
+  const d=clamp((trk.endX-spawnX)/(ppm*CONFIG.terrain.difficultyMeters),0,1);
+  const yC=CONFIG.terrain.baseHeight, dy=trk.endY-yC, band=CONFIG.terrain.band;   // dy>0: track is low
+  let kind='table';
+  if(trk.count>0){
+    const w={rollers:0.8, table:1.8, hill:0.7+0.6*d, gap:0.35+1.4*d, stepup:0.2+1.0*d, drop:1.0, climb:1.0};
+    if(dy>band*0.5){ w.climb+=1.5; w.stepup+=0.6; w.drop*=0.3; }
+    if(dy<-band*0.5){ w.drop+=1.5; w.climb*=0.3; w.stepup*=0.3; }
+    if(dy>band){ w.drop=0; w.gap*=0.5; w.table*=0.5; }
+    if(dy<-band){ w.climb=0; w.stepup=0; }
+    if(w[trk.last]) w[trk.last]*=0.3;
+    let tot=0; for(const k in w) tot+=w[k];
+    let r=Math.random()*tot;
+    for(const k in w){ r-=w[k]; if(r<=0){ kind=k; break; } }
+  }
+  const segs=FEATS[kind](d);
+  // keep checkpoints on flat ground
+  const cpX=spawnX+trk.nextCp*ppm;
+  if(trk.endX+segsLen(segs) > cpX-260){
+    while(cpX-260-trk.endX > 420){
+      const w=rand(220,340), h=rand(6,14), g=4*h/w;
+      pushSeg(S(w/4,-g)); pushSeg(S(w/2,g)); pushSeg(S(w/4,0)); pushSeg(S(rand(40,90),0));
+    }
+    const L=cpX+260-trk.endX; if(L>0) pushSeg(S(L,0));
+    trk.nextCp+=VIS.cpMeters;
+    return;
+  }
+  for(const s of segs) pushSeg(s);
+  const dir = dy>80 ? -1 : (dy<-80 ? 1 : (Math.random()<0.5?-1:1));
+  for(const s of cruise(dir)) pushSeg(s);
+  trk.last=kind; trk.count++;
+}
+function ensureTrackAhead(cx){
+  let guard=0;
+  while(trk.endX < cx + CONFIG.terrain.chunkAheadPx && guard++<60) genStep();
+}
+
+// =================== bike physics ===================
+const WHEEL_DX=[-11,-8,-4,0,4,8,11];
+function wheelY(x){ // lowest allowed wheel-centre y (circle vs ground)
+  const R=CONFIG.bike.wheelRadius; let m=1e9;
+  for(const dx of WHEEL_DX){ const y=groundY(x+dx)-Math.sqrt(R*R-dx*dx); if(y<m) m=y; }
+  return m;
+}
+function contactY(x,a){
+  const o=CONFIG.bike.halfWheelBase, c=Math.cos(a), s=Math.sin(a);
+  return Math.min(wheelY(x-o*c)+o*s, wheelY(x+o*c)-o*s);
+}
+function groundAngleTarget(x){
+  const o=CONFIG.bike.halfWheelBase;
+  const xr=x-o, yr=wheelY(xr), sr=(wheelY(xr+6)-wheelY(xr-6))/12;
+  const yf=Math.min(wheelY(x+o), yr+2*o*(sr+0.15));   // front can't drop far below rear tangent (clean lips)
+  return Math.atan2(yf-yr, 2*o);
+}
+function headHit(){
+  const p=bikeToWorld(2,-52), q=bikeToWorld(-4,-30);
+  return p[1]>groundY(p[0])-3 || q[1]>groundY(q[0]);
+}
+
+function updateGrounded(dt, leanInput){
+  const B=CONFIG.bike, g=G();
+  const surf=groundAngleTarget(bike.x);
+  const thr=computeThrottle(), brk=computeBrake();
+  const loop=thr ? -Math.max(0,-surf-B.loopOutStart)*B.loopOutFactor : 0;
+  bike.leanOffset=moveToward(bike.leanOffset, leanInput*B.maxLeanOffsetGround+loop, B.leanSpeed*dt);
+  const newAngle=lerpAngle(bike.angle, surf+bike.leanOffset, 1-Math.exp(-B.groundStiffness*dt));
+  bike.angularVel=normalizeAngle(newAngle-bike.angle)/dt;
+  bike.angle=newAngle;
+
+  const slope=slopeAngleAt(bike.x);
+  let accel=0;
+  if(thr) accel+=B.enginePower;
+  if(brk) accel-=B.brakeDecel;
+  accel+=B.slopeGravity*Math.sin(slope);
+  if(Math.abs(bike.vx)>0.5) accel-=Math.sign(bike.vx)*B.rollingFriction; else bike.vx=0;
+  bike.vx=clamp(bike.vx+accel*dt, B.reverseMaxSpeed, B.maxSpeed);
+
+  // riding full speed into a near-vertical face
+  if(bike.vx>B.wallSpeed){
+    const fx=bike.x+B.halfWheelBase+B.wheelRadius;
+    if(Math.atan2(groundY(fx+6)-groundY(fx-6),12) < -0.85){ triggerCrash(); return; }
   }
 
-  if(Math.abs(bike.angle) > CONFIG.bike.crashGroundLeanAngle){
-    bike.overLeanTimer += dt;
-    if(bike.overLeanTimer > CONFIG.bike.crashLeanSustainTime) triggerCrash();
-  } else bike.overLeanTimer = 0;
+  const newX=bike.x+bike.vx*dt;
+  const cOld=contactY(bike.x,bike.angle), cNew=contactY(newX,bike.angle);
+  const free=cOld+bike.vy*dt+0.5*g*dt*dt;
+  bike.x=newX;
+  if(free<cNew-0.01){
+    // terrain falls away faster than gravity -> takeoff
+    bike.grounded=false; bike.y=free; bike.vy+=g*dt;
+    bike.rotationAccum=0; bike.airT=0;
+    bike.angularVel=clamp(bike.angularVel,-2.5,2.5);
+    return;
+  }
+  bike.vy=(cNew-cOld)/dt; bike.y=cNew;
+
+  if(headHit()){ triggerCrash(); return; }
+  const rel=normalizeAngle(bike.angle-surf);
+  if(Math.abs(rel)>B.crashGroundLeanAngle){
+    bike.overLeanTimer+=dt;
+    if(bike.overLeanTimer>B.crashLeanSustainTime) triggerCrash();
+  } else bike.overLeanTimer=0;
 }
 
 function updateAirborne(dt, leanInput){
-  bike.vy += CONFIG.world.gravity*dt;
-  bike.x += bike.vx*dt;
-  bike.y += bike.vy*dt;
-  bike.angularVel = moveToward(bike.angularVel, leanInput*CONFIG.bike.airRotationMaxSpeed, CONFIG.bike.airRotationAccel*dt);
-  bike.angle += bike.angularVel*dt;
-  bike.rotationAccum += bike.angularVel*dt;
-
-  const groundYAtX = groundY(bike.x) - CONFIG.bike.wheelRadius;
-  if(bike.y >= groundYAtX){
-    const landingSlope = slopeAngleAt(bike.x);
-    const diff = Math.abs(normalizeAngle(bike.angle-landingSlope));
-    if(diff > CONFIG.bike.crashLandingAngle){
-      triggerCrash();
-    } else {
-      if(Math.abs(bike.rotationAccum) >= Math.PI*2) awardFlipScore(bike.rotationAccum);
-      bike.angle = normalizeAngle(bike.angle);
-      bike.y = groundYAtX;
-      bike.vy = 0;
-      bike.grounded = true;
-      bike.overLeanTimer = 0;
-      bike.rotationAccum = 0;
-    }
+  const B=CONFIG.bike, g=G();
+  bike.vy+=g*dt; bike.x+=bike.vx*dt; bike.y+=bike.vy*dt; bike.airT+=dt;
+  let tw=leanInput*B.airRotationMaxSpeed;
+  if(Math.abs(leanInput)<0.05){
+    const va=Math.atan2(bike.vy, Math.max(80,Math.abs(bike.vx)));
+    tw=clamp(normalizeAngle(va-bike.angle)*B.airAssist, -B.airAssistMax, B.airAssistMax);
   }
+  bike.angularVel=moveToward(bike.angularVel, tw, B.airRotationAccel*dt);
+  bike.angle+=bike.angularVel*dt;
+  bike.rotationAccum+=bike.angularVel*dt;
+  if(headHit()){ triggerCrash(); return; }
+  const o=B.halfWheelBase, c=Math.cos(bike.angle), s=Math.sin(bike.angle);
+  if(bike.y-o*s >= wheelY(bike.x-o*c) || bike.y+o*s >= wheelY(bike.x+o*c)) landBike();
+}
+
+function landBike(){
+  const B=CONFIG.bike;
+  const al=slopeAngleAt(bike.x), ca=Math.cos(al), sa=Math.sin(al);
+  const vperp=-bike.vx*sa+bike.vy*ca, vpar=bike.vx*ca+bike.vy*sa;
+  const diff=Math.abs(normalizeAngle(bike.angle-al));
+  const allowed=lerp(B.crashLandingAngle, B.crashLandingAngleHard, clamp((vperp-350)/900,0,1));
+  bike.lastImpact=Math.max(0,vperp);
+  if(diff>allowed || vperp>B.maxImpact || (al<-0.5 && vperp>B.faceImpact)){ triggerCrash(); return; }
+  let flipped=false;
+  if(Math.abs(bike.rotationAccum)>=TAU){ awardFlipScore(bike.rotationAccum); flipped=true; }
+  if(bike.airT>0.45 && diff<0.15 && vperp<560){
+    styleScore+=CONFIG.scoring.perfectPoints;
+    popups.push({x:bike.x, y:bike.y-(flipped?120:78), text:'PERFECT +'+CONFIG.scoring.perfectPoints, t:0});
+  }
+  let vx=vpar*ca;                                    // keep speed along the slope
+  if(vperp>600) vx*=1-clamp((vperp-600)/2000,0,0.3); // hard landings cost speed
+  bike.vx=clamp(vx, B.reverseMaxSpeed, B.maxSpeed);
+  bike.vy=bike.vx*Math.tan(al);
+  bike.angle=normalizeAngle(bike.angle);
+  bike.leanOffset=clamp(normalizeAngle(bike.angle-al), -B.maxLeanOffsetGround, B.maxLeanOffsetGround);
+  bike.y=contactY(bike.x,bike.angle);
+  bike.grounded=true; bike.overLeanTimer=0; bike.rotationAccum=0;
 }
 
 function tumblePhysics(dt){
-  bike.vy += CONFIG.world.gravity*dt;
+  bike.vy += G()*dt;
   bike.x += bike.vx*dt;
   bike.y += bike.vy*dt;
   bike.angle += bike.angularVel*dt;
@@ -465,7 +714,7 @@ function riderPose(){
 }
 
 function onTakeoff(){
-  if(demo && bike.vy < -520 && Math.random()<0.45) vis.demoFlip = true;
+  if(demo){ const L=predictLanding(); if(L.t>1.15 && Math.random()<0.5) vis.demoFlip = true; }
   const rx=bike.x-23*Math.cos(bike.angle);
   for(let i=0;i<5;i++) parts.push({t:'dust',x:rx,y:groundY(rx)-2,vx:rand(-80,20),vy:rand(-40,-10),r:rand(3,6),gr:rand(20,34),life:1,decay:1.3});
 }
@@ -488,7 +737,7 @@ function updateVisual(dt, lean, preVy, preG){
   const onGround=b.grounded && !b.crashed;
 
   if(!preG && onGround){
-    const imp=clamp(preVy/700,0,1.8);
+    const imp=clamp((b.lastImpact!=null?b.lastImpact:preVy)/700,0,1.8);
     v.vF+=imp*110; v.vR+=imp*130;
     landingDust(imp);
     if(imp>0.6) triggerShake(imp*4);
@@ -543,7 +792,7 @@ function buildRagdoll(){
 function updateRagdoll(dt){
   if(dt<=0) return;
   const ratio=dt/(rag.lastDt||dt); rag.lastDt=dt;
-  const g=CONFIG.world.gravity*dt*dt;
+  const g=G()*dt*dt;
   for(const p of rag.pts){
     const vx=(p.x-p.px)*ratio*0.998, vy=(p.y-p.py)*ratio*0.998;
     p.px=p.x; p.py=p.y; p.x+=vx; p.y+=vy+g;
@@ -581,10 +830,10 @@ function triggerShake(mag){ shake = Math.max(shake,mag); }
 
 // =================== particles ===================
 function updateParticles(dt){
-  const G=CONFIG.world.gravity;
+  const Gv=G();
   for(const p of parts){
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=p.decay*dt;
-    if(p.g) p.vy+=G*p.g*dt;
+    if(p.g) p.vy+=Gv*p.g*dt;
     if(p.t==='dust'||p.t==='smoke'){ p.r+=p.gr*dt; p.vx*=Math.pow(0.3,dt); p.vy*=Math.pow(0.5,dt); }
     else if(p.t==='chunk'||p.t==='spark'){ const gy=groundY(p.x); if(p.y>gy){ p.y=gy; p.vy*=-0.3; p.vx*=0.6; if(p.t==='chunk') p.decay=3; } }
     else if(p.t==='conf'){ p.rot+=p.vr*dt; p.vx*=Math.pow(0.4,dt); if(p.vy>70) p.vy=70; }
@@ -606,7 +855,7 @@ function checkCheckpoints(){
   if(maxDistance>=next){
     checkpointsPassed++;
     cpBanner={t:0,m:next};
-    const x=spawnX+next*CONFIG.scoring.pxPerMeter, y=baseHillHeight(x)-128;
+    const x=spawnX+next*CONFIG.scoring.pxPerMeter, y=groundY(x)-128;
     const cols=['#ff7a1a','#ffd23d','#4fd8ff','#ff5fa8','#7dff8a','#ffffff'];
     for(let i=0;i<60;i++) parts.push({t:'conf',x:x+rand(-40,40),y:y+rand(-6,6),vx:rand(-170,170),vy:rand(-340,-100),life:1,decay:rand(0.4,0.6),g:0.3,rot:rand(0,TAU),vr:rand(-10,10),col:cols[i%cols.length]});
   }
@@ -697,7 +946,7 @@ function drawBackground(){
 // =================== rendering: world ===================
 function drawTerrain(x0,x1){
   const step=6, xs=Math.floor(x0/step)*step, pts=[]; let minY=1e9;
-  for(let x=xs;x<=x1+step;x+=step){ const y=baseHillHeight(x); pts.push(x,y); if(y<minY) minY=y; }
+  for(let x=xs;x<=x1+step;x+=step){ const y=dirtY(x); pts.push(x,y); if(y<minY) minY=y; }
   const n=pts.length, bottom=cameraPos.y+3000;
   const path=(dy,wig)=>{ ctx.beginPath(); for(let i=0;i<n;i+=2){ const x=pts[i], y=pts[i+1]+dy+(wig?Math.sin(x*0.013+dy)*wig:0); i?ctx.lineTo(x,y):ctx.moveTo(x,y); } };
   path(0,0); ctx.lineTo(pts[n-2],bottom); ctx.lineTo(pts[0],bottom); ctx.closePath();
@@ -709,7 +958,7 @@ function drawTerrain(x0,x1){
   const cs=38;
   for(let c=Math.floor(x0/cs);c<=Math.floor(x1/cs);c++){
     if(hash(c*1.71+terrainSeed)<0.45) continue;
-    const x=c*cs+hash(c*3.3)*cs, d=12+hash(c*5.9)*160, r=2.5+hash(c*8.1)*6, y=baseHillHeight(x)+d;
+    const x=c*cs+hash(c*3.3)*cs, d=12+hash(c*5.9)*160, r=2.5+hash(c*8.1)*6, y=dirtY(x)+d;
     ctx.fillStyle='rgba(20,12,6,.35)'; ctx.beginPath(); ctx.ellipse(x+1,y+1.5,r*1.3,r,0,0,TAU); ctx.fill();
     ctx.fillStyle=d<60?'#9b8a78':'#6a5a4c'; ctx.beginPath(); ctx.ellipse(x,y,r*1.3,r,0,0,TAU); ctx.fill();
     ctx.fillStyle='rgba(255,255,255,.18)'; ctx.beginPath(); ctx.ellipse(x-r*.3,y-r*.35,r*.6,r*.35,0,0,TAU); ctx.fill();
@@ -725,21 +974,22 @@ function drawTerrain(x0,x1){
   ctx.stroke();
 }
 
-function drawRamps(x0,x1){
-  for(const r of ramps){
+// wooden kickers (structures standing on the dirt)
+function drawWood(x0,x1){
+  for(const r of trk.spans){
     if(r.x1<x0||r.x0>x1) continue;
     ctx.lineCap='butt';
     ctx.strokeStyle='#3a2516'; ctx.lineWidth=1.8;
     let prev=null;
-    for(let x=r.x0+14;x<r.x1-8;x+=22){
-      const top=groundY(x)+6, bot=baseHillHeight(x)+3;
+    for(let x=r.x0+10;x<r.x1-3;x+=18){
+      const top=groundY(x)+6, bot=dirtY(x)+3;
       if(bot-top<6){ prev=null; continue; }
       if(prev) line(prev[0],prev[1],x,bot);
       prev=[x,top];
     }
     ctx.strokeStyle='#5a3a22'; ctx.lineWidth=3.2;
-    for(let x=r.x0+14;x<r.x1-8;x+=22){ const top=groundY(x)+5, bot=baseHillHeight(x)+4; if(bot-top>4) line(x,top,x,bot); }
-    const dpath=off=>{ ctx.beginPath(); for(let x=r.x0;x<=r.x1;x+=6){ const y=groundY(x)+off; x===r.x0?ctx.moveTo(x,y):ctx.lineTo(x,y); } ctx.lineTo(r.x1,groundY(r.x1)+off); };
+    for(let x=r.x0+10;x<r.x1-3;x+=18){ const top=groundY(x)+5, bot=dirtY(x)+4; if(bot-top>4) line(x,top,x,bot); }
+    const dpath=off=>{ ctx.beginPath(); for(let x=r.x0;x<=r.x1;x+=4){ const y=groundY(x)+off; x===r.x0?ctx.moveTo(x,y):ctx.lineTo(x,y); } ctx.lineTo(r.x1,groundY(r.x1)+off); };
     dpath(3.6); ctx.strokeStyle='#8e5f33'; ctx.lineWidth=7; ctx.stroke();
     dpath(6.6); ctx.strokeStyle='#4f321b'; ctx.lineWidth=1.6; ctx.stroke();
     dpath(0.6); ctx.strokeStyle='#d8a466'; ctx.lineWidth=1.6; ctx.stroke();
@@ -790,18 +1040,23 @@ function drawProp(k,x,y,c){
   }
   ctx.restore();
 }
+function flatSpot(x){
+  for(const dx of [-60,-30,0,30,60]){ const xx=x+dx; if(dirtY(xx)-groundY(xx)>1) return false; }
+  const a=groundY(x-60), b=groundY(x), c=groundY(x+60);
+  return Math.abs(a-b)<14 && Math.abs(c-b)<14;
+}
 function drawProps(x0,x1){
   const cell=170, seedI=Math.floor(terrainSeed);
   for(let c=Math.floor(x0/cell)-1;c<=Math.floor(x1/cell)+1;c++){
     if(hash(c*1.37+seedI)<0.35) continue;
     const x=c*cell+hash(c+11.3+seedI)*90;
     if(x<spawnX-300) continue;
-    if(rampBump(x-50)>0||rampBump(x+50)>0||rampBump(x)>0) continue;
-    drawProp(Math.floor(hash(c*2.1+seedI*0.3)*7),x,baseHillHeight(x)+2,c);
+    if(!flatSpot(x)) continue;
+    drawProp(Math.floor(hash(c*2.1+seedI*0.3)*7),x,dirtY(x)+2,c);
   }
 }
 function drawCheckpoint(x,m){
-  const y=baseHillHeight(x), passed=!demo && maxDistance>=m;
+  const y=dirtY(x), passed=!demo && maxDistance>=m;
   ctx.lineCap='round'; ctx.lineJoin='round';
   const arch=()=>{ ctx.beginPath(); ctx.moveTo(x-46,y+2); ctx.lineTo(x-46,y-90); ctx.quadraticCurveTo(x-46,y-128,x,y-128); ctx.quadraticCurveTo(x+46,y-128,x+46,y-90); ctx.lineTo(x+46,y+2); };
   arch(); ctx.strokeStyle='#b84d06'; ctx.lineWidth=13; ctx.stroke();
@@ -817,7 +1072,7 @@ function drawCheckpoint(x,m){
   }
 }
 function drawSignPost(x,m){
-  const y=baseHillHeight(x);
+  const y=dirtY(x);
   ctx.fillStyle='#4a4f5c'; ctx.fillRect(x-1.5,y-46,3,48);
   ctx.fillStyle='#16121f'; rr(x-17,y-61,34,16,2); ctx.fill();
   ctx.strokeStyle='#ff7a1a'; ctx.lineWidth=1.5; ctx.stroke();
@@ -1133,7 +1388,7 @@ function render(){
   drawTerrain(x0,x1);
   drawProps(x0,x1);
   drawMarkers(x0,x1);
-  drawRamps(x0,x1);
+  drawWood(x0,x1);
   drawParticles(false);
   drawBike();
   if(rag) drawRagdoll();
@@ -1154,10 +1409,14 @@ function showScreen(name){
 function resetWorld(isDemo){
   demo = isDemo;
   terrainSeed = Math.random()*1000;
-  ramps = []; spawnX = 200; rampCursor = spawnX + 500;
+  spawnX = 200;
+  const behind = CONFIG.terrain.behindPx;
+  trackReset(spawnX-behind, CONFIG.terrain.baseHeight);
+  pushSeg(S(behind+450, 0));
   bike = { x: spawnX, y: 0, vx: 0, vy: 0, angle: 0, angularVel: 0,
-    leanOffset: 0, grounded: true, overLeanTimer: 0, rotationAccum: 0, crashed: false };
-  bike.y = groundY(bike.x) - CONFIG.bike.wheelRadius;
+    leanOffset: 0, grounded: true, overLeanTimer: 0, rotationAccum: 0, crashed: false, airT: 0, lastImpact: 0 };
+  ensureTrackAhead(spawnX);
+  bike.y = contactY(bike.x, 0);
   vis = {rotF:0,rotR:0,sF:2,vF:0,sR:2,vR:0,drop:2,tilt:0,lean:0,stand:0.6,thr:0,dustAcc:0,smokeAcc:0,demoFlip:false};
   rag = null;
   cameraPos = { x: bike.x, y: bike.y-40 };
@@ -1165,7 +1424,6 @@ function resetWorld(isDemo){
   shake = 0; maxDistance = 0; styleScore = 0; crashTimer = 0; slowT = 0;
   parts = []; popups = []; streaks = []; cpBanner = null; checkpointsPassed = 0;
   runStats = {top:0, flips:0, air:0, time:0};
-  ensureRampsAhead(cameraPos.x);
 }
 function startGame(){
   resetWorld(false);
@@ -1207,7 +1465,7 @@ function update(dt){
       updateCrashTumble(dt);
     }
     updateVisual(dt, leanInput, preVy, preG);
-    ensureRampsAhead(cameraPos.x);
+    ensureTrackAhead(Math.max(cameraPos.x, bike.x));
     if(gameState === 'playing'){
       const dist = (bike.x-spawnX)/CONFIG.scoring.pxPerMeter;
       if(dist > maxDistance) maxDistance = dist;
@@ -1274,6 +1532,7 @@ $('menuBtn').addEventListener('click', () => {
 window.__debug = {
   get bike(){ return bike; },
   config: CONFIG,
+  track: trk,
   state: () => gameState,
   render: () => render(),
   step: (dt) => { stopLoop(); update(dt||1/60); render(); },
@@ -1284,7 +1543,7 @@ window.__debug = {
   setThrottle: (v) => { throttleOverride = !!v; },
   setBrake: (v) => { brakeOverride = !!v; },
   forceCrash: () => triggerCrash(),
-  teleport: (x) => { bike.x = x; bike.y = groundY(x)-CONFIG.bike.wheelRadius; },
+  teleport: (x) => { ensureTrackAhead(x); bike.x = x; bike.y = contactY(x, bike.angle); },
   start: () => startGame(),
   restart: () => startGame(),
 };
